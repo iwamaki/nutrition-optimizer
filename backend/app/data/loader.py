@@ -1,7 +1,10 @@
 import pandas as pd
 from pathlib import Path
 from sqlalchemy.orm import Session
-from app.db.database import FoodDB, init_db, SessionLocal
+from app.db.database import (
+    FoodDB, DishDB, DishIngredientDB, CookingFactorDB,
+    init_db, SessionLocal
+)
 
 
 SAMPLE_FOODS = [
@@ -79,34 +82,150 @@ def load_sample_data(db: Session) -> int:
     return count
 
 
-def load_excel_data(file_path: Path, db: Session) -> int:
-    """文科省食品成分表Excelを読み込み"""
+def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) -> int:
+    """文科省食品成分表(八訂)Excelを読み込み
+
+    データ出典: 日本食品標準成分表（八訂）増補2023年
+    https://www.mext.go.jp/a_menu/syokuhinseibun/mext_00001.html
+    """
     df = pd.read_excel(file_path, sheet_name=0, header=None)
 
-    # Excelの構造に応じて調整が必要
-    # 以下は一般的なマッピング例
-    column_mapping = {
-        "食品名": "name",
-        "食品群": "category",
-        "エネルギー": "calories",
-        "たんぱく質": "protein",
-        "脂質": "fat",
-        "炭水化物": "carbohydrate",
-        "食物繊維": "fiber",
-        "ナトリウム": "sodium",
-        "カルシウム": "calcium",
-        "鉄": "iron",
-        "ビタミンA": "vitamin_a",
-        "ビタミンC": "vitamin_c",
-        "ビタミンD": "vitamin_d",
+    # カテゴリマッピング
+    CATEGORY_MAP = {
+        "01": "穀類",
+        "02": "いも及びでん粉類",
+        "03": "砂糖及び甘味類",
+        "04": "豆類",
+        "05": "種実類",
+        "06": "野菜類",
+        "07": "果実類",
+        "08": "きのこ類",
+        "09": "藻類",
+        "10": "魚介類",
+        "11": "肉類",
+        "12": "卵類",
+        "13": "乳類",
+        "14": "油脂類",
+        "15": "菓子類",
+        "16": "し好飲料類",
+        "17": "調味料及び香辛料類",
+        "18": "調理済み流通食品類",
     }
 
-    count = 0
-    # 実際のExcel構造に合わせて実装
-    # ここではプレースホルダー
-    print(f"Excel読み込み: {file_path}")
-    print("注意: Excelの列構造に合わせてマッピングを調整してください")
+    # 列インデックス（八訂 増補2023年版）
+    COL = {
+        "category_code": 0,  # 食品群コード
+        "food_id": 1,        # 食品番号
+        "name": 3,           # 食品名
+        "kcal": 6,           # エネルギー(kcal)
+        "protein": 9,        # たんぱく質(g)
+        "fat": 12,           # 脂質(g)
+        "carb": 20,          # 炭水化物(g) - CHOCDF-
+        "fiber": 18,         # 食物繊維(g)
+        "calcium": 25,       # カルシウム(mg)
+        "iron": 28,          # 鉄(mg)
+        "vita": 42,          # ビタミンA(μg) - VITA_RAE
+        "vitc": 58,          # ビタミンC(mg)
+        "vitd": 43,          # ビタミンD(μg)
+        "nacl": 60,          # 食塩相当量(g)
+    }
 
+    def parse_value(val, default=0.0) -> float:
+        """値をfloatに変換。括弧付き推定値も対応"""
+        if pd.isna(val):
+            return default
+        s = str(val).strip()
+        if s in ["-", "Tr", "tr", "(Tr)", "(tr)", "*", ""]:
+            return default
+        # 括弧を除去
+        s = s.replace("(", "").replace(")", "")
+        try:
+            return float(s)
+        except ValueError:
+            return default
+
+    def nacl_to_sodium(nacl_g: float) -> float:
+        """食塩相当量(g)をナトリウム(mg)に換算"""
+        # Na(mg) = NaCl(g) × 1000 / 2.54 ≈ NaCl × 393.7
+        return nacl_g * 393.7
+
+    def get_max_portion(category: str, name: str) -> float:
+        """カテゴリと食品名から適切な最大ポーション量を推定"""
+        # カテゴリ別のデフォルト最大量
+        defaults = {
+            "穀類": 200,
+            "いも及びでん粉類": 150,
+            "砂糖及び甘味類": 30,
+            "豆類": 100,
+            "種実類": 30,
+            "野菜類": 150,
+            "果実類": 150,
+            "きのこ類": 50,
+            "藻類": 10,
+            "魚介類": 100,
+            "肉類": 150,
+            "卵類": 120,
+            "乳類": 200,
+            "油脂類": 20,
+            "菓子類": 50,
+            "し好飲料類": 300,
+            "調味料及び香辛料類": 20,
+            "調理済み流通食品類": 200,
+        }
+        return defaults.get(category, 100)
+
+    if clear_existing:
+        db.query(FoodDB).delete()
+        db.commit()
+
+    count = 0
+    # データは12行目から開始
+    for idx in range(12, df.shape[0]):
+        row = df.iloc[idx]
+
+        # 食品群コードがない行はスキップ
+        cat_code = str(row[COL["category_code"]]).strip()
+        if cat_code not in CATEGORY_MAP:
+            continue
+
+        category = CATEGORY_MAP[cat_code]
+        name = str(row[COL["name"]]).strip()
+
+        # 空の食品名はスキップ
+        if not name or name == "nan":
+            continue
+
+        # 既存チェック
+        existing = db.query(FoodDB).filter(FoodDB.name == name).first()
+        if existing:
+            continue
+
+        food = FoodDB(
+            name=name,
+            category=category,
+            calories=parse_value(row[COL["kcal"]]),
+            protein=parse_value(row[COL["protein"]]),
+            fat=parse_value(row[COL["fat"]]),
+            carbohydrate=parse_value(row[COL["carb"]]),
+            fiber=parse_value(row[COL["fiber"]]),
+            sodium=nacl_to_sodium(parse_value(row[COL["nacl"]])),
+            calcium=parse_value(row[COL["calcium"]]),
+            iron=parse_value(row[COL["iron"]]),
+            vitamin_a=parse_value(row[COL["vita"]]),
+            vitamin_c=parse_value(row[COL["vitc"]]),
+            vitamin_d=parse_value(row[COL["vitd"]]),
+            max_portion=get_max_portion(category, name),
+        )
+        db.add(food)
+        count += 1
+
+        # 500件ごとにコミット
+        if count % 500 == 0:
+            db.commit()
+            print(f"  {count}件処理...")
+
+    db.commit()
+    print(f"文科省食品成分表: {count}件を投入しました")
     return count
 
 
@@ -119,6 +238,438 @@ def init_database_with_sample():
         print(f"サンプルデータ {count} 件を投入しました")
     finally:
         db.close()
+
+
+# ========== 料理マスタ ==========
+
+SAMPLE_DISHES = [
+    # === 主食 ===
+    {
+        "name": "白ごはん",
+        "category": "主食",
+        "meal_types": "breakfast,lunch,dinner",
+        "ingredients": [
+            {"food_name": "こめ　［水稲めし］　精白米　うるち米", "amount": 150, "cooking_method": "蒸す"},
+        ],
+    },
+    {
+        "name": "トースト",
+        "category": "主食",
+        "meal_types": "breakfast",
+        "ingredients": [
+            {"food_name": "こむぎ　［パン類］　食パン　角形食パン　食パン", "amount": 60, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "おにぎり（鮭）",
+        "category": "主食",
+        "meal_types": "breakfast,lunch",
+        "ingredients": [
+            {"food_name": "こめ　［水稲めし］　精白米　うるち米", "amount": 100, "cooking_method": "蒸す"},
+            {"food_name": "＜魚類＞　（さけ・ます類）　しろさけ　焼き", "amount": 15, "cooking_method": "焼く"},
+            {"food_name": "（のり類）　あまのり　焼きのり", "amount": 1, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "ざるそば",
+        "category": "主食",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "そば　そば　ゆで", "amount": 200, "cooking_method": "茹でる"},
+        ],
+    },
+    {
+        "name": "かけうどん",
+        "category": "主食",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "こむぎ　［うどん・そうめん類］　うどん　ゆで", "amount": 230, "cooking_method": "茹でる"},
+        ],
+    },
+
+    # === 主菜 ===
+    {
+        "name": "焼き鮭",
+        "category": "主菜",
+        "meal_types": "breakfast,dinner",
+        "ingredients": [
+            {"food_name": "＜魚類＞　（さけ・ます類）　しろさけ　焼き", "amount": 80, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "鶏の照り焼き",
+        "category": "主菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "にわとり　［若鶏肉］　もも　皮つき　焼き", "amount": 100, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "豚の生姜焼き",
+        "category": "主菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "ぶた　［大型種肉］　ロース　脂身つき　焼き", "amount": 100, "cooking_method": "焼く"},
+            {"food_name": "しょうが　根茎　生", "amount": 5, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "サバの塩焼き",
+        "category": "主菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "＜魚類＞　（さば類）　まさば　焼き", "amount": 80, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "目玉焼き",
+        "category": "主菜",
+        "meal_types": "breakfast",
+        "ingredients": [
+            {"food_name": "鶏卵　全卵　目玉焼き", "amount": 60, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "卵焼き",
+        "category": "主菜",
+        "meal_types": "breakfast,lunch",
+        "ingredients": [
+            {"food_name": "鶏卵　全卵　いり", "amount": 60, "cooking_method": "焼く"},
+        ],
+    },
+    {
+        "name": "冷奴",
+        "category": "主菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 150, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "納豆",
+        "category": "主菜",
+        "meal_types": "breakfast",
+        "ingredients": [
+            {"food_name": "だいず　［納豆類］　糸引き納豆", "amount": 45, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "ハンバーグ",
+        "category": "主菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "うし　［ひき肉］　焼き", "amount": 100, "cooking_method": "焼く"},
+            {"food_name": "たまねぎ　りん茎　生", "amount": 30, "cooking_method": "炒める"},
+            {"food_name": "鶏卵　全卵　生", "amount": 15, "cooking_method": "生"},
+        ],
+    },
+
+    # === 副菜 ===
+    {
+        "name": "ほうれん草のおひたし",
+        "category": "副菜",
+        "meal_types": "breakfast,lunch,dinner",
+        "ingredients": [
+            {"food_name": "ほうれんそう　葉　通年平均　ゆで", "amount": 80, "cooking_method": "茹でる"},
+        ],
+    },
+    {
+        "name": "きんぴらごぼう",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "ごぼう　根　ゆで", "amount": 50, "cooking_method": "炒める"},
+            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 20, "cooking_method": "炒める"},
+        ],
+    },
+    {
+        "name": "キャベツの千切り",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "キャベツ　結球葉　生", "amount": 60, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "トマトサラダ",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "トマト　果実　生", "amount": 80, "cooking_method": "生"},
+            {"food_name": "レタス　土耕栽培　結球葉　生", "amount": 20, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "ブロッコリーの塩ゆで",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "ブロッコリー　花序　ゆで", "amount": 60, "cooking_method": "茹でる"},
+        ],
+    },
+    {
+        "name": "もやし炒め",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "りょくとうもやし　油いため", "amount": 80, "cooking_method": "炒める"},
+        ],
+    },
+    {
+        "name": "ひじきの煮物",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "ひじき　ほしひじき　油いため", "amount": 10, "cooking_method": "煮る"},
+            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 15, "cooking_method": "煮る"},
+        ],
+    },
+    {
+        "name": "かぼちゃの煮物",
+        "category": "副菜",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "かぼちゃ　日本かぼちゃ　果実　ゆで", "amount": 80, "cooking_method": "煮る"},
+        ],
+    },
+
+    # === 汁物 ===
+    {
+        "name": "味噌汁（豆腐・わかめ）",
+        "category": "汁物",
+        "meal_types": "breakfast,lunch,dinner",
+        "ingredients": [
+            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "わかめ　乾燥わかめ　素干し　水戻し", "amount": 5, "cooking_method": "煮る"},
+            {"food_name": "（みそ類）　米みそ　淡色辛みそ", "amount": 12, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "味噌汁（なめこ）",
+        "category": "汁物",
+        "meal_types": "breakfast,dinner",
+        "ingredients": [
+            {"food_name": "なめこ　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "（みそ類）　米みそ　淡色辛みそ", "amount": 12, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "けんちん汁",
+        "category": "汁物",
+        "meal_types": "lunch,dinner",
+        "ingredients": [
+            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "だいこん　根　皮むき　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 15, "cooking_method": "煮る"},
+            {"food_name": "ごぼう　根　ゆで", "amount": 15, "cooking_method": "煮る"},
+        ],
+    },
+    {
+        "name": "コーンスープ",
+        "category": "汁物",
+        "meal_types": "breakfast,lunch",
+        "ingredients": [
+            {"food_name": "スイートコーン　冷凍　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "普通牛乳", "amount": 100, "cooking_method": "煮る"},
+        ],
+    },
+
+    # === デザート ===
+    {
+        "name": "バナナ",
+        "category": "デザート",
+        "meal_types": "breakfast,snack",
+        "ingredients": [
+            {"food_name": "バナナ　生", "amount": 100, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "りんご",
+        "category": "デザート",
+        "meal_types": "breakfast,snack",
+        "ingredients": [
+            {"food_name": "りんご　皮むき　生", "amount": 100, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "みかん",
+        "category": "デザート",
+        "meal_types": "breakfast,snack",
+        "ingredients": [
+            {"food_name": "（かんきつ類）　うんしゅうみかん　じょうのう　早生　生", "amount": 80, "cooking_method": "生"},
+        ],
+    },
+    {
+        "name": "ヨーグルト",
+        "category": "デザート",
+        "meal_types": "breakfast,snack",
+        "ingredients": [
+            {"food_name": "（ヨーグルト類）　全脂無糖", "amount": 100, "cooking_method": "生"},
+        ],
+    },
+]
+
+
+# デフォルトの調理係数
+DEFAULT_COOKING_FACTORS = [
+    # 茹でる - 水溶性ビタミンの損失
+    {"food_category": "default", "cooking_method": "茹でる", "nutrient": "vitamin_c", "factor": 0.5},
+    {"food_category": "default", "cooking_method": "茹でる", "nutrient": "vitamin_b1", "factor": 0.7},
+    {"food_category": "野菜類", "cooking_method": "茹でる", "nutrient": "vitamin_c", "factor": 0.4},
+
+    # 炒める - 脂溶性ビタミンは油で吸収向上
+    {"food_category": "default", "cooking_method": "炒める", "nutrient": "vitamin_a", "factor": 1.2},
+    {"food_category": "default", "cooking_method": "炒める", "nutrient": "vitamin_c", "factor": 0.8},
+
+    # 焼く
+    {"food_category": "default", "cooking_method": "焼く", "nutrient": "vitamin_c", "factor": 0.7},
+    {"food_category": "default", "cooking_method": "焼く", "nutrient": "vitamin_b1", "factor": 0.85},
+
+    # 揚げる - 脂質増加
+    {"food_category": "default", "cooking_method": "揚げる", "nutrient": "fat", "factor": 1.3},
+    {"food_category": "default", "cooking_method": "揚げる", "nutrient": "vitamin_c", "factor": 0.6},
+
+    # 煮る
+    {"food_category": "default", "cooking_method": "煮る", "nutrient": "vitamin_c", "factor": 0.6},
+    {"food_category": "default", "cooking_method": "煮る", "nutrient": "sodium", "factor": 1.2},
+
+    # 蒸す - 損失少ない
+    {"food_category": "default", "cooking_method": "蒸す", "nutrient": "vitamin_c", "factor": 0.85},
+
+    # 電子レンジ - 損失少ない
+    {"food_category": "default", "cooking_method": "電子レンジ", "nutrient": "vitamin_c", "factor": 0.9},
+]
+
+
+def find_food_by_name(db: Session, name: str) -> FoodDB | None:
+    """食品名で検索（部分一致）"""
+    # 完全一致
+    food = db.query(FoodDB).filter(FoodDB.name == name).first()
+    if food:
+        return food
+
+    # 部分一致（前方）
+    food = db.query(FoodDB).filter(FoodDB.name.like(f"{name}%")).first()
+    if food:
+        return food
+
+    # 部分一致（含む）
+    food = db.query(FoodDB).filter(FoodDB.name.like(f"%{name}%")).first()
+    return food
+
+
+def calculate_dish_nutrients(db: Session, dish: DishDB) -> dict:
+    """料理の栄養素を材料から計算"""
+    nutrients = {
+        "calories": 0, "protein": 0, "fat": 0, "carbohydrate": 0,
+        "fiber": 0, "sodium": 0, "calcium": 0, "iron": 0,
+        "vitamin_a": 0, "vitamin_c": 0, "vitamin_d": 0,
+    }
+
+    for ing in dish.ingredients:
+        food = ing.food
+        if not food:
+            continue
+
+        ratio = ing.amount / 100  # 100gあたりの値から換算
+
+        # 調理係数を取得
+        for nutrient in nutrients.keys():
+            base_value = getattr(food, nutrient, 0) * ratio
+
+            # 調理係数を適用
+            factor = get_cooking_factor(db, food.category, ing.cooking_method, nutrient)
+            nutrients[nutrient] += base_value * factor
+
+    return nutrients
+
+
+def get_cooking_factor(db: Session, food_category: str, cooking_method: str, nutrient: str) -> float:
+    """調理係数を取得（デフォルト1.0）"""
+    # カテゴリ固有の係数を探す
+    factor = db.query(CookingFactorDB).filter(
+        CookingFactorDB.food_category == food_category,
+        CookingFactorDB.cooking_method == cooking_method,
+        CookingFactorDB.nutrient == nutrient,
+    ).first()
+
+    if factor:
+        return factor.factor
+
+    # デフォルト係数を探す
+    factor = db.query(CookingFactorDB).filter(
+        CookingFactorDB.food_category == "default",
+        CookingFactorDB.cooking_method == cooking_method,
+        CookingFactorDB.nutrient == nutrient,
+    ).first()
+
+    return factor.factor if factor else 1.0
+
+
+def load_cooking_factors(db: Session) -> int:
+    """調理係数をDBに投入"""
+    count = 0
+    for cf_data in DEFAULT_COOKING_FACTORS:
+        existing = db.query(CookingFactorDB).filter(
+            CookingFactorDB.food_category == cf_data["food_category"],
+            CookingFactorDB.cooking_method == cf_data["cooking_method"],
+            CookingFactorDB.nutrient == cf_data["nutrient"],
+        ).first()
+
+        if not existing:
+            cf = CookingFactorDB(**cf_data)
+            db.add(cf)
+            count += 1
+
+    db.commit()
+    return count
+
+
+def load_sample_dishes(db: Session) -> int:
+    """サンプル料理データをDBに投入"""
+    count = 0
+
+    for dish_data in SAMPLE_DISHES:
+        # 既存チェック
+        existing = db.query(DishDB).filter(DishDB.name == dish_data["name"]).first()
+        if existing:
+            continue
+
+        # 料理を作成
+        dish = DishDB(
+            name=dish_data["name"],
+            category=dish_data["category"],
+            meal_types=dish_data["meal_types"],
+            serving_size=1.0,
+        )
+        db.add(dish)
+        db.flush()  # IDを取得
+
+        # 材料を追加
+        for ing_data in dish_data["ingredients"]:
+            food = find_food_by_name(db, ing_data["food_name"])
+            if not food:
+                print(f"  警告: 食品が見つかりません: {ing_data['food_name']}")
+                continue
+
+            ingredient = DishIngredientDB(
+                dish_id=dish.id,
+                food_id=food.id,
+                amount=ing_data["amount"],
+                cooking_method=ing_data["cooking_method"],
+            )
+            db.add(ingredient)
+
+        # 栄養素を計算して保存
+        db.flush()
+        nutrients = calculate_dish_nutrients(db, dish)
+        for key, value in nutrients.items():
+            setattr(dish, key, round(value, 2))
+
+        count += 1
+
+    db.commit()
+    return count
 
 
 if __name__ == "__main__":

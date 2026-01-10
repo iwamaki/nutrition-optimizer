@@ -1,5 +1,35 @@
 from pydantic import BaseModel, Field
 from typing import Optional
+from enum import Enum
+
+
+class MealTypeEnum(str, Enum):
+    """食事タイプ"""
+    BREAKFAST = "breakfast"
+    LUNCH = "lunch"
+    DINNER = "dinner"
+    SNACK = "snack"
+
+
+class DishCategoryEnum(str, Enum):
+    """料理カテゴリ"""
+    STAPLE = "主食"
+    MAIN = "主菜"
+    SIDE = "副菜"
+    SOUP = "汁物"
+    DESSERT = "デザート"
+
+
+class CookingMethodEnum(str, Enum):
+    """調理法"""
+    RAW = "生"
+    BOIL = "茹でる"
+    STEAM = "蒸す"
+    GRILL = "焼く"
+    FRY = "炒める"
+    DEEP_FRY = "揚げる"
+    SIMMER = "煮る"
+    MICROWAVE = "電子レンジ"
 
 
 class Food(BaseModel):
@@ -77,3 +107,90 @@ class UserPreferences(BaseModel):
     calories_target: float = Field(default=2000, ge=1000, le=4000)
     excluded_categories: list[str] = Field(default_factory=list)
     excluded_food_ids: list[int] = Field(default_factory=list)
+
+
+# ========== 料理関連スキーマ ==========
+
+class DishIngredient(BaseModel):
+    """料理の材料"""
+    food_id: int
+    food_name: Optional[str] = None
+    amount: float = Field(ge=0, description="g")
+    cooking_method: CookingMethodEnum = CookingMethodEnum.RAW
+
+
+class DishBase(BaseModel):
+    """料理ベース"""
+    name: str
+    category: DishCategoryEnum
+    meal_types: list[MealTypeEnum]
+    serving_size: float = Field(default=1.0, ge=0.1)
+    description: Optional[str] = None
+
+
+class DishCreate(DishBase):
+    """料理作成リクエスト"""
+    ingredients: list[DishIngredient]
+
+
+class Dish(DishBase):
+    """料理データモデル（栄養素計算済み）"""
+    id: int
+    ingredients: list[DishIngredient]
+    # 計算済み栄養素（1人前あたり）
+    calories: float = 0
+    protein: float = 0
+    fat: float = 0
+    carbohydrate: float = 0
+    fiber: float = 0
+    sodium: float = 0
+    calcium: float = 0
+    iron: float = 0
+    vitamin_a: float = 0
+    vitamin_c: float = 0
+    vitamin_d: float = 0
+
+    class Config:
+        from_attributes = True
+
+
+class DishPortion(BaseModel):
+    """料理と分量"""
+    dish: Dish
+    servings: float = Field(default=1.0, ge=0.1, description="人前")
+
+
+class CookingFactor(BaseModel):
+    """調理係数"""
+    food_category: str
+    cooking_method: CookingMethodEnum
+    nutrient: str
+    factor: float = Field(default=1.0, ge=0, le=2.0)
+
+
+# ========== 最適化結果（料理ベース） ==========
+
+class MealPlan(BaseModel):
+    """1食分のメニュー（料理ベース）"""
+    name: str  # breakfast, lunch, dinner
+    dishes: list[DishPortion]
+    total_calories: float
+    total_protein: float
+    total_fat: float
+    total_carbohydrate: float
+    total_fiber: float
+    total_sodium: float
+    total_calcium: float
+    total_iron: float
+    total_vitamin_a: float
+    total_vitamin_c: float
+    total_vitamin_d: float
+
+
+class DailyMenuPlan(BaseModel):
+    """1日分のメニュープラン（料理ベース）"""
+    breakfast: MealPlan
+    lunch: MealPlan
+    dinner: MealPlan
+    total_nutrients: dict[str, float]
+    achievement_rate: dict[str, float]  # 全栄養素の達成率(%)

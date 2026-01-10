@@ -1,9 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../models/food.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  // Web: 同一オリジン（相対パス）, モバイル: localhost
+  static String get baseUrl {
+    if (kIsWeb) {
+      return Uri.base.resolve('/api/v1').toString();
+    }
+    return 'http://localhost:8000/api/v1';
+  }
 
   Future<List<Food>> getFoods({String? category}) async {
     String url = '$baseUrl/foods';
