@@ -78,6 +78,7 @@ class DishDB(Base):
     meal_types = Column(String)  # カンマ区切り: "breakfast,lunch,dinner"
     serving_size = Column(Float, default=1.0)  # 1人前の係数
     description = Column(String, nullable=True)
+    instructions = Column(String, nullable=True)  # 作り方
 
     # キャッシュ用: 計算済み栄養素（材料から計算して保存）
     calories = Column(Float, default=0)

@@ -126,6 +126,7 @@ class DishBase(BaseModel):
     meal_types: list[MealTypeEnum]
     serving_size: float = Field(default=1.0, ge=0.1)
     description: Optional[str] = None
+    instructions: Optional[str] = None  # 作り方
 
 
 class DishCreate(DishBase):
