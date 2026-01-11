@@ -190,17 +190,19 @@ def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) 
 
         category = CATEGORY_MAP[cat_code]
         name = str(row[COL["name"]]).strip()
+        mext_code = str(row[COL["food_id"]]).strip()
 
         # 空の食品名はスキップ
         if not name or name == "nan":
             continue
 
-        # 既存チェック
-        existing = db.query(FoodDB).filter(FoodDB.name == name).first()
+        # 既存チェック（mext_codeで重複確認）
+        existing = db.query(FoodDB).filter(FoodDB.mext_code == mext_code).first()
         if existing:
             continue
 
         food = FoodDB(
+            mext_code=mext_code,
             name=name,
             category=category,
             calories=parse_value(row[COL["kcal"]]),
@@ -241,6 +243,7 @@ def init_database_with_sample():
 
 
 # ========== 料理マスタ ==========
+# mext_code: 文科省食品番号で食品を参照
 
 SAMPLE_DISHES = [
     # === 主食 ===
@@ -249,7 +252,7 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "breakfast,lunch,dinner",
         "ingredients": [
-            {"food_name": "こめ　［水稲めし］　精白米　うるち米", "amount": 150, "cooking_method": "蒸す"},
+            {"mext_code": "01088", "amount": 150, "cooking_method": "蒸す"},  # 精白米めし
         ],
     },
     {
@@ -257,7 +260,7 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "breakfast",
         "ingredients": [
-            {"food_name": "こむぎ　［パン類］　角形食パン　焼き", "amount": 60, "cooking_method": "焼く"},
+            {"mext_code": "01174", "amount": 60, "cooking_method": "焼く"},  # 角形食パン焼き
         ],
     },
     {
@@ -265,9 +268,9 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "breakfast,lunch",
         "ingredients": [
-            {"food_name": "こめ　［水稲めし］　精白米　うるち米", "amount": 100, "cooking_method": "蒸す"},
-            {"food_name": "＜魚類＞　（さけ・ます類）　しろさけ　焼き", "amount": 15, "cooking_method": "焼く"},
-            {"food_name": "あまのり　焼きのり", "amount": 1, "cooking_method": "生"},
+            {"mext_code": "01088", "amount": 100, "cooking_method": "蒸す"},  # 精白米めし
+            {"mext_code": "10136", "amount": 15, "cooking_method": "焼く"},  # しろさけ焼き
+            {"mext_code": "09004", "amount": 1, "cooking_method": "生"},  # 焼きのり
         ],
     },
     {
@@ -275,7 +278,7 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "そば　そば　ゆで", "amount": 200, "cooking_method": "茹でる"},
+            {"mext_code": "01128", "amount": 200, "cooking_method": "茹でる"},  # そば ゆで
         ],
     },
     {
@@ -283,7 +286,7 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "こむぎ　［うどん・そうめん類］　うどん　ゆで", "amount": 230, "cooking_method": "茹でる"},
+            {"mext_code": "01039", "amount": 230, "cooking_method": "茹でる"},  # うどん ゆで
         ],
     },
 
@@ -293,7 +296,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "breakfast,dinner",
         "ingredients": [
-            {"food_name": "＜魚類＞　（さけ・ます類）　しろさけ　焼き", "amount": 80, "cooking_method": "焼く"},
+            {"mext_code": "10136", "amount": 80, "cooking_method": "焼く"},  # しろさけ焼き
         ],
     },
     {
@@ -301,7 +304,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "＜鳥肉類＞　にわとり　［若どり・主品目］　もも　皮つき　焼き", "amount": 100, "cooking_method": "焼く"},
+            {"mext_code": "11222", "amount": 100, "cooking_method": "焼く"},  # 若どり もも 焼き
         ],
     },
     {
@@ -309,8 +312,8 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "ぶた　［大型種肉］　ロース　脂身つき　焼き", "amount": 100, "cooking_method": "焼く"},
-            {"food_name": "しょうが　根茎　生", "amount": 5, "cooking_method": "生"},
+            {"mext_code": "11124", "amount": 100, "cooking_method": "焼く"},  # 豚ロース焼き
+            {"mext_code": "06103", "amount": 5, "cooking_method": "生"},  # しょうが
         ],
     },
     {
@@ -318,7 +321,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "＜魚類＞　（さば類）　まさば　焼き", "amount": 80, "cooking_method": "焼く"},
+            {"mext_code": "10156", "amount": 80, "cooking_method": "焼く"},  # まさば焼き
         ],
     },
     {
@@ -326,7 +329,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "breakfast",
         "ingredients": [
-            {"food_name": "鶏卵　全卵　目玉焼き", "amount": 60, "cooking_method": "焼く"},
+            {"mext_code": "12021", "amount": 60, "cooking_method": "焼く"},  # 目玉焼き
         ],
     },
     {
@@ -334,7 +337,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "breakfast,lunch",
         "ingredients": [
-            {"food_name": "鶏卵　全卵　いり", "amount": 60, "cooking_method": "焼く"},
+            {"mext_code": "12022", "amount": 60, "cooking_method": "焼く"},  # 全卵いり
         ],
     },
     {
@@ -342,7 +345,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 150, "cooking_method": "生"},
+            {"mext_code": "04032", "amount": 150, "cooking_method": "生"},  # 木綿豆腐
         ],
     },
     {
@@ -350,7 +353,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "breakfast",
         "ingredients": [
-            {"food_name": "だいず　［納豆類］　糸引き納豆", "amount": 45, "cooking_method": "生"},
+            {"mext_code": "04046", "amount": 45, "cooking_method": "生"},  # 糸引き納豆
         ],
     },
     {
@@ -358,9 +361,9 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "うし　［ひき肉］　焼き", "amount": 100, "cooking_method": "焼く"},
-            {"food_name": "たまねぎ　りん茎　生", "amount": 30, "cooking_method": "炒める"},
-            {"food_name": "鶏卵　全卵　生", "amount": 15, "cooking_method": "生"},
+            {"mext_code": "11272", "amount": 100, "cooking_method": "焼く"},  # 牛ひき肉焼き
+            {"mext_code": "06153", "amount": 30, "cooking_method": "炒める"},  # たまねぎ
+            {"mext_code": "12004", "amount": 15, "cooking_method": "生"},  # 全卵生
         ],
     },
 
@@ -370,7 +373,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "breakfast,lunch,dinner",
         "ingredients": [
-            {"food_name": "ほうれんそう　葉　通年平均　ゆで", "amount": 80, "cooking_method": "茹でる"},
+            {"mext_code": "06268", "amount": 80, "cooking_method": "茹でる"},  # ほうれんそう ゆで
         ],
     },
     {
@@ -378,8 +381,8 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "ごぼう　根　ゆで", "amount": 50, "cooking_method": "炒める"},
-            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 20, "cooking_method": "炒める"},
+            {"mext_code": "06085", "amount": 50, "cooking_method": "炒める"},  # ごぼう ゆで
+            {"mext_code": "06215", "amount": 20, "cooking_method": "炒める"},  # にんじん ゆで
         ],
     },
     {
@@ -387,7 +390,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "キャベツ　結球葉　生", "amount": 60, "cooking_method": "生"},
+            {"mext_code": "06061", "amount": 60, "cooking_method": "生"},  # キャベツ 生
         ],
     },
     {
@@ -395,8 +398,8 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "トマト　果実　生", "amount": 80, "cooking_method": "生"},
-            {"food_name": "レタス　土耕栽培　結球葉　生", "amount": 20, "cooking_method": "生"},
+            {"mext_code": "06182", "amount": 80, "cooking_method": "生"},  # トマト 生
+            {"mext_code": "06312", "amount": 20, "cooking_method": "生"},  # レタス 生
         ],
     },
     {
@@ -404,7 +407,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "ブロッコリー　花序　ゆで", "amount": 60, "cooking_method": "茹でる"},
+            {"mext_code": "06264", "amount": 60, "cooking_method": "茹でる"},  # ブロッコリー ゆで
         ],
     },
     {
@@ -412,7 +415,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "りょくとうもやし　油いため", "amount": 80, "cooking_method": "炒める"},
+            {"mext_code": "06413", "amount": 80, "cooking_method": "炒める"},  # もやし油いため
         ],
     },
     {
@@ -420,8 +423,8 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "ひじき　ほしひじき　ステンレス釜　油いため", "amount": 10, "cooking_method": "煮る"},
-            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 15, "cooking_method": "煮る"},
+            {"mext_code": "09052", "amount": 10, "cooking_method": "煮る"},  # ひじき油いため
+            {"mext_code": "06215", "amount": 15, "cooking_method": "煮る"},  # にんじん ゆで
         ],
     },
     {
@@ -429,7 +432,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "（かぼちゃ類）　日本かぼちゃ　果実　ゆで", "amount": 80, "cooking_method": "煮る"},
+            {"mext_code": "06047", "amount": 80, "cooking_method": "煮る"},  # 日本かぼちゃ ゆで
         ],
     },
 
@@ -439,9 +442,9 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "breakfast,lunch,dinner",
         "ingredients": [
-            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "わかめ　乾燥わかめ　素干し　水戻し", "amount": 5, "cooking_method": "煮る"},
-            {"food_name": "（みそ類）　米みそ　淡色辛みそ", "amount": 12, "cooking_method": "生"},
+            {"mext_code": "04032", "amount": 30, "cooking_method": "煮る"},  # 木綿豆腐
+            {"mext_code": "09041", "amount": 5, "cooking_method": "煮る"},  # わかめ
+            {"mext_code": "17045", "amount": 12, "cooking_method": "生"},  # 淡色辛みそ
         ],
     },
     {
@@ -449,8 +452,8 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "breakfast,dinner",
         "ingredients": [
-            {"food_name": "なめこ　株採り　ゆで", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "（みそ類）　米みそ　淡色辛みそ", "amount": 12, "cooking_method": "生"},
+            {"mext_code": "08021", "amount": 30, "cooking_method": "煮る"},  # なめこ ゆで
+            {"mext_code": "17045", "amount": 12, "cooking_method": "生"},  # 淡色辛みそ
         ],
     },
     {
@@ -458,10 +461,10 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "（だいこん類）　だいこん　根　皮なし　ゆで", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 15, "cooking_method": "煮る"},
-            {"food_name": "ごぼう　根　ゆで", "amount": 15, "cooking_method": "煮る"},
+            {"mext_code": "04032", "amount": 30, "cooking_method": "煮る"},  # 木綿豆腐
+            {"mext_code": "06135", "amount": 30, "cooking_method": "煮る"},  # だいこん ゆで
+            {"mext_code": "06215", "amount": 15, "cooking_method": "煮る"},  # にんじん ゆで
+            {"mext_code": "06085", "amount": 15, "cooking_method": "煮る"},  # ごぼう ゆで
         ],
     },
     {
@@ -469,8 +472,8 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "breakfast,lunch",
         "ingredients": [
-            {"food_name": "（とうもろこし類）　スイートコーン　未熟種子　カーネル　冷凍　ゆで", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "＜牛乳及び乳製品＞　（液状乳類）　普通牛乳", "amount": 100, "cooking_method": "煮る"},
+            {"mext_code": "06378", "amount": 30, "cooking_method": "煮る"},  # スイートコーン
+            {"mext_code": "13003", "amount": 100, "cooking_method": "煮る"},  # 普通牛乳
         ],
     },
 
@@ -480,7 +483,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "バナナ　生", "amount": 100, "cooking_method": "生"},
+            {"mext_code": "07107", "amount": 100, "cooking_method": "生"},  # バナナ 生
         ],
     },
     {
@@ -488,7 +491,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "りんご　皮なし　生", "amount": 100, "cooking_method": "生"},
+            {"mext_code": "07148", "amount": 100, "cooking_method": "生"},  # りんご 皮なし 生
         ],
     },
     {
@@ -496,7 +499,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "（かんきつ類）　うんしゅうみかん　じょうのう　早生　生", "amount": 80, "cooking_method": "生"},
+            {"mext_code": "07026", "amount": 80, "cooking_method": "生"},  # うんしゅうみかん
         ],
     },
     {
@@ -504,7 +507,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "＜牛乳及び乳製品＞　（発酵乳・乳酸菌飲料）　ヨーグルト　全脂無糖", "amount": 100, "cooking_method": "生"},
+            {"mext_code": "13025", "amount": 100, "cooking_method": "生"},  # ヨーグルト全脂無糖
         ],
     },
 ]
@@ -539,23 +542,6 @@ DEFAULT_COOKING_FACTORS = [
     # 電子レンジ - 損失少ない
     {"food_category": "default", "cooking_method": "電子レンジ", "nutrient": "vitamin_c", "factor": 0.9},
 ]
-
-
-def find_food_by_name(db: Session, name: str) -> FoodDB | None:
-    """食品名で検索（部分一致）"""
-    # 完全一致
-    food = db.query(FoodDB).filter(FoodDB.name == name).first()
-    if food:
-        return food
-
-    # 部分一致（前方）
-    food = db.query(FoodDB).filter(FoodDB.name.like(f"{name}%")).first()
-    if food:
-        return food
-
-    # 部分一致（含む）
-    food = db.query(FoodDB).filter(FoodDB.name.like(f"%{name}%")).first()
-    return food
 
 
 def calculate_dish_nutrients(db: Session, dish: DishDB) -> dict:
@@ -645,11 +631,12 @@ def load_sample_dishes(db: Session) -> int:
         db.add(dish)
         db.flush()  # IDを取得
 
-        # 材料を追加
+        # 材料を追加（mext_codeで食品を参照）
         for ing_data in dish_data["ingredients"]:
-            food = find_food_by_name(db, ing_data["food_name"])
+            mext_code = ing_data["mext_code"]
+            food = db.query(FoodDB).filter(FoodDB.mext_code == mext_code).first()
             if not food:
-                print(f"  警告: 食品が見つかりません: {ing_data['food_name']}")
+                print(f"  警告: 食品コードが見つかりません: {mext_code}")
                 continue
 
             ingredient = DishIngredientDB(

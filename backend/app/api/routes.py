@@ -32,6 +32,48 @@ def get_foods(
     return [db_food_to_model(f) for f in foods_db]
 
 
+@router.get("/foods/search")
+def search_foods(
+    q: str = None,
+    code: str = None,
+    category: str = None,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """食品検索API
+
+    - q: キーワード検索（スペース区切りでAND検索）
+    - code: 文科省コード（mext_code）で完全一致検索
+    - category: カテゴリで絞り込み
+    """
+    query = db.query(FoodDB)
+
+    # コード検索
+    if code:
+        query = query.filter(FoodDB.mext_code == code)
+
+    # カテゴリ絞り込み
+    if category:
+        query = query.filter(FoodDB.category == category)
+
+    # キーワード検索（AND検索）
+    if q:
+        keywords = q.split()
+        for kw in keywords:
+            query = query.filter(FoodDB.name.like(f"%{kw}%"))
+
+    foods_db = query.limit(limit).all()
+    return [
+        {
+            "mext_code": f.mext_code,
+            "name": f.name,
+            "category": f.category,
+            "calories": f.calories,
+        }
+        for f in foods_db
+    ]
+
+
 @router.get("/foods/{food_id}", response_model=Food)
 def get_food(food_id: int, db: Session = Depends(get_db)):
     """特定の食品を取得"""

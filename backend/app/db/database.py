@@ -19,6 +19,7 @@ class FoodDB(Base):
     __tablename__ = "foods"
 
     id = Column(Integer, primary_key=True, index=True)
+    mext_code = Column(String, unique=True, index=True)  # 文科省食品番号（例: "01088"）
     name = Column(String, index=True)
     category = Column(String, index=True)  # 文科省の食品群
     calories = Column(Float, default=0)     # kcal/100g
