@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.api.routes import router
 from app.db.database import init_db
-from app.data.loader import load_sample_data, SessionLocal
+from app.data.loader import SessionLocal
 
 # Flutter Webビルドディレクトリ
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "build" / "web"
@@ -50,16 +50,14 @@ def startup_event():
         existing_foods = db.query(FoodDB).count()
         existing_dishes = db.query(DishDB).count()
 
-        # 文科省Excelがあれば優先、なければサンプルデータ
+        # 文科省Excelから食品データを読み込み
         excel_path = Path(__file__).parent.parent / "data" / "food_composition_2023.xlsx"
         if excel_path.exists() and existing_foods < 100:
             print("文科省食品成分表を読み込み中...")
             count = load_excel_data(excel_path, db, clear_existing=True)
             print(f"文科省データ {count} 件を投入しました")
         elif existing_foods == 0:
-            count = load_sample_data(db)
-            if count > 0:
-                print(f"サンプルデータ {count} 件を投入しました")
+            print("警告: 食品データがありません。data/food_composition_2023.xlsx を配置してください。")
         else:
             print(f"既存食品データ {existing_foods} 件を使用します")
 
