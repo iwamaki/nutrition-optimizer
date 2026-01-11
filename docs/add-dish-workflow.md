@@ -2,78 +2,37 @@
 
 LLM（Claude等）を使って新しい料理をCSVに追加する手順です。
 
-## 1. 食品コードを検索
+## 概要
 
-料理に使う食材の文科省コード（mext_code）を検索します。
+```
+既存料理を確認  →  LLM生成  →  バリデーション  →  本番CSV
+```
+
+## 1. 既存料理を確認（重複回避）
+
+LLMに既存料理リストを渡して重複を避けます。
 
 ```bash
 cd backend
-python tools/food_search.py 鶏肉
-python tools/food_search.py もも 焼き -c 肉類
-python tools/food_search.py --code 11222
+source venv/bin/activate
+
+# カテゴリ別の件数を確認
+python tools/list_dishes.py --categories
+
+# 特定カテゴリの料理一覧
+python tools/list_dishes.py -c 主食
+
+# コンパクト形式（プロンプトにコピペしやすい）
+python tools/list_dishes.py -c 主食 --compact
 ```
 
-### よく使う食品コード例
+## 2. LLMでレシピを生成
 
-| コード | 食品名 | カテゴリ |
-|--------|--------|----------|
-| 01088 | 精白米めし | 穀類 |
-| 01174 | 角形食パン焼き | 穀類 |
-| 11222 | 若どり もも 焼き | 肉類 |
-| 11124 | 豚ロース焼き | 肉類 |
-| 10136 | しろさけ焼き | 魚介類 |
-| 12004 | 全卵生 | 卵類 |
-| 04032 | 木綿豆腐 | 豆類 |
-| 06153 | たまねぎ 生 | 野菜類 |
-
-## 2. CSVフォーマット
-
-`backend/data/dishes.csv` に以下の形式で追加します。
-
-```csv
-name,category,meal_types,ingredients,instructions
-```
-
-### 各列の説明
-
-| 列名 | 説明 | 例 |
-|------|------|-----|
-| name | 料理名 | 親子丼 |
-| category | カテゴリ（主食/主菜/副菜/汁物/デザート） | 主菜 |
-| meal_types | 食事タイプ（breakfast/lunch/dinner/snack） | "lunch,dinner" |
-| ingredients | 材料（mext_code:量g:調理法 を \| で区切り） | "11222:80:煮る\|12004:50:煮る" |
-| instructions | 作り方（改行は \\n でエスケープ） | "鶏肉を煮て卵でとじる" |
-
-### 調理法一覧
-
-- 生
-- 茹でる
-- 蒸す
-- 焼く
-- 炒める
-- 揚げる
-- 煮る
-- 電子レンジ
-
-## 3. 追加例
-
-```csv
-親子丼,主菜,"lunch,dinner","11222:80:煮る|12004:50:煮る|06153:30:煮る|01088:150:蒸す","鶏もも肉を一口大に切り、玉ねぎと一緒に出汁で煮る。溶き卵を回し入れてとじ、ごはんにのせる"
-```
-
-## 4. LLMプロンプト例
-
-以下のプロンプトでLLMにレシピを生成させることができます：
+既存料理リストを含めたプロンプトでLLMにレシピを生成させます：
 
 ---
 
 あなたは料理レシピをCSV形式で作成するアシスタントです。
-
-### 食品コード検索
-食材の文科省コード（mext_code）を確認するために、以下のコマンドを使ってください：
-```bash
-python tools/food_search.py [キーワード]
-```
 
 ### CSVフォーマット
 ```
@@ -83,35 +42,88 @@ name,category,meal_types,ingredients,instructions
 - name: 料理名
 - category: 主食/主菜/副菜/汁物/デザート
 - meal_types: breakfast,lunch,dinner,snack をカンマ区切り
-- ingredients: mext_code:量g:調理法 を | で区切り
-- instructions: 作り方（改行は \n）
+- ingredients: 食品名:量g:調理法 を | で区切り
+- instructions: 作り方
 
 ### 調理法
 生, 茹でる, 蒸す, 焼く, 炒める, 揚げる, 煮る, 電子レンジ
 
+### 既存の料理（これ以外で作成してください）
+[ここに list_dishes.py の出力をペースト]
+
 ### 例
 ```csv
-チキンカレー,主菜,"lunch,dinner","11222:100:煮る|06153:50:炒める|06215:30:煮る","鶏肉と野菜を炒めてカレールーで煮込む"
+チキンカレー,主食,"lunch,dinner","鶏もも肉:100:煮る|玉ねぎ:50:炒める|人参:30:煮る|ごはん:150:蒸す","鶏肉と野菜を炒めてカレールーで煮込み、ごはんにかける"
 ```
 
-[料理名]のレシピをCSV形式で作成してください。
+[カテゴリ]の新しいレシピを10件、CSV形式で作成してください。
 
 ---
 
-## 5. バリデーション
+## 3. CSVフォーマット
 
-CSVを追加したら、サーバーを再起動して読み込みエラーがないか確認します。
+`backend/data/dishes.csv` の形式：
+
+| 列名 | 説明 | 例 |
+|------|------|-----|
+| name | 料理名 | 親子丼 |
+| category | カテゴリ | 主食/主菜/副菜/汁物/デザート |
+| meal_types | 食事タイプ | "lunch,dinner" |
+| ingredients | 材料（食品名:量g:調理法） | "鶏もも肉:80:煮る\|卵:50:煮る" |
+| instructions | 作り方 | "鶏肉を煮て卵でとじる" |
+
+## 4. バリデーション
+
+LLMが生成したCSVを正式な食品名に変換します。
 
 ```bash
-# DBを削除してクリーンスタート
-rm nutrition.db
+cd backend
+source venv/bin/activate
 
-# サーバー起動
+# バリデーションツールを実行
+python tools/validate_dishes.py data/dishes_draft.csv -o data/dishes.csv
+
+# 候補が1件の場合は自動選択
+python tools/validate_dishes.py data/dishes_draft.csv --auto
+```
+
+### バリデーションの流れ
+
+```
+行2 '親子丼' を検証中...
+  × '鶏もも肉' が見つかりません
+  候補:
+    1. ＜鳥肉類＞ にわとり ［若どり・主品目］ もも 皮つき 生 [肉類]
+    2. ＜鳥肉類＞ にわとり ［若どり・主品目］ もも 皮つき 焼き [肉類]
+  選択 (1-2, s=スキップ, m=手動入力): 2
+    → '＜鳥肉類＞ にわとり ［若どり・主品目］ もも 皮つき 焼き' に修正
+  ✓ '卵'
+  ...
+```
+
+## 5. 食品名の検索（参考）
+
+バリデーションツールが自動で検索しますが、事前に調べたい場合：
+
+```bash
+python tools/food_search.py 鶏肉
+python tools/food_search.py もも 焼き -c 肉類
+python tools/food_search.py --categories  # カテゴリ一覧
+```
+
+## 6. 動作確認
+
+CSVを更新したら、DBを再作成してエラーがないか確認します。
+
+```bash
+cd backend
+rm nutrition.db
+source venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-エラーがあれば以下のような警告が表示されます：
+エラーがあれば警告が表示されます：
 ```
 警告: 2件のエラー
-  行5 '親子丼': コードが見つかりません: 99999
+  行5 '親子丼': 食品名が見つかりません: '鶏もも肉'
 ```

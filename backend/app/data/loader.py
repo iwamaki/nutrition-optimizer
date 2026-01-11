@@ -260,10 +260,10 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
 
     CSVフォーマット:
     name,category,meal_types,ingredients,instructions
-    白ごはん,主食,"breakfast,lunch,dinner","01088:150:蒸す","米を研いで炊飯器で炊く"
-    豚の生姜焼き,主菜,"lunch,dinner","11124:100:焼く|06103:5:生","豚肉を生姜醤油で焼く"
+    白ごはん,主食,"breakfast,lunch,dinner","こめ ［水稲めし］ 精白米 うるち米:150:蒸す","米を研いで炊飯器で炊く"
+    豚の生姜焼き,主菜,"lunch,dinner","＜畜肉類＞ ぶた ［大型種肉］ ロース 脂身つき 焼き:100:焼く|...",""
 
-    - ingredients: mext_code:量g:調理法 を | で区切り
+    - ingredients: 食品名:量g:調理法 を | で区切り（食品名は文科省データと完全一致）
     - instructions: 作り方（改行は \\n でエスケープ）
     """
     if not csv_path.exists():
@@ -303,7 +303,7 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
                         ingredient_errors.append(f"形式エラー: {ing_str}")
                         continue
 
-                    mext_code = parts[0].strip()
+                    food_name = parts[0].strip()
                     try:
                         amount = float(parts[1].strip())
                     except ValueError:
@@ -312,10 +312,10 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
 
                     cooking_method = parts[2].strip() if len(parts) > 2 else "生"
 
-                    # 食品を検索
-                    food = db.query(FoodDB).filter(FoodDB.mext_code == mext_code).first()
+                    # 食品を検索（食品名で完全一致）
+                    food = db.query(FoodDB).filter(FoodDB.name == food_name).first()
                     if not food:
-                        ingredient_errors.append(f"コードが見つかりません: {mext_code}")
+                        ingredient_errors.append(f"食品名が見つかりません: '{food_name}'")
                         continue
 
                     parsed_ingredients.append({
