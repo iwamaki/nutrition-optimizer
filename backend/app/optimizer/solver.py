@@ -74,6 +74,11 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
         serving_size=dish_db.serving_size,
         description=dish_db.description,
         ingredients=ingredients,
+        # 作り置き関連
+        storage_days=dish_db.storage_days or 1,
+        min_servings=dish_db.min_servings or 1,
+        max_servings=dish_db.max_servings or 4,
+        # 栄養素
         calories=dish_db.calories,
         protein=dish_db.protein,
         fat=dish_db.fat,
@@ -320,6 +325,453 @@ def db_food_to_model(food_db: FoodDB) -> Food:
     )
 
 
+# ========== 複数日最適化（作り置き対応） ==========
+
+from app.models.schemas import (
+    MultiDayOptimizeRequest, MultiDayMenuPlan, DailyMealAssignment,
+    CookingTask, ShoppingItem, AllergenEnum
+)
+
+
+def solve_multi_day_plan(
+    db: Session,
+    days: int = 1,
+    people: int = 1,
+    target: NutrientTarget = None,
+    excluded_allergens: list[str] = None,
+    excluded_dish_ids: list[int] = None,
+    prefer_batch_cooking: bool = False,
+) -> MultiDayMenuPlan | None:
+    """複数日×複数人のメニューを最適化（作り置き対応）
+
+    Args:
+        db: DBセッション
+        days: 日数（1-7）
+        people: 人数（1-6）
+        target: 栄養素目標（1人1日あたり）
+        excluded_allergens: 除外アレルゲン
+        excluded_dish_ids: 除外料理ID
+        prefer_batch_cooking: 作り置き優先モード
+
+    Returns:
+        MultiDayMenuPlan: 最適化結果
+    """
+    target = target or NutrientTarget()
+    excluded_allergens = excluded_allergens or []
+    excluded_dish_ids = set(excluded_dish_ids or [])
+
+    # 全料理取得
+    dishes_db = db.query(DishDB).all()
+    dishes = [db_dish_to_model(d) for d in dishes_db]
+
+    # アレルゲン除外（TODO: FoodAllergenDBとの連携）
+    # 現時点では除外アレルゲンは名前ベースで簡易的にフィルタ
+    if excluded_allergens:
+        allergen_keywords = {
+            "卵": ["卵", "玉子", "たまご"],
+            "乳": ["牛乳", "チーズ", "ヨーグルト", "乳"],
+            "小麦": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ"],
+            "そば": ["そば"],
+            "落花生": ["ピーナッツ", "落花生"],
+            "えび": ["えび", "海老", "エビ"],
+            "かに": ["かに", "蟹", "カニ"],
+        }
+        for allergen in excluded_allergens:
+            keywords = allergen_keywords.get(allergen, [])
+            dishes = [
+                d for d in dishes
+                if not any(kw in d.name for kw in keywords)
+            ]
+
+    # 除外料理を適用
+    dishes = [d for d in dishes if d.id not in excluded_dish_ids]
+
+    if not dishes:
+        print("Warning: No dishes available after filtering")
+        return None
+
+    # 食事タイプ
+    meals = ["breakfast", "lunch", "dinner"]
+
+    # 問題定義
+    prob = LpProblem("multi_day_meal_planning", LpMinimize)
+
+    # ========== 決定変数 ==========
+
+    # x[d, t] = 料理dを日tに調理するか（バイナリ）
+    x = {}
+    for d in dishes:
+        for t in range(1, days + 1):
+            x[(d.id, t)] = LpVariable(f"cook_{d.id}_{t}", cat="Binary")
+
+    # s[d, t] = 料理dを日tに調理する人前数（整数、1〜max_servings）
+    s = {}
+    for d in dishes:
+        for t in range(1, days + 1):
+            s[(d.id, t)] = LpVariable(
+                f"servings_{d.id}_{t}",
+                lowBound=0,
+                upBound=d.max_servings,
+                cat="Integer"
+            )
+
+    # c[d, t, t', m] = 日tに調理した料理dを日t'の食事mで消費するか
+    c = {}
+    for d in dishes:
+        for t in range(1, days + 1):
+            # 消費可能期間: t から min(t + storage_days, days) まで
+            for t_prime in range(t, min(t + d.storage_days + 1, days + 1)):
+                meal_type = MealTypeEnum(meals[0])  # 初期化用
+                for m in meals:
+                    meal_type = MealTypeEnum(m)
+                    if meal_type in d.meal_types:
+                        c[(d.id, t, t_prime, m)] = LpVariable(
+                            f"consume_{d.id}_{t}_{t_prime}_{m}",
+                            cat="Binary"
+                        )
+
+    # q[d, t, t', m] = 消費人前数（整数、0〜people）
+    q = {}
+    for key in c:
+        d_id, t, t_prime, m = key
+        q[key] = LpVariable(
+            f"qty_{d_id}_{t}_{t_prime}_{m}",
+            lowBound=0,
+            upBound=people,
+            cat="Integer"
+        )
+
+    # ========== 偏差変数 ==========
+
+    # 日別の栄養素偏差
+    dev_pos = {}
+    dev_neg = {}
+    for day in range(1, days + 1):
+        dev_pos[day] = {n: LpVariable(f"dev_pos_{day}_{n}", lowBound=0) for n in ALL_NUTRIENTS}
+        dev_neg[day] = {n: LpVariable(f"dev_neg_{day}_{n}", lowBound=0) for n in ALL_NUTRIENTS}
+
+    # ========== 目的関数 ==========
+
+    # 栄養バランスからの偏差
+    nutrient_deviation = lpSum(
+        NUTRIENT_WEIGHTS.get(n, 1.0) * (dev_pos[day][n] + dev_neg[day][n]) / max(getattr(target, f"{n}_min", 1) if hasattr(target, f"{n}_min") else 1, 1)
+        for day in range(1, days + 1)
+        for n in ALL_NUTRIENTS
+    )
+
+    # 調理回数（作り置き優先時は重視）
+    cooking_count = lpSum(x[(d.id, t)] for d in dishes for t in range(1, days + 1))
+
+    # 重み付け
+    if prefer_batch_cooking:
+        prob += nutrient_deviation + 0.1 * cooking_count
+    else:
+        prob += nutrient_deviation + 0.01 * cooking_count
+
+    # ========== 制約条件 ==========
+
+    # C1: 調理しない場合は人前数0、調理する場合は1以上
+    for d in dishes:
+        for t in range(1, days + 1):
+            prob += s[(d.id, t)] <= d.max_servings * x[(d.id, t)]
+            prob += s[(d.id, t)] >= 1 * x[(d.id, t)]
+
+    # C2: 消費量は調理量以下（各調理に対して）
+    for d in dishes:
+        for t in range(1, days + 1):
+            consumptions = []
+            for t_prime in range(t, min(t + d.storage_days + 1, days + 1)):
+                for m in meals:
+                    key = (d.id, t, t_prime, m)
+                    if key in q:
+                        consumptions.append(q[key])
+            if consumptions:
+                prob += lpSum(consumptions) <= s[(d.id, t)]
+
+    # C3: 消費変数と消費量のリンク
+    for key in q:
+        d_id, t, t_prime, m = key
+        prob += q[key] <= people * c[key]
+
+    # C4: 各日の栄養素制約
+    for day in range(1, days + 1):
+        for nutrient in ALL_NUTRIENTS:
+            # この日に消費される料理の栄養素合計
+            daily_intake = []
+            for d in dishes:
+                for t in range(max(1, day - d.storage_days), day + 1):
+                    for m in meals:
+                        key = (d.id, t, day, m)
+                        if key in q:
+                            # 1人前あたりの栄養素 × 消費人前数 / 人数
+                            daily_intake.append(getattr(d, nutrient) * q[key])
+
+            if daily_intake:
+                intake_sum = lpSum(daily_intake)
+                # 1人あたりに換算
+                intake_per_person = intake_sum / people
+
+                # 目標値を取得
+                if nutrient == "sodium":
+                    target_val = target.sodium_max
+                    prob += intake_per_person <= target_val + dev_pos[day][nutrient]
+                else:
+                    if hasattr(target, f"{nutrient}_min"):
+                        min_val = getattr(target, f"{nutrient}_min")
+                        max_val = getattr(target, f"{nutrient}_max", min_val * 1.5)
+                        target_val = (min_val + max_val) / 2
+                    else:
+                        target_val = 0
+                    if target_val > 0:
+                        prob += intake_per_person + dev_neg[day][nutrient] - dev_pos[day][nutrient] == target_val
+
+    # C5: 各食事のカテゴリ別品数制約
+    for day in range(1, days + 1):
+        for m in meals:
+            for cat, (min_count, max_count) in CATEGORY_CONSTRAINTS.items():
+                cat_dishes = [d for d in dishes if d.category.value == cat and MealTypeEnum(m) in d.meal_types]
+                if cat_dishes:
+                    cat_selected = []
+                    for d in cat_dishes:
+                        for t in range(max(1, day - d.storage_days), day + 1):
+                            key = (d.id, t, day, m)
+                            if key in c:
+                                cat_selected.append(c[key])
+                    if cat_selected:
+                        prob += lpSum(cat_selected) >= min_count
+                        prob += lpSum(cat_selected) <= max_count
+
+    # C6: 同じ料理の連続消費を避ける（同じ食事タイプで2日連続は避ける）
+    for d in dishes:
+        for m in meals:
+            for day in range(1, days):
+                today_consumed = []
+                tomorrow_consumed = []
+                for t in range(max(1, day - d.storage_days), day + 1):
+                    key_today = (d.id, t, day, m)
+                    if key_today in c:
+                        today_consumed.append(c[key_today])
+                for t in range(max(1, day + 1 - d.storage_days), day + 2):
+                    key_tomorrow = (d.id, t, day + 1, m)
+                    if key_tomorrow in c:
+                        tomorrow_consumed.append(c[key_tomorrow])
+                if today_consumed and tomorrow_consumed:
+                    prob += lpSum(today_consumed) + lpSum(tomorrow_consumed) <= 1
+
+    # ========== 求解 ==========
+
+    solver = PULP_CBC_CMD(msg=0, timeLimit=30)
+    prob.solve(solver)
+
+    if LpStatus[prob.status] not in ["Optimal", "Not Solved"]:
+        print(f"Warning: Optimization status: {LpStatus[prob.status]}")
+        # フォールバック: シンプルなアプローチを試す
+        return _fallback_multi_day_plan(db, days, people, target, dishes)
+
+    # ========== 結果抽出 ==========
+
+    return _extract_multi_day_result(dishes, days, people, target, x, s, c, q)
+
+
+def _extract_multi_day_result(
+    dishes: list[Dish],
+    days: int,
+    people: int,
+    target: NutrientTarget,
+    x: dict,
+    s: dict,
+    c: dict,
+    q: dict,
+) -> MultiDayMenuPlan:
+    """最適化結果からMultiDayMenuPlanを生成"""
+    meals = ["breakfast", "lunch", "dinner"]
+    dish_map = {d.id: d for d in dishes}
+
+    # 調理タスクを抽出
+    cooking_tasks = []
+    for d in dishes:
+        for t in range(1, days + 1):
+            if value(x[(d.id, t)]) and value(x[(d.id, t)]) > 0.5:
+                servings_val = int(round(value(s[(d.id, t)]) or 1))
+                consume_days = []
+                for t_prime in range(t, min(t + d.storage_days + 1, days + 1)):
+                    for m in meals:
+                        key = (d.id, t, t_prime, m)
+                        if key in c and value(c[key]) and value(c[key]) > 0.5:
+                            if t_prime not in consume_days:
+                                consume_days.append(t_prime)
+                if consume_days:
+                    cooking_tasks.append(CookingTask(
+                        cook_day=t,
+                        dish=d,
+                        servings=servings_val,
+                        consume_days=sorted(consume_days),
+                    ))
+
+    # 日別の食事割り当てを抽出
+    daily_plans = []
+    overall_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+
+    for day in range(1, days + 1):
+        day_meals = {"breakfast": [], "lunch": [], "dinner": []}
+        day_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+
+        for m in meals:
+            for d in dishes:
+                for t in range(max(1, day - d.storage_days), day + 1):
+                    key = (d.id, t, day, m)
+                    if key in q:
+                        qty_val = value(q[key])
+                        if qty_val and qty_val > 0.5:
+                            qty_int = int(round(qty_val))
+                            day_meals[m].append(DishPortion(
+                                dish=d,
+                                servings=qty_int,
+                            ))
+                            for nutrient in ALL_NUTRIENTS:
+                                day_nutrients[nutrient] += getattr(d, nutrient) * qty_int
+
+        # 1人あたりに換算
+        day_nutrients_per_person = {k: v / people for k, v in day_nutrients.items()}
+
+        # 達成率計算
+        achievement = _calc_achievement(day_nutrients_per_person, target)
+
+        daily_plans.append(DailyMealAssignment(
+            day=day,
+            breakfast=day_meals["breakfast"],
+            lunch=day_meals["lunch"],
+            dinner=day_meals["dinner"],
+            total_nutrients={k: round(v, 1) for k, v in day_nutrients_per_person.items()},
+            achievement_rate={k: round(v, 1) for k, v in achievement.items()},
+        ))
+
+        for n in ALL_NUTRIENTS:
+            overall_nutrients[n] += day_nutrients_per_person[n]
+
+    # 期間平均（1日あたり）で達成率計算
+    avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
+    overall_achievement = _calc_achievement(avg_nutrients, target)
+
+    # 買い物リスト生成
+    shopping_list = _generate_shopping_list(cooking_tasks)
+
+    return MultiDayMenuPlan(
+        days=days,
+        people=people,
+        daily_plans=daily_plans,
+        cooking_tasks=cooking_tasks,
+        shopping_list=shopping_list,
+        overall_nutrients={k: round(v, 1) for k, v in overall_nutrients.items()},
+        overall_achievement={k: round(v, 1) for k, v in overall_achievement.items()},
+    )
+
+
+def _calc_achievement(nutrients: dict, target: NutrientTarget) -> dict:
+    """達成率を計算"""
+    achievement = {}
+    for n in ALL_NUTRIENTS:
+        val = nutrients.get(n, 0)
+        if n == "sodium":
+            target_val = target.sodium_max
+            achievement[n] = min(100, target_val / max(val, 1) * 100) if val > 0 else 100
+        else:
+            if hasattr(target, f"{n}_min"):
+                min_val = getattr(target, f"{n}_min")
+                max_val = getattr(target, f"{n}_max", min_val * 1.5)
+                target_val = (min_val + max_val) / 2
+            else:
+                target_val = 0
+            if target_val > 0:
+                achievement[n] = val / target_val * 100
+            else:
+                achievement[n] = 100
+    return achievement
+
+
+def _generate_shopping_list(cooking_tasks: list[CookingTask]) -> list[ShoppingItem]:
+    """調理タスクから買い物リストを生成"""
+    shopping = {}  # {(food_name, category): total_amount}
+
+    for task in cooking_tasks:
+        for ing in task.dish.ingredients:
+            key = (ing.food_name or f"食品ID:{ing.food_id}", "")
+            if key not in shopping:
+                shopping[key] = 0
+            shopping[key] += ing.amount * task.servings
+
+    return [
+        ShoppingItem(food_name=name, total_amount=round(amount, 1), category=cat)
+        for (name, cat), amount in sorted(shopping.items())
+    ]
+
+
+def _fallback_multi_day_plan(
+    db: Session,
+    days: int,
+    people: int,
+    target: NutrientTarget,
+    dishes: list[Dish],
+) -> MultiDayMenuPlan | None:
+    """フォールバック: 1日ずつ個別に最適化"""
+    daily_plans = []
+    cooking_tasks = []
+    overall_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+    used_dish_ids = set()
+
+    for day in range(1, days + 1):
+        # 各食事を最適化
+        day_meals = {}
+        day_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+
+        for meal_name in ["breakfast", "lunch", "dinner"]:
+            result = optimize_meal(dishes, target, meal_name, used_dish_ids)
+            if result:
+                day_meals[meal_name] = result.dishes
+                for dp in result.dishes:
+                    # 人数分に調整
+                    servings = people
+                    cooking_tasks.append(CookingTask(
+                        cook_day=day,
+                        dish=dp.dish,
+                        servings=servings,
+                        consume_days=[day],
+                    ))
+                    used_dish_ids.add(dp.dish.id)
+                    for nutrient in ALL_NUTRIENTS:
+                        day_nutrients[nutrient] += getattr(dp.dish, nutrient) * dp.servings
+            else:
+                day_meals[meal_name] = []
+
+        achievement = _calc_achievement(day_nutrients, target)
+
+        daily_plans.append(DailyMealAssignment(
+            day=day,
+            breakfast=day_meals.get("breakfast", []),
+            lunch=day_meals.get("lunch", []),
+            dinner=day_meals.get("dinner", []),
+            total_nutrients={k: round(v, 1) for k, v in day_nutrients.items()},
+            achievement_rate={k: round(v, 1) for k, v in achievement.items()},
+        ))
+
+        for n in ALL_NUTRIENTS:
+            overall_nutrients[n] += day_nutrients[n]
+
+    avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
+    overall_achievement = _calc_achievement(avg_nutrients, target)
+    shopping_list = _generate_shopping_list(cooking_tasks)
+
+    return MultiDayMenuPlan(
+        days=days,
+        people=people,
+        daily_plans=daily_plans,
+        cooking_tasks=cooking_tasks,
+        shopping_list=shopping_list,
+        overall_nutrients={k: round(v, 1) for k, v in overall_nutrients.items()},
+        overall_achievement={k: round(v, 1) for k, v in overall_achievement.items()},
+    )
+
+
 if __name__ == "__main__":
     # テスト実行
     from app.db.database import SessionLocal, init_db
@@ -327,26 +779,22 @@ if __name__ == "__main__":
     init_db()
     db = SessionLocal()
 
-    result = optimize_daily_menu(db)
+    print("=== 複数日最適化テスト ===")
+    result = solve_multi_day_plan(db, days=3, people=2, prefer_batch_cooking=True)
     if result:
-        print("\n=== 朝食 ===")
-        for dp in result.breakfast.dishes:
-            print(f"  {dp.dish.name} ({dp.dish.category.value}): {dp.servings}人前")
-        print(f"  カロリー: {result.breakfast.total_calories} kcal")
-
-        print("\n=== 昼食 ===")
-        for dp in result.lunch.dishes:
-            print(f"  {dp.dish.name} ({dp.dish.category.value}): {dp.servings}人前")
-        print(f"  カロリー: {result.lunch.total_calories} kcal")
-
-        print("\n=== 夕食 ===")
-        for dp in result.dinner.dishes:
-            print(f"  {dp.dish.name} ({dp.dish.category.value}): {dp.servings}人前")
-        print(f"  カロリー: {result.dinner.total_calories} kcal")
-
-        print("\n=== 1日合計 ===")
-        print(f"  栄養素: {result.total_nutrients}")
-        print(f"  達成率: {result.achievement_rate}")
+        print(f"\n{result.days}日間 × {result.people}人分")
+        print("\n【調理計画】")
+        for task in result.cooking_tasks:
+            print(f"  Day {task.cook_day}: {task.dish.name} {task.servings}人前 → Day {task.consume_days}")
+        print("\n【日別献立】")
+        for plan in result.daily_plans:
+            print(f"\nDay {plan.day}:")
+            print(f"  朝食: {[dp.dish.name for dp in plan.breakfast]}")
+            print(f"  昼食: {[dp.dish.name for dp in plan.lunch]}")
+            print(f"  夕食: {[dp.dish.name for dp in plan.dinner]}")
+        print(f"\n【期間達成率】")
+        for k, v in result.overall_achievement.items():
+            print(f"  {k}: {v}%")
     else:
         print("最適化に失敗しました")
 

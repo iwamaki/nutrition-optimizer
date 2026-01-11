@@ -259,10 +259,11 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
     """CSVから料理データを読み込み
 
     CSVフォーマット:
-    name,category,meal_types,ingredients,instructions
-    白ごはん,主食,"breakfast,lunch,dinner","こめ ［水稲めし］ 精白米 うるち米:150:蒸す","米を研いで炊飯器で炊く"
-    豚の生姜焼き,主菜,"lunch,dinner","＜畜肉類＞ ぶた ［大型種肉］ ロース 脂身つき 焼き:100:焼く|...",""
+    name,category,meal_types,storage_days,ingredients,instructions
+    白ごはん,主食,"breakfast,lunch,dinner",0,"こめ ［水稲めし］ 精白米 うるち米:150:蒸す","米を研いで炊飯器で炊く"
+    カレーライス,主食,"lunch,dinner",3,"...",""
 
+    - storage_days: 作り置き可能日数（0=当日のみ、1=翌日まで...）
     - ingredients: 食品名:量g:調理法 を | で区切り（食品名は文科省データと完全一致）
     - instructions: 作り方（改行は \\n でエスケープ）
     """
@@ -336,12 +337,20 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
             if instructions:
                 instructions = instructions.replace("\\n", "\n")
 
+            # storage_daysをパース
+            storage_days_str = row.get("storage_days", "1").strip()
+            try:
+                storage_days = int(storage_days_str) if storage_days_str else 1
+            except ValueError:
+                storage_days = 1
+
             # 料理を作成
             dish = DishDB(
                 name=name,
                 category=row.get("category", "").strip(),
                 meal_types=row.get("meal_types", "").strip(),
                 serving_size=1.0,
+                storage_days=storage_days,
                 instructions=instructions,
             )
             db.add(dish)

@@ -3,6 +3,17 @@ from typing import Optional
 from enum import Enum
 
 
+class AllergenEnum(str, Enum):
+    """7大アレルゲン（特定原材料）"""
+    EGG = "卵"
+    MILK = "乳"
+    WHEAT = "小麦"
+    BUCKWHEAT = "そば"
+    PEANUT = "落花生"
+    SHRIMP = "えび"
+    CRAB = "かに"
+
+
 class MealTypeEnum(str, Enum):
     """食事タイプ"""
     BREAKFAST = "breakfast"
@@ -138,6 +149,10 @@ class Dish(DishBase):
     """料理データモデル（栄養素計算済み）"""
     id: int
     ingredients: list[DishIngredient]
+    # 作り置き関連
+    storage_days: int = Field(default=1, description="作り置き可能日数（0=当日のみ）")
+    min_servings: int = Field(default=1, description="最小調理人前")
+    max_servings: int = Field(default=4, description="最大調理人前")
     # 計算済み栄養素（1人前あたり）
     calories: float = 0
     protein: float = 0
@@ -195,3 +210,51 @@ class DailyMenuPlan(BaseModel):
     dinner: MealPlan
     total_nutrients: dict[str, float]
     achievement_rate: dict[str, float]  # 全栄養素の達成率(%)
+
+
+# ========== 複数日最適化（作り置き対応） ==========
+
+class MultiDayOptimizeRequest(BaseModel):
+    """複数日最適化リクエスト"""
+    days: int = Field(default=1, ge=1, le=7, description="日数")
+    people: int = Field(default=1, ge=1, le=6, description="人数")
+    target: Optional[NutrientTarget] = None
+    excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
+    excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
+    prefer_batch_cooking: bool = Field(default=False, description="作り置き優先モード")
+
+
+class CookingTask(BaseModel):
+    """調理タスク（いつ、何を、何人前作るか）"""
+    cook_day: int = Field(ge=1, description="調理日（1始まり）")
+    dish: Dish
+    servings: int = Field(ge=1, description="調理人前数（整数）")
+    consume_days: list[int] = Field(description="消費日リスト")
+
+
+class ShoppingItem(BaseModel):
+    """買い物リストアイテム"""
+    food_name: str
+    total_amount: float = Field(description="合計量(g)")
+    category: str
+
+
+class DailyMealAssignment(BaseModel):
+    """1日分の食事割り当て"""
+    day: int = Field(ge=1)
+    breakfast: list[DishPortion]
+    lunch: list[DishPortion]
+    dinner: list[DishPortion]
+    total_nutrients: dict[str, float]
+    achievement_rate: dict[str, float]
+
+
+class MultiDayMenuPlan(BaseModel):
+    """複数日メニュープラン"""
+    days: int
+    people: int
+    daily_plans: list[DailyMealAssignment]
+    cooking_tasks: list[CookingTask] = Field(description="調理計画")
+    shopping_list: list[ShoppingItem] = Field(description="買い物リスト")
+    overall_nutrients: dict[str, float] = Field(description="期間合計栄養素")
+    overall_achievement: dict[str, float] = Field(description="期間全体の達成率")

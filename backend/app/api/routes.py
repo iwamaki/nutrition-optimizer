@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.db.database import get_db, FoodDB, DishDB
+from app.db.database import get_db, FoodDB, DishDB, AllergenType
 from app.models.schemas import (
     Food, NutrientTarget, OptimizeRequest, UserPreferences,
-    Dish, DishCreate, DailyMenuPlan, DishCategoryEnum
+    Dish, DishCreate, DailyMenuPlan, DishCategoryEnum,
+    MultiDayOptimizeRequest, MultiDayMenuPlan, AllergenEnum
 )
 from app.optimizer.solver import (
-    optimize_daily_menu, db_food_to_model, db_dish_to_model
+    optimize_daily_menu, db_food_to_model, db_dish_to_model,
+    solve_multi_day_plan
 )
 
 router = APIRouter()
@@ -171,6 +173,60 @@ def optimize_menu(
         )
 
     return result
+
+
+@router.post("/optimize/multi-day", response_model=MultiDayMenuPlan)
+def optimize_multi_day_menu(
+    request: MultiDayOptimizeRequest = None,
+    db: Session = Depends(get_db)
+):
+    """複数日・複数人のメニューを最適化（作り置き対応）
+
+    作り置きを考慮した最適化を行い、調理計画と買い物リストを生成します。
+
+    パラメータ:
+    - days: 日数（1-7日）
+    - people: 人数（1-6人）
+    - target: 栄養素目標（1人1日あたり）
+    - excluded_allergens: 除外アレルゲン（卵, 乳, 小麦, そば, 落花生, えび, かに）
+    - excluded_dish_ids: 除外料理ID
+    - prefer_batch_cooking: 作り置き優先モード（trueで調理回数を最小化）
+
+    戻り値:
+    - daily_plans: 日別の献立
+    - cooking_tasks: 調理計画（いつ何を何人前作るか）
+    - shopping_list: 買い物リスト
+    - overall_achievement: 期間全体の栄養達成率
+    """
+    request = request or MultiDayOptimizeRequest()
+    target = request.target or NutrientTarget()
+
+    # アレルゲン除外
+    excluded_allergens = [a.value for a in request.excluded_allergens]
+
+    result = solve_multi_day_plan(
+        db=db,
+        days=request.days,
+        people=request.people,
+        target=target,
+        excluded_allergens=excluded_allergens,
+        excluded_dish_ids=request.excluded_dish_ids,
+        prefer_batch_cooking=request.prefer_batch_cooking,
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=500,
+            detail="最適化に失敗しました。料理データが不足しているか、制約が厳しすぎる可能性があります。"
+        )
+
+    return result
+
+
+@router.get("/allergens")
+def get_allergens():
+    """アレルゲン一覧を取得（7大アレルゲン）"""
+    return [{"value": a.value, "name": a.name} for a in AllergenEnum]
 
 
 # ========== ユーザー設定API ==========

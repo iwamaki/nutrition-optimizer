@@ -37,6 +37,7 @@ class FoodDB(Base):
 
     # リレーション
     dish_ingredients = relationship("DishIngredientDB", back_populates="food")
+    allergens = relationship("FoodAllergenDB", back_populates="food", cascade="all, delete-orphan")
 
 
 class MealType(enum.Enum):
@@ -68,6 +69,17 @@ class CookingMethod(enum.Enum):
     MICROWAVE = "電子レンジ"
 
 
+class AllergenType(enum.Enum):
+    """7大アレルゲン（特定原材料）"""
+    EGG = "卵"
+    MILK = "乳"
+    WHEAT = "小麦"
+    BUCKWHEAT = "そば"
+    PEANUT = "落花生"
+    SHRIMP = "えび"
+    CRAB = "かに"
+
+
 class DishDB(Base):
     """料理マスタ"""
     __tablename__ = "dishes"
@@ -79,6 +91,11 @@ class DishDB(Base):
     serving_size = Column(Float, default=1.0)  # 1人前の係数
     description = Column(String, nullable=True)
     instructions = Column(String, nullable=True)  # 作り方
+
+    # 作り置き関連
+    storage_days = Column(Integer, default=1)  # 作り置き可能日数（0=当日のみ、1=翌日まで...）
+    min_servings = Column(Integer, default=1)  # 最小調理人前
+    max_servings = Column(Integer, default=4)  # 最大調理人前
 
     # キャッシュ用: 計算済み栄養素（材料から計算して保存）
     calories = Column(Float, default=0)
@@ -121,6 +138,18 @@ class CookingFactorDB(Base):
     cooking_method = Column(String, index=True)  # CookingMethod の値
     nutrient = Column(String, index=True)  # 栄養素名
     factor = Column(Float, default=1.0)  # 係数（1.0 = 変化なし）
+
+
+class FoodAllergenDB(Base):
+    """食品のアレルゲン情報"""
+    __tablename__ = "food_allergens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    food_id = Column(Integer, ForeignKey("foods.id"), nullable=False, index=True)
+    allergen = Column(String, nullable=False, index=True)  # AllergenType の値
+
+    # リレーション
+    food = relationship("FoodDB", back_populates="allergens")
 
 
 def init_db():
