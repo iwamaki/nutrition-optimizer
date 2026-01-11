@@ -257,7 +257,7 @@ SAMPLE_DISHES = [
         "category": "主食",
         "meal_types": "breakfast",
         "ingredients": [
-            {"food_name": "こむぎ　［パン類］　食パン　角形食パン　食パン", "amount": 60, "cooking_method": "焼く"},
+            {"food_name": "こむぎ　［パン類］　角形食パン　焼き", "amount": 60, "cooking_method": "焼く"},
         ],
     },
     {
@@ -267,7 +267,7 @@ SAMPLE_DISHES = [
         "ingredients": [
             {"food_name": "こめ　［水稲めし］　精白米　うるち米", "amount": 100, "cooking_method": "蒸す"},
             {"food_name": "＜魚類＞　（さけ・ます類）　しろさけ　焼き", "amount": 15, "cooking_method": "焼く"},
-            {"food_name": "（のり類）　あまのり　焼きのり", "amount": 1, "cooking_method": "生"},
+            {"food_name": "あまのり　焼きのり", "amount": 1, "cooking_method": "生"},
         ],
     },
     {
@@ -301,7 +301,7 @@ SAMPLE_DISHES = [
         "category": "主菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "にわとり　［若鶏肉］　もも　皮つき　焼き", "amount": 100, "cooking_method": "焼く"},
+            {"food_name": "＜鳥肉類＞　にわとり　［若どり・主品目］　もも　皮つき　焼き", "amount": 100, "cooking_method": "焼く"},
         ],
     },
     {
@@ -379,7 +379,7 @@ SAMPLE_DISHES = [
         "meal_types": "lunch,dinner",
         "ingredients": [
             {"food_name": "ごぼう　根　ゆで", "amount": 50, "cooking_method": "炒める"},
-            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 20, "cooking_method": "炒める"},
+            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 20, "cooking_method": "炒める"},
         ],
     },
     {
@@ -420,8 +420,8 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "ひじき　ほしひじき　油いため", "amount": 10, "cooking_method": "煮る"},
-            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 15, "cooking_method": "煮る"},
+            {"food_name": "ひじき　ほしひじき　ステンレス釜　油いため", "amount": 10, "cooking_method": "煮る"},
+            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 15, "cooking_method": "煮る"},
         ],
     },
     {
@@ -429,7 +429,7 @@ SAMPLE_DISHES = [
         "category": "副菜",
         "meal_types": "lunch,dinner",
         "ingredients": [
-            {"food_name": "かぼちゃ　日本かぼちゃ　果実　ゆで", "amount": 80, "cooking_method": "煮る"},
+            {"food_name": "（かぼちゃ類）　日本かぼちゃ　果実　ゆで", "amount": 80, "cooking_method": "煮る"},
         ],
     },
 
@@ -449,7 +449,7 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "breakfast,dinner",
         "ingredients": [
-            {"food_name": "なめこ　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "なめこ　株採り　ゆで", "amount": 30, "cooking_method": "煮る"},
             {"food_name": "（みそ類）　米みそ　淡色辛みそ", "amount": 12, "cooking_method": "生"},
         ],
     },
@@ -459,8 +459,8 @@ SAMPLE_DISHES = [
         "meal_types": "lunch,dinner",
         "ingredients": [
             {"food_name": "だいず　［豆腐・油揚げ類］　木綿豆腐", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "だいこん　根　皮むき　ゆで", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "にんじん　根　皮むき　ゆで", "amount": 15, "cooking_method": "煮る"},
+            {"food_name": "（だいこん類）　だいこん　根　皮なし　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "（にんじん類）　にんじん　根　皮なし　ゆで", "amount": 15, "cooking_method": "煮る"},
             {"food_name": "ごぼう　根　ゆで", "amount": 15, "cooking_method": "煮る"},
         ],
     },
@@ -469,8 +469,8 @@ SAMPLE_DISHES = [
         "category": "汁物",
         "meal_types": "breakfast,lunch",
         "ingredients": [
-            {"food_name": "スイートコーン　冷凍　ゆで", "amount": 30, "cooking_method": "煮る"},
-            {"food_name": "普通牛乳", "amount": 100, "cooking_method": "煮る"},
+            {"food_name": "（とうもろこし類）　スイートコーン　未熟種子　カーネル　冷凍　ゆで", "amount": 30, "cooking_method": "煮る"},
+            {"food_name": "＜牛乳及び乳製品＞　（液状乳類）　普通牛乳", "amount": 100, "cooking_method": "煮る"},
         ],
     },
 
@@ -488,7 +488,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "りんご　皮むき　生", "amount": 100, "cooking_method": "生"},
+            {"food_name": "りんご　皮なし　生", "amount": 100, "cooking_method": "生"},
         ],
     },
     {
@@ -504,7 +504,7 @@ SAMPLE_DISHES = [
         "category": "デザート",
         "meal_types": "breakfast,snack",
         "ingredients": [
-            {"food_name": "（ヨーグルト類）　全脂無糖", "amount": 100, "cooking_method": "生"},
+            {"food_name": "＜牛乳及び乳製品＞　（発酵乳・乳酸菌飲料）　ヨーグルト　全脂無糖", "amount": 100, "cooking_method": "生"},
         ],
     },
 ]
