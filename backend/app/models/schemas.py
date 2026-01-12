@@ -249,8 +249,18 @@ class DailyMealAssignment(BaseModel):
     achievement_rate: dict[str, float]
 
 
+class NutrientWarning(BaseModel):
+    """栄養素に関する警告"""
+    nutrient: str = Field(description="栄養素名")
+    message: str = Field(description="警告メッセージ")
+    current_value: float = Field(description="現在値")
+    target_value: float = Field(description="目標値")
+    deficit_percent: float = Field(description="不足率(%)")
+
+
 class MultiDayMenuPlan(BaseModel):
     """複数日メニュープラン"""
+    plan_id: str = Field(description="プランID（調整時に使用）")
     days: int
     people: int
     daily_plans: list[DailyMealAssignment]
@@ -258,3 +268,15 @@ class MultiDayMenuPlan(BaseModel):
     shopping_list: list[ShoppingItem] = Field(description="買い物リスト")
     overall_nutrients: dict[str, float] = Field(description="期間合計栄養素")
     overall_achievement: dict[str, float] = Field(description="期間全体の達成率")
+    warnings: list[NutrientWarning] = Field(default_factory=list, description="栄養素警告")
+
+
+class RefineOptimizeRequest(BaseModel):
+    """献立調整リクエスト"""
+    days: int = Field(default=1, ge=1, le=7, description="日数")
+    people: int = Field(default=1, ge=1, le=6, description="人数")
+    target: Optional[NutrientTarget] = None
+    keep_dish_ids: list[int] = Field(default_factory=list, description="残したい料理ID")
+    exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
+    excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
+    prefer_batch_cooking: bool = Field(default=False, description="作り置き優先モード")

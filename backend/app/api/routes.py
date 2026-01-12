@@ -4,11 +4,12 @@ from app.db.database import get_db, FoodDB, DishDB, AllergenType
 from app.models.schemas import (
     Food, NutrientTarget, OptimizeRequest, UserPreferences,
     Dish, DishCreate, DailyMenuPlan, DishCategoryEnum,
-    MultiDayOptimizeRequest, MultiDayMenuPlan, AllergenEnum
+    MultiDayOptimizeRequest, MultiDayMenuPlan, AllergenEnum,
+    RefineOptimizeRequest
 )
 from app.optimizer.solver import (
     optimize_daily_menu, db_food_to_model, db_dish_to_model,
-    solve_multi_day_plan
+    solve_multi_day_plan, refine_multi_day_plan
 )
 
 router = APIRouter()
@@ -218,6 +219,64 @@ def optimize_multi_day_menu(
         raise HTTPException(
             status_code=500,
             detail="最適化に失敗しました。料理データが不足しているか、制約が厳しすぎる可能性があります。"
+        )
+
+    return result
+
+
+@router.post("/optimize/multi-day/refine", response_model=MultiDayMenuPlan)
+def refine_multi_day_menu(
+    request: RefineOptimizeRequest,
+    db: Session = Depends(get_db)
+):
+    """献立を調整して再最適化（イテレーション用）
+
+    ユーザーが提案された献立を見て「残したい料理」「外したい料理」を
+    指定して再最適化を行います。栄養バランスが崩れる場合は警告が出ます。
+
+    使い方:
+    1. まず /optimize/multi-day で初回の献立を取得
+    2. 献立を確認し、気に入った料理のIDを keep_dish_ids に、
+       外したい料理のIDを exclude_dish_ids に指定
+    3. このAPIを呼び出して再最適化
+    4. 満足するまで繰り返し
+
+    パラメータ:
+    - days: 日数（1-7日）
+    - people: 人数（1-6人）
+    - keep_dish_ids: 残したい料理ID（これらは必ず含まれる）
+    - exclude_dish_ids: 外したい料理ID（これらは除外される）
+    - excluded_allergens: 除外アレルゲン
+    - prefer_batch_cooking: 作り置き優先モード
+
+    戻り値:
+    - plan_id: プランID
+    - daily_plans: 日別の献立
+    - cooking_tasks: 調理計画
+    - shopping_list: 買い物リスト
+    - overall_achievement: 栄養達成率
+    - warnings: 栄養素の警告（不足している場合）
+    """
+    target = request.target or NutrientTarget()
+
+    # アレルゲン除外
+    excluded_allergens = [a.value for a in request.excluded_allergens]
+
+    result = refine_multi_day_plan(
+        db=db,
+        days=request.days,
+        people=request.people,
+        target=target,
+        keep_dish_ids=request.keep_dish_ids,
+        exclude_dish_ids=request.exclude_dish_ids,
+        excluded_allergens=excluded_allergens,
+        prefer_batch_cooking=request.prefer_batch_cooking,
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=500,
+            detail="調整に失敗しました。指定された条件では献立を生成できません。"
         )
 
     return result

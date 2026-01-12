@@ -4,12 +4,14 @@
 最適化の対象を「素材」から「料理」に変更。
 1食あたり「主食1 + 主菜1 + 副菜1-2 + 汁物0-1」の構成で最適化。
 """
+import uuid
 from pulp import LpProblem, LpMinimize, LpVariable, lpSum, LpStatus, value, PULP_CBC_CMD
 from sqlalchemy.orm import Session
 from app.db.database import DishDB, FoodDB
 from app.models.schemas import (
     NutrientTarget, Dish, DishIngredient, DishPortion,
-    MealPlan, DailyMenuPlan, DishCategoryEnum, MealTypeEnum, CookingMethodEnum
+    MealPlan, DailyMenuPlan, DishCategoryEnum, MealTypeEnum, CookingMethodEnum,
+    NutrientWarning
 )
 
 # ソルバー設定
@@ -329,8 +331,71 @@ def db_food_to_model(food_db: FoodDB) -> Food:
 
 from app.models.schemas import (
     MultiDayOptimizeRequest, MultiDayMenuPlan, DailyMealAssignment,
-    CookingTask, ShoppingItem, AllergenEnum
+    CookingTask, ShoppingItem, AllergenEnum, RefineOptimizeRequest
 )
+
+
+# 栄養素の日本語名
+NUTRIENT_NAMES = {
+    "calories": "カロリー",
+    "protein": "たんぱく質",
+    "fat": "脂質",
+    "carbohydrate": "炭水化物",
+    "fiber": "食物繊維",
+    "sodium": "ナトリウム",
+    "calcium": "カルシウム",
+    "iron": "鉄分",
+    "vitamin_a": "ビタミンA",
+    "vitamin_c": "ビタミンC",
+    "vitamin_d": "ビタミンD",
+}
+
+
+def _generate_warnings(nutrients: dict, target: NutrientTarget, threshold: float = 80.0) -> list[NutrientWarning]:
+    """栄養素の警告を生成
+
+    Args:
+        nutrients: 実際の栄養素摂取量
+        target: 目標値
+        threshold: 警告を出す達成率の閾値（%）
+
+    Returns:
+        警告リスト
+    """
+    warnings = []
+
+    for n in ALL_NUTRIENTS:
+        val = nutrients.get(n, 0)
+
+        if n == "sodium":
+            # ナトリウムは過剰摂取を警告
+            target_val = target.sodium_max
+            if val > target_val:
+                deficit = (val - target_val) / target_val * 100
+                warnings.append(NutrientWarning(
+                    nutrient=NUTRIENT_NAMES.get(n, n),
+                    message=f"{NUTRIENT_NAMES.get(n, n)}が目標上限を{deficit:.0f}%超過しています",
+                    current_value=round(val, 1),
+                    target_value=round(target_val, 1),
+                    deficit_percent=round(deficit, 1),
+                ))
+        else:
+            # その他は不足を警告
+            if hasattr(target, f"{n}_min"):
+                min_val = getattr(target, f"{n}_min")
+                achievement = val / min_val * 100 if min_val > 0 else 100
+
+                if achievement < threshold:
+                    deficit = 100 - achievement
+                    warnings.append(NutrientWarning(
+                        nutrient=NUTRIENT_NAMES.get(n, n),
+                        message=f"{NUTRIENT_NAMES.get(n, n)}が目標の{achievement:.0f}%しか摂取できていません",
+                        current_value=round(val, 1),
+                        target_value=round(min_val, 1),
+                        deficit_percent=round(deficit, 1),
+                    ))
+
+    return warnings
 
 
 def solve_multi_day_plan(
@@ -340,6 +405,7 @@ def solve_multi_day_plan(
     target: NutrientTarget = None,
     excluded_allergens: list[str] = None,
     excluded_dish_ids: list[int] = None,
+    keep_dish_ids: list[int] = None,
     prefer_batch_cooking: bool = False,
 ) -> MultiDayMenuPlan | None:
     """複数日×複数人のメニューを最適化（作り置き対応）
@@ -351,6 +417,7 @@ def solve_multi_day_plan(
         target: 栄養素目標（1人1日あたり）
         excluded_allergens: 除外アレルゲン
         excluded_dish_ids: 除外料理ID
+        keep_dish_ids: 必ず含める料理ID（調整時に使用）
         prefer_batch_cooking: 作り置き優先モード
 
     Returns:
@@ -359,6 +426,7 @@ def solve_multi_day_plan(
     target = target or NutrientTarget()
     excluded_allergens = excluded_allergens or []
     excluded_dish_ids = set(excluded_dish_ids or [])
+    keep_dish_ids = set(keep_dish_ids or [])
 
     # 全料理取得
     dishes_db = db.query(DishDB).all()
@@ -558,6 +626,14 @@ def solve_multi_day_plan(
                 if today_consumed and tomorrow_consumed:
                     prob += lpSum(today_consumed) + lpSum(tomorrow_consumed) <= 1
 
+    # C7: keep_dish_ids - 必ず含める料理（調整機能用）
+    if keep_dish_ids:
+        for dish_id in keep_dish_ids:
+            # この料理が期間中に少なくとも1回は調理される
+            kept_dish = [d for d in dishes if d.id == dish_id]
+            if kept_dish:
+                prob += lpSum(x[(dish_id, t)] for t in range(1, days + 1)) >= 1
+
     # ========== 求解 ==========
 
     solver = PULP_CBC_CMD(msg=0, timeLimit=30)
@@ -656,7 +732,11 @@ def _extract_multi_day_result(
     # 買い物リスト生成
     shopping_list = _generate_shopping_list(cooking_tasks)
 
+    # 警告生成
+    warnings = _generate_warnings(avg_nutrients, target)
+
     return MultiDayMenuPlan(
+        plan_id=str(uuid.uuid4()),
         days=days,
         people=people,
         daily_plans=daily_plans,
@@ -664,6 +744,7 @@ def _extract_multi_day_result(
         shopping_list=shopping_list,
         overall_nutrients={k: round(v, 1) for k, v in overall_nutrients.items()},
         overall_achievement={k: round(v, 1) for k, v in overall_achievement.items()},
+        warnings=warnings,
     )
 
 
@@ -760,8 +841,10 @@ def _fallback_multi_day_plan(
     avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
     overall_achievement = _calc_achievement(avg_nutrients, target)
     shopping_list = _generate_shopping_list(cooking_tasks)
+    warnings = _generate_warnings(avg_nutrients, target)
 
     return MultiDayMenuPlan(
+        plan_id=str(uuid.uuid4()),
         days=days,
         people=people,
         daily_plans=daily_plans,
@@ -769,6 +852,47 @@ def _fallback_multi_day_plan(
         shopping_list=shopping_list,
         overall_nutrients={k: round(v, 1) for k, v in overall_nutrients.items()},
         overall_achievement={k: round(v, 1) for k, v in overall_achievement.items()},
+        warnings=warnings,
+    )
+
+
+def refine_multi_day_plan(
+    db: Session,
+    days: int = 1,
+    people: int = 1,
+    target: NutrientTarget = None,
+    keep_dish_ids: list[int] = None,
+    exclude_dish_ids: list[int] = None,
+    excluded_allergens: list[str] = None,
+    prefer_batch_cooking: bool = False,
+) -> MultiDayMenuPlan | None:
+    """献立を調整して再最適化
+
+    ユーザーが「残したい料理」と「外したい料理」を指定して、
+    栄養バランスを維持しながら献立を再生成する。
+
+    Args:
+        db: DBセッション
+        days: 日数
+        people: 人数
+        target: 栄養素目標
+        keep_dish_ids: 残したい料理ID
+        exclude_dish_ids: 外したい料理ID
+        excluded_allergens: 除外アレルゲン
+        prefer_batch_cooking: 作り置き優先
+
+    Returns:
+        調整後の献立
+    """
+    return solve_multi_day_plan(
+        db=db,
+        days=days,
+        people=people,
+        target=target,
+        excluded_allergens=excluded_allergens,
+        excluded_dish_ids=exclude_dish_ids,
+        keep_dish_ids=keep_dish_ids,
+        prefer_batch_cooking=prefer_batch_cooking,
     )
 
 
