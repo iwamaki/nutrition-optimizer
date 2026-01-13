@@ -122,6 +122,16 @@ class UserPreferences(BaseModel):
 
 # ========== 料理関連スキーマ ==========
 
+class RecipeDetails(BaseModel):
+    """レシピ詳細"""
+    prep_time: Optional[int] = Field(default=None, description="下準備時間（分）")
+    cook_time: Optional[int] = Field(default=None, description="調理時間（分）")
+    servings: Optional[int] = Field(default=None, description="基準人数")
+    steps: list[str] = Field(default_factory=list, description="調理手順")
+    tips: Optional[str] = Field(default=None, description="コツ・ポイント")
+    variations: Optional[str] = Field(default=None, description="アレンジ例")
+
+
 class DishIngredient(BaseModel):
     """料理の材料"""
     food_id: int
@@ -165,6 +175,8 @@ class Dish(DishBase):
     vitamin_a: float = 0
     vitamin_c: float = 0
     vitamin_d: float = 0
+    # レシピ詳細（JSONから読み込み）
+    recipe_details: Optional[RecipeDetails] = Field(default=None, description="詳細レシピ")
 
     class Config:
         from_attributes = True

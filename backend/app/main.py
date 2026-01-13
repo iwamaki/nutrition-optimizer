@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.api.routes import router
 from app.db.database import init_db
-from app.data.loader import SessionLocal, load_dishes_from_csv
+from app.data.loader import SessionLocal, load_dishes_from_csv, load_recipe_details
 
 # Flutter Webビルドディレクトリ
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "build" / "web"
@@ -74,6 +74,12 @@ def startup_event():
             print("警告: 料理データがありません。data/dishes.csv を配置してください。")
         else:
             print(f"既存料理データ {existing_dishes} 件を使用します")
+
+        # レシピ詳細をJSONから読み込み
+        recipe_json = Path(__file__).parent.parent / "data" / "recipe_details.json"
+        if recipe_json.exists():
+            details = load_recipe_details(recipe_json)
+            print(f"レシピ詳細 {len(details)} 件を読み込みました")
 
     finally:
         db.close()

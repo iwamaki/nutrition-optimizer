@@ -127,3 +127,90 @@ uvicorn app.main:app --reload
 警告: 2件のエラー
   行5 '親子丼': 食品名が見つかりません: '鶏もも肉'
 ```
+
+## 7. レシピ詳細の生成
+
+CSVに追加した料理の詳細な調理手順を、Gemini APIで自動生成します。
+
+### 環境変数の設定
+
+```bash
+# Google Cloud Secret Manager から取得する場合
+export GEMINI_API_KEY=$(gcloud secrets versions access latest \
+  --secret=GEMINI_API_KEY --project=gen-lang-client-0309495198)
+
+# または直接設定
+export GEMINI_API_KEY='your-api-key'
+```
+
+### CLIツールで生成
+
+```bash
+cd backend
+source venv/bin/activate
+
+# 未登録レシピを確認（ドライラン）
+python tools/generate_recipes.py --dry-run
+
+# 全ての未登録レシピを生成
+python tools/generate_recipes.py
+
+# カテゴリ指定
+python tools/generate_recipes.py -c 主食
+
+# 件数制限
+python tools/generate_recipes.py --limit 5
+
+# 特定の料理のみ
+python tools/generate_recipes.py --name "親子丼"
+```
+
+### API経由で生成（サーバー起動中）
+
+```bash
+# 特定の料理のレシピ詳細を生成
+curl -X POST http://localhost:8000/api/v1/dishes/{dish_id}/generate-recipe
+
+# バッチ生成（5件ずつ）
+curl -X POST "http://localhost:8000/api/v1/dishes/generate-recipes/batch?limit=5"
+```
+
+### 生成データの確認
+
+生成されたレシピ詳細は `data/recipe_details.json` に保存されます：
+
+```json
+{
+  "親子丼": {
+    "prep_time": 10,
+    "cook_time": 15,
+    "servings": 1,
+    "steps": [
+      "鶏もも肉を一口大に切る",
+      "玉ねぎは薄切りにする",
+      ...
+    ],
+    "tips": "卵は半熟に仕上げるのがポイント"
+  }
+}
+```
+
+## 料理追加のクイックリファレンス
+
+```bash
+# 1. 既存料理確認
+python tools/list_dishes.py -c [カテゴリ] --compact
+
+# 2. LLMでCSV生成（別途）
+
+# 3. バリデーション
+python tools/validate_dishes.py data/draft.csv -o data/dishes.csv
+
+# 4. DB再作成
+rm nutrition.db && uvicorn app.main:app --reload
+
+# 5. レシピ詳細生成
+export GEMINI_API_KEY=...
+python tools/generate_recipes.py --dry-run  # 確認
+python tools/generate_recipes.py            # 実行
+```

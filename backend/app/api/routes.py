@@ -11,6 +11,8 @@ from app.optimizer.solver import (
     optimize_daily_menu, db_food_to_model, db_dish_to_model,
     solve_multi_day_plan, refine_multi_day_plan
 )
+from app.services.recipe_generator import generate_recipe_detail, get_or_generate_recipe_detail
+from app.models.schemas import RecipeDetails
 
 router = APIRouter()
 
@@ -120,6 +122,104 @@ def get_dish(dish_id: int, db: Session = Depends(get_db)):
     if not dish_db:
         raise HTTPException(status_code=404, detail="Dish not found")
     return db_dish_to_model(dish_db)
+
+
+@router.post("/dishes/{dish_id}/generate-recipe", response_model=RecipeDetails)
+def generate_dish_recipe(dish_id: int, db: Session = Depends(get_db)):
+    """Gemini APIでレシピ詳細を自動生成
+
+    - GEMINI_API_KEY 環境変数が必要
+    - 既に詳細がある場合はそれを返す
+    - 生成結果は recipe_details.json に保存される
+    """
+    dish_db = db.query(DishDB).filter(DishDB.id == dish_id).first()
+    if not dish_db:
+        raise HTTPException(status_code=404, detail="Dish not found")
+
+    # 材料情報を構築
+    ingredients = []
+    for ing in dish_db.ingredients:
+        ingredients.append({
+            "name": ing.food.name if ing.food else "",
+            "amount": str(ing.amount)
+        })
+
+    # 生成
+    result = get_or_generate_recipe_detail(
+        dish_name=dish_db.name,
+        category=dish_db.category,
+        ingredients=ingredients,
+        hint=dish_db.instructions or ""
+    )
+
+    if not result:
+        raise HTTPException(
+            status_code=503,
+            detail="レシピ生成に失敗しました。GEMINI_API_KEY が設定されているか確認してください"
+        )
+
+    return RecipeDetails(**result)
+
+
+@router.post("/dishes/generate-recipes/batch")
+def generate_recipes_batch(
+    category: str = None,
+    limit: int = 5,
+    db: Session = Depends(get_db)
+):
+    """未追加レシピをバッチ生成
+
+    - category: カテゴリで絞り込み（主食/主菜/副菜/汁物/デザート）
+    - limit: 一度に生成する件数（デフォルト5件、最大20件）
+    """
+    from app.data.loader import get_recipe_details
+
+    limit = min(limit, 20)  # 最大20件
+
+    query = db.query(DishDB)
+    if category:
+        query = query.filter(DishDB.category == category)
+    dishes = query.all()
+
+    generated = []
+    skipped = []
+    failed = []
+
+    for dish in dishes:
+        if len(generated) >= limit:
+            break
+
+        # 既存チェック
+        existing = get_recipe_details(dish.name)
+        if existing:
+            skipped.append(dish.name)
+            continue
+
+        # 材料情報を構築
+        ingredients = [
+            {"name": ing.food.name if ing.food else "", "amount": str(ing.amount)}
+            for ing in dish.ingredients
+        ]
+
+        # 生成
+        result = generate_recipe_detail(
+            dish_name=dish.name,
+            category=dish.category,
+            ingredients=ingredients,
+            hint=dish.instructions or ""
+        )
+
+        if result:
+            generated.append(dish.name)
+        else:
+            failed.append(dish.name)
+
+    return {
+        "generated": generated,
+        "generated_count": len(generated),
+        "failed": failed,
+        "message": f"{len(generated)}件のレシピ詳細を生成しました"
+    }
 
 
 @router.get("/dish-categories")

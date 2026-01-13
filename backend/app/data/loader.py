@@ -1,11 +1,35 @@
 import pandas as pd
 import csv
+import json
 from pathlib import Path
 from sqlalchemy.orm import Session
 from app.db.database import (
     FoodDB, DishDB, DishIngredientDB, CookingFactorDB,
     init_db, SessionLocal
 )
+
+# レシピ詳細データ（メモリキャッシュ）
+_recipe_details_cache: dict = {}
+
+
+def load_recipe_details(json_path: Path) -> dict:
+    """recipe_details.jsonを読み込み、キャッシュする"""
+    global _recipe_details_cache
+
+    if not json_path.exists():
+        return {}
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # _schemaなどのメタデータを除外
+    _recipe_details_cache = {k: v for k, v in data.items() if not k.startswith("_")}
+    return _recipe_details_cache
+
+
+def get_recipe_details(dish_name: str) -> dict | None:
+    """料理名からレシピ詳細を取得"""
+    return _recipe_details_cache.get(dish_name)
 
 
 def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) -> int:

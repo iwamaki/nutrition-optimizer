@@ -11,8 +11,9 @@ from app.db.database import DishDB, FoodDB
 from app.models.schemas import (
     NutrientTarget, Dish, DishIngredient, DishPortion,
     MealPlan, DailyMenuPlan, DishCategoryEnum, MealTypeEnum, CookingMethodEnum,
-    NutrientWarning
+    NutrientWarning, RecipeDetails
 )
+from app.data.loader import get_recipe_details
 
 # ソルバー設定
 SOLVER = PULP_CBC_CMD(msg=0, timeLimit=10)
@@ -68,6 +69,10 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
 
     meal_types = [MealTypeEnum(mt) for mt in dish_db.meal_types.split(",") if mt]
 
+    # レシピ詳細を取得
+    recipe_data = get_recipe_details(dish_db.name)
+    recipe_details = RecipeDetails(**recipe_data) if recipe_data else None
+
     return Dish(
         id=dish_db.id,
         name=dish_db.name,
@@ -92,6 +97,8 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
         vitamin_a=dish_db.vitamin_a,
         vitamin_c=dish_db.vitamin_c,
         vitamin_d=dish_db.vitamin_d,
+        # レシピ詳細
+        recipe_details=recipe_details,
     )
 
 
