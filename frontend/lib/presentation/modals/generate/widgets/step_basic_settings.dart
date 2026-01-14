@@ -25,11 +25,11 @@ class StepBasicSettings extends ConsumerWidget {
         const SizedBox(height: 16),
         _buildPeopleCard(context, state, controller),
         const SizedBox(height: 16),
+        _buildMealSettingsCard(context, state, controller),
+        const SizedBox(height: 16),
         _buildAllergenCard(context, state, controller),
         const SizedBox(height: 16),
         _buildCaloriesCard(context, state, controller),
-        const SizedBox(height: 16),
-        _buildVolumeCard(context, state, controller),
         const SizedBox(height: 16),
         _buildVarietyCard(context, state, controller),
       ],
@@ -149,6 +149,96 @@ class StepBasicSettings extends ConsumerWidget {
     );
   }
 
+  Widget _buildMealSettingsCard(
+    BuildContext context,
+    GenerateModalState state,
+    GenerateModalController controller,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.restaurant_menu, size: 20),
+                const SizedBox(width: 8),
+                Text('朝昼夜の設定', style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '各食事の有効/無効と品数を設定します',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            _buildMealRow(context, state, controller, '朝食', 'breakfast', Icons.wb_sunny),
+            const SizedBox(height: 8),
+            _buildMealRow(context, state, controller, '昼食', 'lunch', Icons.light_mode),
+            const SizedBox(height: 8),
+            _buildMealRow(context, state, controller, '夕食', 'dinner', Icons.nightlight),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMealRow(
+    BuildContext context,
+    GenerateModalState state,
+    GenerateModalController controller,
+    String label,
+    String mealType,
+    IconData icon,
+  ) {
+    final setting = state.mealSettings[mealType] ?? const MealSetting();
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.outline),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 40,
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+        const SizedBox(width: 8),
+        Switch(
+          value: setting.enabled,
+          onChanged: (v) => controller.setMealEnabled(mealType, v),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SegmentedButton<VolumeLevel>(
+            segments: const [
+              ButtonSegment(
+                value: VolumeLevel.small,
+                label: Text('少なめ', style: TextStyle(fontSize: 11)),
+              ),
+              ButtonSegment(
+                value: VolumeLevel.normal,
+                label: Text('普通', style: TextStyle(fontSize: 11)),
+              ),
+              ButtonSegment(
+                value: VolumeLevel.large,
+                label: Text('多め', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+            selected: {setting.volume},
+            onSelectionChanged: setting.enabled
+                ? (selected) => controller.setMealVolume(mealType, selected.first)
+                : null,
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAllergenCard(
     BuildContext context,
     GenerateModalState state,
@@ -232,70 +322,6 @@ class StepBasicSettings extends ConsumerWidget {
                 _buildLevelChip(state.volumeLevel, 'large', '多め',
                     () => controller.setVolumeLevel('large')),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVolumeCard(
-    BuildContext context,
-    GenerateModalState state,
-    GenerateModalController controller,
-  ) {
-    String description;
-    switch (state.batchCookingLevel) {
-      case 'small':
-        description = '品数少なめ（作り置き重視）';
-        break;
-      case 'large':
-        description = '品数多め（毎食違う料理）';
-        break;
-      default:
-        description = '適度な品数でバランス良く';
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.restaurant_menu, size: 20),
-                const SizedBox(width: 8),
-                Text('献立ボリューム', style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '献立の品数を調整します',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildLevelChip(state.batchCookingLevel, 'small', '少なめ',
-                    () => controller.setBatchCookingLevel('small')),
-                _buildLevelChip(state.batchCookingLevel, 'normal', '普通',
-                    () => controller.setBatchCookingLevel('normal')),
-                _buildLevelChip(state.batchCookingLevel, 'large', '多め',
-                    () => controller.setBatchCookingLevel('large')),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                    fontStyle: FontStyle.italic,
-                  ),
             ),
           ],
         ),

@@ -14,6 +14,7 @@ abstract class MenuRepository {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   });
 
   /// 献立を調整して再生成
@@ -27,6 +28,7 @@ abstract class MenuRepository {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   });
 
   /// 1日分の献立を最適化（シンプル版）

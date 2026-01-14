@@ -1,3 +1,43 @@
+/// 品数レベル
+enum VolumeLevel {
+  small('少なめ', 'small'),
+  normal('普通', 'normal'),
+  large('多め', 'large');
+
+  final String displayName;
+  final String apiValue;
+
+  const VolumeLevel(this.displayName, this.apiValue);
+}
+
+/// 食事タイプ別の設定
+class MealSetting {
+  final bool enabled;
+  final VolumeLevel volume;
+
+  const MealSetting({
+    this.enabled = true,
+    this.volume = VolumeLevel.normal,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'enabled': enabled,
+      'volume': volume.apiValue,
+    };
+  }
+
+  MealSetting copyWith({
+    bool? enabled,
+    VolumeLevel? volume,
+  }) {
+    return MealSetting(
+      enabled: enabled ?? this.enabled,
+      volume: volume ?? this.volume,
+    );
+  }
+}
+
 /// アレルゲン（7大アレルゲン）
 enum Allergen {
   egg('卵', 'EGG'),

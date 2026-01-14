@@ -23,6 +23,7 @@ class MenuRepositoryImpl implements MenuRepository {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   }) {
     return _apiService.optimizeMultiDay(
       days: days,
@@ -33,6 +34,7 @@ class MenuRepositoryImpl implements MenuRepository {
       batchCookingLevel: batchCookingLevel,
       volumeLevel: volumeLevel,
       varietyLevel: varietyLevel,
+      mealSettings: mealSettings,
     );
   }
 
@@ -47,6 +49,7 @@ class MenuRepositoryImpl implements MenuRepository {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   }) {
     return _apiService.refineMultiDay(
       days: days,
@@ -58,6 +61,7 @@ class MenuRepositoryImpl implements MenuRepository {
       batchCookingLevel: batchCookingLevel,
       volumeLevel: volumeLevel,
       varietyLevel: varietyLevel,
+      mealSettings: mealSettings,
     );
   }
 

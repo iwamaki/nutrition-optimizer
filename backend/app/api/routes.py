@@ -292,8 +292,9 @@ def optimize_multi_day_menu(
     - excluded_allergens: 除外アレルゲン（卵, 乳, 小麦, そば, 落花生, えび, かに）
     - excluded_dish_ids: 除外料理ID
     - batch_cooking_level: 作り置き優先度（small/normal/large）
-    - volume_level: 献立ボリューム（small/normal/large）
-    - variety_level: 食材の種類（small/normal/large）
+    - volume_level: カロリー目標レベル（small/normal/large）
+    - variety_level: 料理の繰り返し（small/normal/large）
+    - meal_settings: 朝昼夜別の設定（enabled, volume）
 
     戻り値:
     - daily_plans: 日別の献立
@@ -307,6 +308,9 @@ def optimize_multi_day_menu(
     # アレルゲン除外
     excluded_allergens = [a.value for a in request.excluded_allergens]
 
+    # 朝昼夜別設定
+    meal_settings = request.meal_settings.to_dict() if request.meal_settings else None
+
     result = solve_multi_day_plan(
         db=db,
         days=request.days,
@@ -317,6 +321,7 @@ def optimize_multi_day_menu(
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
+        meal_settings=meal_settings,
     )
 
     if not result:
@@ -352,8 +357,9 @@ def refine_multi_day_menu(
     - exclude_dish_ids: 外したい料理ID（これらは除外される）
     - excluded_allergens: 除外アレルゲン
     - batch_cooking_level: 作り置き優先度（small/normal/large）
-    - volume_level: 献立ボリューム（small/normal/large）
-    - variety_level: 食材の種類（small/normal/large）
+    - volume_level: カロリー目標レベル（small/normal/large）
+    - variety_level: 料理の繰り返し（small/normal/large）
+    - meal_settings: 朝昼夜別の設定（enabled, volume）
 
     戻り値:
     - plan_id: プランID
@@ -368,6 +374,9 @@ def refine_multi_day_menu(
     # アレルゲン除外
     excluded_allergens = [a.value for a in request.excluded_allergens]
 
+    # 朝昼夜別設定
+    meal_settings = request.meal_settings.to_dict() if request.meal_settings else None
+
     result = refine_multi_day_plan(
         db=db,
         days=request.days,
@@ -379,6 +388,7 @@ def refine_multi_day_menu(
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
+        meal_settings=meal_settings,
     )
 
     if not result:

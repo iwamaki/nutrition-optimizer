@@ -18,6 +18,8 @@ class GenerateModalState {
   final String batchCookingLevel;
   final String volumeLevel;
   final String varietyLevel;
+  // 朝昼夜別の設定
+  final Map<String, MealSetting> mealSettings;
 
   // Step2: 手持ち食材
   final Set<int> ownedFoodIds;
@@ -39,6 +41,11 @@ class GenerateModalState {
     this.batchCookingLevel = 'normal',
     this.volumeLevel = 'normal',
     this.varietyLevel = 'normal',
+    this.mealSettings = const {
+      'breakfast': MealSetting(enabled: true, volume: VolumeLevel.small),
+      'lunch': MealSetting(enabled: true, volume: VolumeLevel.normal),
+      'dinner': MealSetting(enabled: true, volume: VolumeLevel.normal),
+    },
     this.ownedFoodIds = const {},
     this.searchResults = const [],
     this.searchQuery = '',
@@ -57,6 +64,7 @@ class GenerateModalState {
     String? batchCookingLevel,
     String? volumeLevel,
     String? varietyLevel,
+    Map<String, MealSetting>? mealSettings,
     Set<int>? ownedFoodIds,
     List<Map<String, dynamic>>? searchResults,
     String? searchQuery,
@@ -76,6 +84,7 @@ class GenerateModalState {
       batchCookingLevel: batchCookingLevel ?? this.batchCookingLevel,
       volumeLevel: volumeLevel ?? this.volumeLevel,
       varietyLevel: varietyLevel ?? this.varietyLevel,
+      mealSettings: mealSettings ?? this.mealSettings,
       ownedFoodIds: ownedFoodIds ?? this.ownedFoodIds,
       searchResults: searchResults ?? this.searchResults,
       searchQuery: searchQuery ?? this.searchQuery,
@@ -178,6 +187,21 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(varietyLevel: level);
   }
 
+  // === 朝昼夜別設定 ===
+  void setMealEnabled(String mealType, bool enabled) {
+    final current = Map<String, MealSetting>.from(state.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+    current[mealType] = currentSetting.copyWith(enabled: enabled);
+    state = state.copyWith(mealSettings: current);
+  }
+
+  void setMealVolume(String mealType, VolumeLevel volume) {
+    final current = Map<String, MealSetting>.from(state.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+    current[mealType] = currentSetting.copyWith(volume: volume);
+    state = state.copyWith(mealSettings: current);
+  }
+
   // === Step2: Owned Foods ===
   void toggleFood(int foodId) {
     final current = Set<int>.from(state.ownedFoodIds);
@@ -254,6 +278,7 @@ class GenerateModalController extends _$GenerateModalController {
         batchCookingLevel: state.batchCookingLevel,
         volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
+        mealSettings: state.mealSettings,
       );
       state = state.copyWith(generatedPlan: plan, isGenerating: false);
     } catch (e) {
@@ -275,6 +300,7 @@ class GenerateModalController extends _$GenerateModalController {
         batchCookingLevel: state.batchCookingLevel,
         volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
+        mealSettings: state.mealSettings,
       );
       state = state.copyWith(
         generatedPlan: plan,

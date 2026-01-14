@@ -155,6 +155,7 @@ class ApiService {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   }) async {
     final body = {
       'days': days,
@@ -168,6 +169,13 @@ class ApiService {
 
     if (target != null) {
       body['target'] = target.toJson();
+    }
+
+    if (mealSettings != null) {
+      body['meal_settings'] = {
+        for (final entry in mealSettings.entries)
+          entry.key: entry.value.toJson(),
+      };
     }
 
     final response = await http.post(
@@ -194,6 +202,7 @@ class ApiService {
     String batchCookingLevel = 'normal',
     String volumeLevel = 'normal',
     String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
   }) async {
     final body = {
       'days': days,
@@ -208,6 +217,13 @@ class ApiService {
 
     if (target != null) {
       body['target'] = target.toJson();
+    }
+
+    if (mealSettings != null) {
+      body['meal_settings'] = {
+        for (final entry in mealSettings.entries)
+          entry.key: entry.value.toJson(),
+      };
     }
 
     final response = await http.post(

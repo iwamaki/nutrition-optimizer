@@ -247,6 +247,30 @@ class DailyMenuPlan(BaseModel):
 
 # ========== 複数日最適化（作り置き対応） ==========
 
+class MealSetting(BaseModel):
+    """食事タイプ別の設定"""
+    enabled: bool = Field(default=True, description="この食事を生成するか")
+    volume: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="品数レベル")
+
+
+class MealSettings(BaseModel):
+    """朝昼夜の設定"""
+    breakfast: Optional[MealSetting] = Field(default=None, description="朝食設定")
+    lunch: Optional[MealSetting] = Field(default=None, description="昼食設定")
+    dinner: Optional[MealSetting] = Field(default=None, description="夕食設定")
+
+    def to_dict(self) -> dict:
+        """solver用のdict形式に変換"""
+        result = {}
+        if self.breakfast:
+            result["breakfast"] = {"enabled": self.breakfast.enabled, "volume": self.breakfast.volume.value}
+        if self.lunch:
+            result["lunch"] = {"enabled": self.lunch.enabled, "volume": self.lunch.volume.value}
+        if self.dinner:
+            result["dinner"] = {"enabled": self.dinner.enabled, "volume": self.dinner.volume.value}
+        return result if result else None
+
+
 class MultiDayOptimizeRequest(BaseModel):
     """複数日最適化リクエスト"""
     days: int = Field(default=1, ge=1, le=7, description="日数")
@@ -255,8 +279,9 @@ class MultiDayOptimizeRequest(BaseModel):
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
-    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="献立ボリューム")
-    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="食材の種類（多様性）")
+    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
+    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
+    meal_settings: Optional[MealSettings] = Field(default=None, description="朝昼夜別の設定")
 
 
 class CookingTask(BaseModel):
@@ -315,5 +340,6 @@ class RefineOptimizeRequest(BaseModel):
     exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
-    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="献立ボリューム")
-    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="食材の種類（多様性）")
+    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
+    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
+    meal_settings: Optional[MealSettings] = Field(default=None, description="朝昼夜別の設定")
