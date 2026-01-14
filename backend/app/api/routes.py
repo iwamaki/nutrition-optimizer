@@ -291,7 +291,9 @@ def optimize_multi_day_menu(
     - target: 栄養素目標（1人1日あたり）
     - excluded_allergens: 除外アレルゲン（卵, 乳, 小麦, そば, 落花生, えび, かに）
     - excluded_dish_ids: 除外料理ID
-    - prefer_batch_cooking: 作り置き優先モード（trueで調理回数を最小化）
+    - batch_cooking_level: 作り置き優先度（small/normal/large）
+    - volume_level: 献立ボリューム（small/normal/large）
+    - variety_level: 食材の種類（small/normal/large）
 
     戻り値:
     - daily_plans: 日別の献立
@@ -312,7 +314,9 @@ def optimize_multi_day_menu(
         target=target,
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=request.excluded_dish_ids,
-        prefer_batch_cooking=request.prefer_batch_cooking,
+        batch_cooking_level=request.batch_cooking_level.value,
+        volume_level=request.volume_level.value,
+        variety_level=request.variety_level.value,
     )
 
     if not result:
@@ -347,7 +351,9 @@ def refine_multi_day_menu(
     - keep_dish_ids: 残したい料理ID（これらは必ず含まれる）
     - exclude_dish_ids: 外したい料理ID（これらは除外される）
     - excluded_allergens: 除外アレルゲン
-    - prefer_batch_cooking: 作り置き優先モード
+    - batch_cooking_level: 作り置き優先度（small/normal/large）
+    - volume_level: 献立ボリューム（small/normal/large）
+    - variety_level: 食材の種類（small/normal/large）
 
     戻り値:
     - plan_id: プランID
@@ -370,7 +376,9 @@ def refine_multi_day_menu(
         keep_dish_ids=request.keep_dish_ids,
         exclude_dish_ids=request.exclude_dish_ids,
         excluded_allergens=excluded_allergens,
-        prefer_batch_cooking=request.prefer_batch_cooking,
+        batch_cooking_level=request.batch_cooking_level.value,
+        volume_level=request.volume_level.value,
+        variety_level=request.variety_level.value,
     )
 
     if not result:

@@ -14,6 +14,27 @@ class AllergenEnum(str, Enum):
     CRAB = "かに"
 
 
+class VolumeLevelEnum(str, Enum):
+    """献立ボリュームレベル"""
+    SMALL = "small"    # 少なめ（カロリー目標 × 0.8）
+    NORMAL = "normal"  # 普通（カロリー目標 × 1.0）
+    LARGE = "large"    # 多め（カロリー目標 × 1.2）
+
+
+class VarietyLevelEnum(str, Enum):
+    """食材の種類レベル（多様性）"""
+    SMALL = "small"    # 少なめ（作り置き優先、同じ料理を繰り返す）
+    NORMAL = "normal"  # 普通（バランス）
+    LARGE = "large"    # 多め（毎食違う料理）
+
+
+class BatchCookingLevelEnum(str, Enum):
+    """作り置き優先度レベル"""
+    SMALL = "small"    # 少なめ（調理回数多めでもOK、毎食違う料理）
+    NORMAL = "normal"  # 普通（バランス）
+    LARGE = "large"    # 多め（調理回数を最小化、作り置き重視）
+
+
 class MealTypeEnum(str, Enum):
     """食事タイプ"""
     BREAKFAST = "breakfast"
@@ -233,7 +254,9 @@ class MultiDayOptimizeRequest(BaseModel):
     target: Optional[NutrientTarget] = None
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
-    prefer_batch_cooking: bool = Field(default=False, description="作り置き優先モード")
+    batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
+    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="献立ボリューム")
+    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="食材の種類（多様性）")
 
 
 class CookingTask(BaseModel):
@@ -291,4 +314,6 @@ class RefineOptimizeRequest(BaseModel):
     keep_dish_ids: list[int] = Field(default_factory=list, description="残したい料理ID")
     exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
-    prefer_batch_cooking: bool = Field(default=False, description="作り置き優先モード")
+    batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
+    volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="献立ボリューム")
+    variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="食材の種類（多様性）")

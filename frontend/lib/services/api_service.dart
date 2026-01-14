@@ -146,20 +146,38 @@ class ApiService {
     }
   }
 
+  // UIの「献立ボリューム」をバックエンドの「作り置きレベル」に変換
+  // UI: 多め=料理多い → バックエンド: small=調理回数ペナルティ低
+  // UI: 少なめ=作り置き重視 → バックエンド: large=調理回数ペナルティ高
+  String _invertBatchCookingLevel(String level) {
+    switch (level) {
+      case 'small':
+        return 'large';
+      case 'large':
+        return 'small';
+      default:
+        return 'normal';
+    }
+  }
+
   Future<MultiDayMenuPlan> optimizeMultiDay({
     int days = 3,
     int people = 2,
     NutrientTarget? target,
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
-    bool preferBatchCooking = false,
+    String batchCookingLevel = 'normal',
+    String volumeLevel = 'normal',
+    String varietyLevel = 'normal',
   }) async {
     final body = {
       'days': days,
       'people': people,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
       'excluded_dish_ids': excludedDishIds,
-      'prefer_batch_cooking': preferBatchCooking,
+      'batch_cooking_level': _invertBatchCookingLevel(batchCookingLevel),
+      'volume_level': volumeLevel,
+      'variety_level': varietyLevel,
     };
 
     if (target != null) {
@@ -187,7 +205,9 @@ class ApiService {
     List<int> keepDishIds = const [],
     List<int> excludeDishIds = const [],
     List<Allergen> excludedAllergens = const [],
-    bool preferBatchCooking = false,
+    String batchCookingLevel = 'normal',
+    String volumeLevel = 'normal',
+    String varietyLevel = 'normal',
   }) async {
     final body = {
       'days': days,
@@ -195,7 +215,9 @@ class ApiService {
       'keep_dish_ids': keepDishIds,
       'exclude_dish_ids': excludeDishIds,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
-      'prefer_batch_cooking': preferBatchCooking,
+      'batch_cooking_level': _invertBatchCookingLevel(batchCookingLevel),
+      'volume_level': volumeLevel,
+      'variety_level': varietyLevel,
     };
 
     if (target != null) {

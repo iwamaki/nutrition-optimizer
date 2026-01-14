@@ -413,7 +413,9 @@ def solve_multi_day_plan(
     excluded_allergens: list[str] = None,
     excluded_dish_ids: list[int] = None,
     keep_dish_ids: list[int] = None,
-    prefer_batch_cooking: bool = False,
+    batch_cooking_level: str = "normal",
+    volume_level: str = "normal",
+    variety_level: str = "normal",
 ) -> MultiDayMenuPlan | None:
     """複数日×複数人のメニューを最適化（作り置き対応）
 
@@ -425,7 +427,9 @@ def solve_multi_day_plan(
         excluded_allergens: 除外アレルゲン
         excluded_dish_ids: 除外料理ID
         keep_dish_ids: 必ず含める料理ID（調整時に使用）
-        prefer_batch_cooking: 作り置き優先モード
+        batch_cooking_level: 作り置き優先度（small/normal/large）
+        volume_level: 献立ボリューム（small/normal/large）
+        variety_level: 食材の種類（small/normal/large）
 
     Returns:
         MultiDayMenuPlan: 最適化結果
@@ -434,6 +438,28 @@ def solve_multi_day_plan(
     excluded_allergens = excluded_allergens or []
     excluded_dish_ids = set(excluded_dish_ids or [])
     keep_dish_ids = set(keep_dish_ids or [])
+
+    # ボリューム調整（カロリー目標を調整）
+    volume_multipliers = {"small": 0.8, "normal": 1.0, "large": 1.2}
+    volume_mult = volume_multipliers.get(volume_level, 1.0)
+    if volume_mult != 1.0:
+        target = NutrientTarget(
+            calories_min=target.calories_min * volume_mult,
+            calories_max=target.calories_max * volume_mult,
+            protein_min=target.protein_min * volume_mult,
+            protein_max=target.protein_max * volume_mult,
+            fat_min=target.fat_min * volume_mult,
+            fat_max=target.fat_max * volume_mult,
+            carbohydrate_min=target.carbohydrate_min * volume_mult,
+            carbohydrate_max=target.carbohydrate_max * volume_mult,
+            fiber_min=target.fiber_min * volume_mult,
+            sodium_max=target.sodium_max * volume_mult,
+            calcium_min=target.calcium_min,  # ミネラル・ビタミンは変えない
+            iron_min=target.iron_min,
+            vitamin_a_min=target.vitamin_a_min,
+            vitamin_c_min=target.vitamin_c_min,
+            vitamin_d_min=target.vitamin_d_min,
+        )
 
     # 全料理取得
     dishes_db = db.query(DishDB).all()
@@ -534,14 +560,16 @@ def solve_multi_day_plan(
         for n in ALL_NUTRIENTS
     )
 
-    # 調理回数（作り置き優先時は重視）
+    # 調理回数（作り置き優先度に応じて重み付け）
     cooking_count = lpSum(x[(d.id, t)] for d in dishes for t in range(1, days + 1))
 
-    # 重み付け
-    if prefer_batch_cooking:
-        prob += nutrient_deviation + 0.1 * cooking_count
-    else:
-        prob += nutrient_deviation + 0.01 * cooking_count
+    # 重み付け（batch_cooking_levelに応じて調整）
+    # small: 調理回数多めでもOK（重み小さい）
+    # normal: バランス
+    # large: 調理回数を最小化（重み大きい）
+    batch_cooking_weights = {"small": 0.01, "normal": 0.05, "large": 0.2}
+    cooking_weight = batch_cooking_weights.get(batch_cooking_level, 0.05)
+    prob += nutrient_deviation + cooking_weight * cooking_count
 
     # ========== 制約条件 ==========
 
@@ -616,22 +644,39 @@ def solve_multi_day_plan(
                         prob += lpSum(cat_selected) >= min_count
                         prob += lpSum(cat_selected) <= max_count
 
-    # C6: 同じ料理の連続消費を避ける（同じ食事タイプで2日連続は避ける）
-    for d in dishes:
-        for m in meals:
-            for day in range(1, days):
-                today_consumed = []
-                tomorrow_consumed = []
-                for t in range(max(1, day - d.storage_days), day + 1):
-                    key_today = (d.id, t, day, m)
-                    if key_today in c:
-                        today_consumed.append(c[key_today])
-                for t in range(max(1, day + 1 - d.storage_days), day + 2):
-                    key_tomorrow = (d.id, t, day + 1, m)
-                    if key_tomorrow in c:
-                        tomorrow_consumed.append(c[key_tomorrow])
-                if today_consumed and tomorrow_consumed:
-                    prob += lpSum(today_consumed) + lpSum(tomorrow_consumed) <= 1
+    # C6: 料理の多様性制約（variety_levelに応じて調整）
+    if variety_level == "large":
+        # 多め: 同じ料理は期間中1回のみ
+        for d in dishes:
+            all_consumptions = []
+            for t in range(1, days + 1):
+                for t_prime in range(t, min(t + d.storage_days + 1, days + 1)):
+                    for m in meals:
+                        key = (d.id, t, t_prime, m)
+                        if key in c:
+                            all_consumptions.append(c[key])
+            if all_consumptions:
+                prob += lpSum(all_consumptions) <= 1
+    elif variety_level == "small":
+        # 少なめ: 連続制約なし（同じ料理を繰り返し可能）
+        pass
+    else:
+        # 普通: 同じ食事タイプで2日連続は避ける（デフォルト）
+        for d in dishes:
+            for m in meals:
+                for day in range(1, days):
+                    today_consumed = []
+                    tomorrow_consumed = []
+                    for t in range(max(1, day - d.storage_days), day + 1):
+                        key_today = (d.id, t, day, m)
+                        if key_today in c:
+                            today_consumed.append(c[key_today])
+                    for t in range(max(1, day + 1 - d.storage_days), day + 2):
+                        key_tomorrow = (d.id, t, day + 1, m)
+                        if key_tomorrow in c:
+                            tomorrow_consumed.append(c[key_tomorrow])
+                    if today_consumed and tomorrow_consumed:
+                        prob += lpSum(today_consumed) + lpSum(tomorrow_consumed) <= 1
 
     # C7: keep_dish_ids - 必ず含める料理（調整機能用）
     if keep_dish_ids:
@@ -871,7 +916,9 @@ def refine_multi_day_plan(
     keep_dish_ids: list[int] = None,
     exclude_dish_ids: list[int] = None,
     excluded_allergens: list[str] = None,
-    prefer_batch_cooking: bool = False,
+    batch_cooking_level: str = "normal",
+    volume_level: str = "normal",
+    variety_level: str = "normal",
 ) -> MultiDayMenuPlan | None:
     """献立を調整して再最適化
 
@@ -886,7 +933,9 @@ def refine_multi_day_plan(
         keep_dish_ids: 残したい料理ID
         exclude_dish_ids: 外したい料理ID
         excluded_allergens: 除外アレルゲン
-        prefer_batch_cooking: 作り置き優先
+        batch_cooking_level: 作り置き優先度
+        volume_level: 献立ボリューム
+        variety_level: 食材の種類
 
     Returns:
         調整後の献立
@@ -899,7 +948,9 @@ def refine_multi_day_plan(
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=exclude_dish_ids,
         keep_dish_ids=keep_dish_ids,
-        prefer_batch_cooking=prefer_batch_cooking,
+        batch_cooking_level=batch_cooking_level,
+        volume_level=volume_level,
+        variety_level=variety_level,
     )
 
 

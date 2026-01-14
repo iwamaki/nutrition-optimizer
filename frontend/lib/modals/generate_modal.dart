@@ -25,7 +25,9 @@ class _GenerateModalState extends State<GenerateModal> {
   late int _days;
   late int _people;
   late Set<Allergen> _excludedAllergens;
-  late bool _preferBatchCooking;
+  String _batchCookingLevel = 'normal';  // 作り置き優先度: small/normal/large
+  String _volumeLevel = 'normal';   // 献立ボリューム: small/normal/large
+  String _varietyLevel = 'normal';  // 食材の種類: small/normal/large
 
   // Step2: 手持ち食材
   Set<int> _ownedFoodIds = {};
@@ -67,7 +69,7 @@ class _GenerateModalState extends State<GenerateModal> {
     _days = settings.defaultDays;
     _people = settings.defaultPeople;
     _excludedAllergens = Set.from(settings.excludedAllergens);
-    _preferBatchCooking = settings.preferBatchCooking;
+    // batchCookingLevel, volumeLevel, varietyLevel はデフォルト値を使用
   }
 
   @override
@@ -370,18 +372,182 @@ class _GenerateModalState extends State<GenerateModal> {
         ),
         const SizedBox(height: 16),
 
-        // 作り置き優先
+        // カロリー目標（旧：献立ボリューム）
         Card(
-          child: SwitchListTile(
-            secondary: const Icon(Icons.kitchen),
-            title: const Text('作り置き優先'),
-            subtitle: const Text('調理回数を減らして効率化'),
-            value: _preferBatchCooking,
-            onChanged: (value) => setState(() => _preferBatchCooking = value),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.local_fire_department, size: 20),
+                    const SizedBox(width: 8),
+                    Text('カロリー目標', style: Theme.of(context).textTheme.titleSmall),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'カロリー目標を調整します',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildVolumeChip('small', '少なめ'),
+                    _buildVolumeChip('normal', '普通'),
+                    _buildVolumeChip('large', '多め'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 献立ボリューム（旧：作り置き優先度）
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.restaurant_menu, size: 20),
+                    const SizedBox(width: 8),
+                    Text('献立ボリューム', style: Theme.of(context).textTheme.titleSmall),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '献立の品数を調整します',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildBatchCookingChip('small', '少なめ'),
+                    _buildBatchCookingChip('normal', '普通'),
+                    _buildBatchCookingChip('large', '多め'),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _getBatchCookingDescription(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                        fontStyle: FontStyle.italic,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 食材の種類
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.category, size: 20),
+                    const SizedBox(width: 8),
+                    Text('食材の種類', style: Theme.of(context).textTheme.titleSmall),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '料理の多様性を調整します',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildVarietyChip('small', '少なめ'),
+                    _buildVarietyChip('normal', '普通'),
+                    _buildVarietyChip('large', '多め'),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _getVarietyDescription(),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                        fontStyle: FontStyle.italic,
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildBatchCookingChip(String value, String label) {
+    final isSelected = _batchCookingLevel == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => setState(() => _batchCookingLevel = value),
+    );
+  }
+
+  String _getBatchCookingDescription() {
+    switch (_batchCookingLevel) {
+      case 'small':
+        return '品数少なめ（作り置き重視）';
+      case 'large':
+        return '品数多め（毎食違う料理）';
+      default:
+        return '適度な品数でバランス良く';
+    }
+  }
+
+  Widget _buildVolumeChip(String value, String label) {
+    final isSelected = _volumeLevel == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => setState(() => _volumeLevel = value),
+    );
+  }
+
+  Widget _buildVarietyChip(String value, String label) {
+    final isSelected = _varietyLevel == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => setState(() => _varietyLevel = value),
+    );
+  }
+
+  String _getVarietyDescription() {
+    switch (_varietyLevel) {
+      case 'small':
+        return '同じ料理を繰り返し使用（作り置きしやすい）';
+      case 'large':
+        return '毎食違う料理を提案（バリエーション重視）';
+      default:
+        return '適度なバランスで料理を提案';
+    }
   }
 
   Widget _buildPeriodChip(int days, String label) {
@@ -996,7 +1162,9 @@ class _GenerateModalState extends State<GenerateModal> {
       menuProvider.setDays(_days);
       menuProvider.setPeople(_people);
       menuProvider.setExcludedAllergens(_excludedAllergens);
-      menuProvider.setPreferBatchCooking(_preferBatchCooking);
+      menuProvider.setBatchCookingLevel(_batchCookingLevel);
+      menuProvider.setVolumeLevel(_volumeLevel);
+      menuProvider.setVarietyLevel(_varietyLevel);
 
       final settings = context.read<SettingsProvider>();
       await menuProvider.generatePlan(target: settings.nutrientTarget);

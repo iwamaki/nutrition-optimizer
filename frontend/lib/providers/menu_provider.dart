@@ -18,7 +18,9 @@ class MenuProvider extends ChangeNotifier {
   Set<Allergen> _excludedAllergens = {};
   Set<int> _excludedDishIds = {};
   Set<int> _keepDishIds = {};
-  bool _preferBatchCooking = false;
+  String _batchCookingLevel = 'normal';
+  String _volumeLevel = 'normal';
+  String _varietyLevel = 'normal';
 
   // Getters
   MultiDayMenuPlan? get currentPlan => _currentPlan;
@@ -29,7 +31,9 @@ class MenuProvider extends ChangeNotifier {
   Set<Allergen> get excludedAllergens => _excludedAllergens;
   Set<int> get excludedDishIds => _excludedDishIds;
   Set<int> get keepDishIds => _keepDishIds;
-  bool get preferBatchCooking => _preferBatchCooking;
+  String get batchCookingLevel => _batchCookingLevel;
+  String get volumeLevel => _volumeLevel;
+  String get varietyLevel => _varietyLevel;
 
   bool get hasPlan => _currentPlan != null;
 
@@ -58,8 +62,18 @@ class MenuProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setPreferBatchCooking(bool value) {
-    _preferBatchCooking = value;
+  void setBatchCookingLevel(String value) {
+    _batchCookingLevel = value;
+    notifyListeners();
+  }
+
+  void setVolumeLevel(String value) {
+    _volumeLevel = value;
+    notifyListeners();
+  }
+
+  void setVarietyLevel(String value) {
+    _varietyLevel = value;
     notifyListeners();
   }
 
@@ -94,7 +108,9 @@ class MenuProvider extends ChangeNotifier {
         target: target,
         excludedAllergens: _excludedAllergens.toList(),
         excludedDishIds: _excludedDishIds.toList(),
-        preferBatchCooking: _preferBatchCooking,
+        batchCookingLevel: _batchCookingLevel,
+        volumeLevel: _volumeLevel,
+        varietyLevel: _varietyLevel,
       );
       _excludedDishIds = {};
       _keepDishIds = {};
@@ -120,7 +136,9 @@ class MenuProvider extends ChangeNotifier {
         keepDishIds: _keepDishIds.toList(),
         excludeDishIds: _excludedDishIds.toList(),
         excludedAllergens: _excludedAllergens.toList(),
-        preferBatchCooking: _preferBatchCooking,
+        batchCookingLevel: _batchCookingLevel,
+        volumeLevel: _volumeLevel,
+        varietyLevel: _varietyLevel,
       );
       _excludedDishIds = {};
       _keepDishIds = {};
