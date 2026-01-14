@@ -1,86 +1,78 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../providers/shopping_provider.dart';
-import '../models/menu_plan.dart';
+import '../../domain/entities/menu_plan.dart';
 
-/// 買い物リスト画面
-class ShoppingScreen extends StatelessWidget {
+/// 買い物リスト画面（Riverpod版）
+class ShoppingScreen extends ConsumerWidget {
   const ShoppingScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shoppingState = ref.watch(shoppingNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('買い物リスト'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
-          Consumer<ShoppingProvider>(
-            builder: (context, shopping, child) {
-              if (shopping.items.isEmpty) return const SizedBox.shrink();
-              return Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.share),
-                    onPressed: () => _shareList(context, shopping),
-                    tooltip: '共有',
-                  ),
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'check_all') {
-                        shopping.checkAll();
-                      } else if (value == 'uncheck_all') {
-                        shopping.uncheckAll();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'check_all',
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_box),
-                            SizedBox(width: 8),
-                            Text('すべてチェック'),
-                          ],
-                        ),
+          if (shoppingState.items.isNotEmpty)
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  onPressed: () => _shareList(context, shoppingState),
+                  tooltip: '共有',
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'check_all') {
+                      ref.read(shoppingNotifierProvider.notifier).checkAll();
+                    } else if (value == 'uncheck_all') {
+                      ref.read(shoppingNotifierProvider.notifier).uncheckAll();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'check_all',
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_box),
+                          SizedBox(width: 8),
+                          Text('すべてチェック'),
+                        ],
                       ),
-                      const PopupMenuItem(
-                        value: 'uncheck_all',
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_box_outline_blank),
-                            SizedBox(width: 8),
-                            Text('すべて解除'),
-                          ],
-                        ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'uncheck_all',
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_box_outline_blank),
+                          SizedBox(width: 8),
+                          Text('すべて解除'),
+                        ],
                       ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
         ],
       ),
-      body: Consumer<ShoppingProvider>(
-        builder: (context, shopping, child) {
-          if (shopping.items.isEmpty) {
-            return _buildEmptyState(context);
-          }
-
-          return Column(
-            children: [
-              // ヘッダー情報
-              _buildHeader(context, shopping),
-              const Divider(height: 1),
-              // リスト
-              Expanded(
-                child: _buildShoppingList(context, shopping),
-              ),
-            ],
-          );
-        },
-      ),
+      body: shoppingState.items.isEmpty
+          ? _buildEmptyState(context)
+          : Column(
+              children: [
+                // ヘッダー情報
+                _buildHeader(context, shoppingState),
+                const Divider(height: 1),
+                // リスト
+                Expanded(
+                  child: _buildShoppingList(context, ref, shoppingState),
+                ),
+              ],
+            ),
     );
   }
 
@@ -111,9 +103,9 @@ class ShoppingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, ShoppingProvider shopping) {
-    final checked = shopping.checkedCount;
-    final total = shopping.items.length;
+  Widget _buildHeader(BuildContext context, ShoppingState shoppingState) {
+    final checked = shoppingState.checkedCount;
+    final total = shoppingState.items.length;
     final remaining = total - checked;
 
     return Container(
@@ -128,7 +120,7 @@ class ShoppingScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${shopping.dateRangeDisplay} ${shopping.people}人分',
+                      '${shoppingState.dateRangeDisplay} ${shoppingState.people}人分',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 4),
@@ -143,7 +135,7 @@ class ShoppingScreen extends StatelessWidget {
                 ),
               ),
               // 進捗
-              _buildProgress(context, shopping),
+              _buildProgress(context, shoppingState),
             ],
           ),
           const SizedBox(height: 8),
@@ -177,9 +169,9 @@ class ShoppingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProgress(BuildContext context, ShoppingProvider shopping) {
-    final checked = shopping.checkedCount;
-    final total = shopping.items.length;
+  Widget _buildProgress(BuildContext context, ShoppingState shoppingState) {
+    final checked = shoppingState.checkedCount;
+    final total = shoppingState.items.length;
     final progress = total > 0 ? checked / total : 0.0;
 
     return Column(
@@ -204,24 +196,29 @@ class ShoppingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildShoppingList(BuildContext context, ShoppingProvider shopping) {
-    final categories = shopping.sortedCategories;
+  Widget _buildShoppingList(
+    BuildContext context,
+    WidgetRef ref,
+    ShoppingState shoppingState,
+  ) {
+    final categories = shoppingState.sortedCategories;
 
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 32),
       itemCount: categories.length,
       itemBuilder: (context, index) {
         final category = categories[index];
-        final items = shopping.groupedByCategory[category] ?? [];
+        final items = shoppingState.groupedByCategory[category] ?? [];
 
-        return _buildCategorySection(context, shopping, category, items);
+        return _buildCategorySection(context, ref, shoppingState, category, items);
       },
     );
   }
 
   Widget _buildCategorySection(
     BuildContext context,
-    ShoppingProvider shopping,
+    WidgetRef ref,
+    ShoppingState shoppingState,
     String category,
     List<ShoppingItem> items,
   ) {
@@ -257,20 +254,23 @@ class ShoppingScreen extends StatelessWidget {
           ),
         ),
         // アイテムリスト
-        ...items.map((item) => _buildShoppingItem(context, shopping, item)),
+        ...items.map((item) => _buildShoppingItem(context, ref, shoppingState, item)),
       ],
     );
   }
 
   Widget _buildShoppingItem(
     BuildContext context,
-    ShoppingProvider shopping,
+    WidgetRef ref,
+    ShoppingState shoppingState,
     ShoppingItem item,
   ) {
     return ListTile(
       leading: Checkbox(
         value: item.isChecked,
-        onChanged: (_) => shopping.toggleItem(item),
+        onChanged: (_) {
+          ref.read(shoppingNotifierProvider.notifier).toggleItemByFood(item.foodName);
+        },
       ),
       title: Text(
         item.foodName,
@@ -290,7 +290,9 @@ class ShoppingScreen extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
       ),
-      onTap: () => shopping.toggleItem(item),
+      onTap: () {
+        ref.read(shoppingNotifierProvider.notifier).toggleItemByFood(item.foodName);
+      },
     );
   }
 
@@ -319,8 +321,8 @@ class ShoppingScreen extends StatelessWidget {
     }
   }
 
-  void _shareList(BuildContext context, ShoppingProvider shopping) {
-    final text = shopping.toShareText();
+  void _shareList(BuildContext context, ShoppingState shoppingState) {
+    final text = shoppingState.toShareText();
     Share.share(text, subject: '買い物リスト');
   }
 }

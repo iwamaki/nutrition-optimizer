@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../models/dish.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/dish.dart';
 import '../providers/menu_provider.dart';
-import '../services/api_service.dart';
+import '../../data/datasources/api_service.dart';
 
-/// 料理詳細モーダル
-class DishDetailModal extends StatefulWidget {
+/// 料理詳細モーダル（Riverpod版）
+class DishDetailModal extends ConsumerStatefulWidget {
   final Dish dish;
 
   const DishDetailModal({super.key, required this.dish});
 
   @override
-  State<DishDetailModal> createState() => _DishDetailModalState();
+  ConsumerState<DishDetailModal> createState() => _DishDetailModalState();
 }
 
-class _DishDetailModalState extends State<DishDetailModal> {
+class _DishDetailModalState extends ConsumerState<DishDetailModal> {
   RecipeDetails? _recipeDetails;
   bool _isLoadingRecipe = false;
 
@@ -421,7 +421,7 @@ class _DishDetailModalState extends State<DishDetailModal> {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () {
-              context.read<MenuProvider>().excludeDish(widget.dish.id);
+              ref.read(menuNotifierProvider.notifier).excludeDish(widget.dish.id);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('${widget.dish.name}を除外しました')),
@@ -435,7 +435,7 @@ class _DishDetailModalState extends State<DishDetailModal> {
         Expanded(
           child: FilledButton.icon(
             onPressed: () {
-              context.read<MenuProvider>().keepDish(widget.dish.id);
+              ref.read(menuNotifierProvider.notifier).keepDish(widget.dish.id);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('${widget.dish.name}を固定しました')),

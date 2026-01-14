@@ -1,57 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
-import '../models/settings.dart';
+import '../../domain/entities/settings.dart';
 
-/// 設定画面
-class SettingsScreen extends StatelessWidget {
+/// 設定画面（Riverpod版）
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsState = ref.watch(settingsNotifierProvider);
+
+    if (settingsState.isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('設定'),
+          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('設定'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
-      body: Consumer<SettingsProvider>(
-        builder: (context, settings, child) {
-          if (settings.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: ListView(
+        children: [
+          // デフォルト設定セクション
+          _buildSectionHeader(context, 'デフォルト設定'),
+          _buildDaysSetting(context, ref, settingsState),
+          _buildPeopleSetting(context, ref, settingsState),
+          _buildBatchCookingSetting(context, ref, settingsState),
+          const Divider(),
 
-          return ListView(
-            children: [
-              // デフォルト設定セクション
-              _buildSectionHeader(context, 'デフォルト設定'),
-              _buildDaysSetting(context, settings),
-              _buildPeopleSetting(context, settings),
-              _buildBatchCookingSetting(context, settings),
-              const Divider(),
+          // 栄養目標セクション
+          _buildSectionHeader(context, '栄養目標'),
+          _buildCaloriesSetting(context, ref, settingsState),
+          _buildProteinSetting(context, ref, settingsState),
+          _buildOtherNutrientsSetting(context, settingsState),
+          const Divider(),
 
-              // 栄養目標セクション
-              _buildSectionHeader(context, '栄養目標'),
-              _buildCaloriesSetting(context, settings),
-              _buildProteinSetting(context, settings),
-              _buildOtherNutrientsSetting(context, settings),
-              const Divider(),
+          // アレルゲン除外セクション
+          _buildSectionHeader(context, 'アレルゲン除外'),
+          _buildAllergenSettings(context, ref, settingsState),
+          const Divider(),
 
-              // アレルゲン除外セクション
-              _buildSectionHeader(context, 'アレルゲン除外'),
-              _buildAllergenSettings(context, settings),
-              const Divider(),
+          // その他
+          _buildSectionHeader(context, 'その他'),
+          _buildResetButton(context, ref),
+          const SizedBox(height: 32),
 
-              // その他
-              _buildSectionHeader(context, 'その他'),
-              _buildResetButton(context, settings),
-              const SizedBox(height: 32),
-
-              // アプリ情報
-              _buildAppInfo(context),
-              const SizedBox(height: 32),
-            ],
-          );
-        },
+          // アプリ情報
+          _buildAppInfo(context),
+          const SizedBox(height: 32),
+        ],
       ),
     );
   }
@@ -68,28 +72,28 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDaysSetting(BuildContext context, SettingsProvider settings) {
+  Widget _buildDaysSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
     return ListTile(
       leading: const Icon(Icons.calendar_today),
       title: const Text('デフォルト日数'),
-      subtitle: Text('${settings.defaultDays}日分'),
+      subtitle: Text('${settingsState.defaultDays}日分'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
-            onPressed: settings.defaultDays > 1
-                ? () => settings.setDefaultDays(settings.defaultDays - 1)
+            onPressed: settingsState.defaultDays > 1
+                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultDays(settingsState.defaultDays - 1)
                 : null,
           ),
           Text(
-            '${settings.defaultDays}',
+            '${settingsState.defaultDays}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: settings.defaultDays < 7
-                ? () => settings.setDefaultDays(settings.defaultDays + 1)
+            onPressed: settingsState.defaultDays < 7
+                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultDays(settingsState.defaultDays + 1)
                 : null,
           ),
         ],
@@ -97,28 +101,28 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPeopleSetting(BuildContext context, SettingsProvider settings) {
+  Widget _buildPeopleSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
     return ListTile(
       leading: const Icon(Icons.people),
       title: const Text('デフォルト人数'),
-      subtitle: Text('${settings.defaultPeople}人分'),
+      subtitle: Text('${settingsState.defaultPeople}人分'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
-            onPressed: settings.defaultPeople > 1
-                ? () => settings.setDefaultPeople(settings.defaultPeople - 1)
+            onPressed: settingsState.defaultPeople > 1
+                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultPeople(settingsState.defaultPeople - 1)
                 : null,
           ),
           Text(
-            '${settings.defaultPeople}',
+            '${settingsState.defaultPeople}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: settings.defaultPeople < 6
-                ? () => settings.setDefaultPeople(settings.defaultPeople + 1)
+            onPressed: settingsState.defaultPeople < 6
+                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultPeople(settingsState.defaultPeople + 1)
                 : null,
           ),
         ],
@@ -126,20 +130,20 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBatchCookingSetting(
-      BuildContext context, SettingsProvider settings) {
+  Widget _buildBatchCookingSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
     return SwitchListTile(
       secondary: const Icon(Icons.kitchen),
       title: const Text('作り置き優先'),
       subtitle: const Text('調理回数を減らして効率化'),
-      value: settings.preferBatchCooking,
-      onChanged: settings.setPreferBatchCooking,
+      value: settingsState.preferBatchCooking,
+      onChanged: (value) {
+        ref.read(settingsNotifierProvider.notifier).setPreferBatchCooking(value);
+      },
     );
   }
 
-  Widget _buildCaloriesSetting(
-      BuildContext context, SettingsProvider settings) {
-    final target = settings.nutrientTarget;
+  Widget _buildCaloriesSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    final target = settingsState.nutrientTarget;
 
     return ListTile(
       leading: const Icon(Icons.local_fire_department),
@@ -147,12 +151,12 @@ class SettingsScreen extends StatelessWidget {
       subtitle: Text(
           '${target.caloriesMin.toInt()} - ${target.caloriesMax.toInt()} kcal'),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => _showCaloriesDialog(context, settings),
+      onTap: () => _showCaloriesDialog(context, ref, settingsState),
     );
   }
 
-  void _showCaloriesDialog(BuildContext context, SettingsProvider settings) {
-    final target = settings.nutrientTarget;
+  void _showCaloriesDialog(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    final target = settingsState.nutrientTarget;
     var minValue = target.caloriesMin;
     var maxValue = target.caloriesMax;
 
@@ -204,7 +208,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () {
-                settings.setCaloriesRange(minValue, maxValue);
+                ref.read(settingsNotifierProvider.notifier).setCaloriesRange(minValue, maxValue);
                 Navigator.pop(context);
               },
               child: const Text('保存'),
@@ -215,9 +219,8 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProteinSetting(
-      BuildContext context, SettingsProvider settings) {
-    final target = settings.nutrientTarget;
+  Widget _buildProteinSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    final target = settingsState.nutrientTarget;
 
     return ListTile(
       leading: const Icon(Icons.fitness_center),
@@ -225,12 +228,12 @@ class SettingsScreen extends StatelessWidget {
       subtitle: Text(
           '${target.proteinMin.toInt()} - ${target.proteinMax.toInt()} g'),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => _showProteinDialog(context, settings),
+      onTap: () => _showProteinDialog(context, ref, settingsState),
     );
   }
 
-  void _showProteinDialog(BuildContext context, SettingsProvider settings) {
-    final target = settings.nutrientTarget;
+  void _showProteinDialog(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    final target = settingsState.nutrientTarget;
     var minValue = target.proteinMin;
     var maxValue = target.proteinMax;
 
@@ -282,7 +285,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             FilledButton(
               onPressed: () {
-                settings.setProteinRange(minValue, maxValue);
+                ref.read(settingsNotifierProvider.notifier).setProteinRange(minValue, maxValue);
                 Navigator.pop(context);
               },
               child: const Text('保存'),
@@ -293,20 +296,18 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOtherNutrientsSetting(
-      BuildContext context, SettingsProvider settings) {
+  Widget _buildOtherNutrientsSetting(BuildContext context, SettingsState settingsState) {
     return ListTile(
       leading: const Icon(Icons.science),
       title: const Text('その他栄養素'),
       subtitle: const Text('脂質・炭水化物・食物繊維など'),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => _showOtherNutrientsDialog(context, settings),
+      onTap: () => _showOtherNutrientsDialog(context, settingsState),
     );
   }
 
-  void _showOtherNutrientsDialog(
-      BuildContext context, SettingsProvider settings) {
-    final target = settings.nutrientTarget;
+  void _showOtherNutrientsDialog(BuildContext context, SettingsState settingsState) {
+    final target = settingsState.nutrientTarget;
 
     showDialog(
       context: context,
@@ -359,19 +360,20 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAllergenSettings(
-      BuildContext context, SettingsProvider settings) {
+  Widget _buildAllergenSettings(BuildContext context, WidgetRef ref, SettingsState settingsState) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
         children: Allergen.values.map((allergen) {
-          final isSelected = settings.excludedAllergens.contains(allergen);
+          final isSelected = settingsState.excludedAllergens.contains(allergen);
           return FilterChip(
             label: Text(allergen.displayName),
             selected: isSelected,
-            onSelected: (_) => settings.toggleAllergen(allergen),
+            onSelected: (_) {
+              ref.read(settingsNotifierProvider.notifier).toggleAllergen(allergen);
+            },
             avatar: isSelected
                 ? const Icon(Icons.block, size: 18)
                 : const Icon(Icons.check_circle_outline, size: 18),
@@ -381,17 +383,16 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildResetButton(BuildContext context, SettingsProvider settings) {
+  Widget _buildResetButton(BuildContext context, WidgetRef ref) {
     return ListTile(
       leading: const Icon(Icons.restore),
       title: const Text('設定をリセット'),
       subtitle: const Text('すべての設定を初期値に戻します'),
-      onTap: () => _showResetConfirmDialog(context, settings),
+      onTap: () => _showResetConfirmDialog(context, ref),
     );
   }
 
-  void _showResetConfirmDialog(
-      BuildContext context, SettingsProvider settings) {
+  void _showResetConfirmDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -404,7 +405,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () {
-              settings.resetSettings();
+              ref.read(settingsNotifierProvider.notifier).resetSettings();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('設定をリセットしました')),

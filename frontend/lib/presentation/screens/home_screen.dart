@@ -1,65 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/menu_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/shopping_provider.dart';
-import '../models/dish.dart';
-import '../models/menu_plan.dart';
+import '../../domain/entities/dish.dart';
+import '../../domain/entities/menu_plan.dart';
 import '../widgets/meal_card_new.dart';
 import '../widgets/nutrient_progress_bar.dart';
-import '../modals/generate_modal.dart';
+import '../modals/generate/generate_modal.dart';
 import '../modals/dish_detail_modal.dart';
 
-/// ホーム画面
-class HomeScreen extends StatefulWidget {
+/// ホーム画面（Riverpod版）
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedPeriod = 0; // 0: 今日, 1: 週間, 2: 月間
 
   @override
   Widget build(BuildContext context) {
+    final menuState = ref.watch(menuNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('今日の献立'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
-      body: Consumer<MenuProvider>(
-        builder: (context, menuProvider, child) {
-          if (menuProvider.isLoading) {
-            return _buildLoadingState();
-          }
-
-          if (menuProvider.error != null) {
-            return _buildErrorState(context, menuProvider);
-          }
-
-          if (!menuProvider.hasPlan) {
-            return _buildEmptyState(context);
-          }
-
-          return _buildContent(context, menuProvider);
-        },
-      ),
-      floatingActionButton: Consumer<MenuProvider>(
-        builder: (context, menuProvider, child) {
-          return FloatingActionButton.extended(
-            onPressed: menuProvider.isLoading
-                ? null
-                : () => _showGenerateModal(context),
-            icon: const Icon(Icons.auto_awesome),
-            label: Text(menuProvider.hasPlan ? '再生成' : '献立を生成'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          );
-        },
+      body: _buildBody(context, menuState),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: menuState.isLoading
+            ? null
+            : () => _showGenerateModal(context),
+        icon: const Icon(Icons.auto_awesome),
+        label: Text(menuState.hasPlan ? '再生成' : '献立を生成'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
     );
+  }
+
+  Widget _buildBody(BuildContext context, MenuState menuState) {
+    if (menuState.isLoading) {
+      return _buildLoadingState();
+    }
+
+    if (menuState.error != null) {
+      return _buildErrorState(context, menuState);
+    }
+
+    if (!menuState.hasPlan) {
+      return _buildEmptyState(context);
+    }
+
+    return _buildContent(context, menuState);
   }
 
   Widget _buildLoadingState() {
@@ -75,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, MenuProvider menuProvider) {
+  Widget _buildErrorState(BuildContext context, MenuState menuState) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -90,7 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              menuProvider.error!,
+              menuState.error!,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.outline,
@@ -105,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                menuProvider.clearError();
+                ref.read(menuNotifierProvider.notifier).clearError();
               },
               icon: const Icon(Icons.close),
               label: const Text('閉じる'),
@@ -144,17 +142,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildContent(BuildContext context, MenuProvider menuProvider) {
-    final plan = menuProvider.currentPlan!;
-    final todayPlan = menuProvider.todayPlan;
+  Widget _buildContent(BuildContext context, MenuState menuState) {
+    final plan = menuState.currentPlan!;
+    final todayPlan = menuState.todayPlan;
 
     return RefreshIndicator(
       onRefresh: () async {
-        final settings = context.read<SettingsProvider>();
-        final shoppingProvider = context.read<ShoppingProvider>();
-        await menuProvider.generatePlan(target: settings.nutrientTarget);
-        if (menuProvider.currentPlan != null) {
-          shoppingProvider.updateFromPlan(menuProvider.currentPlan!);
+        final settingsState = ref.read(settingsNotifierProvider);
+        await ref.read(menuNotifierProvider.notifier).generatePlan(
+              target: settingsState.nutrientTarget,
+            );
+        final newMenuState = ref.read(menuNotifierProvider);
+        if (newMenuState.currentPlan != null) {
+          ref.read(shoppingNotifierProvider.notifier).updateFromPlan(
+                newMenuState.currentPlan!,
+              );
         }
       },
       child: SingleChildScrollView(
@@ -387,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => const GenerateModal(),
+      builder: (context) => const GenerateModalNew(),
     );
   }
 

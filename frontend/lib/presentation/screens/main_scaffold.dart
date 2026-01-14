@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/settings_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/shopping_provider.dart';
 import 'home_screen.dart';
 import 'calendar_screen.dart';
 import 'shopping_screen.dart';
 import 'settings_screen.dart';
 
-/// メインスキャフォールド（タブナビゲーション）
-class MainScaffold extends StatefulWidget {
+/// メインスキャフォールド（タブナビゲーション）- Riverpod版
+class MainScaffold extends ConsumerStatefulWidget {
   const MainScaffold({super.key});
 
   @override
-  State<MainScaffold> createState() => _MainScaffoldState();
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
@@ -26,17 +25,9 @@ class _MainScaffoldState extends State<MainScaffold> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    // 設定を読み込み
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SettingsProvider>().loadSettings();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final shoppingState = ref.watch(shoppingNotifierProvider);
 
     return Scaffold(
       body: IndexedStack(
@@ -62,18 +53,7 @@ class _MainScaffoldState extends State<MainScaffold> {
             label: '週間',
           ),
           NavigationDestination(
-            icon: Consumer<ShoppingProvider>(
-              builder: (context, shopping, child) {
-                final unchecked = shopping.uncheckedCount;
-                if (unchecked > 0) {
-                  return Badge(
-                    label: Text('$unchecked'),
-                    child: const Icon(Icons.shopping_cart_outlined),
-                  );
-                }
-                return const Icon(Icons.shopping_cart_outlined);
-              },
-            ),
+            icon: _buildShoppingIcon(shoppingState.uncheckedCount),
             selectedIcon: Icon(Icons.shopping_cart, color: colorScheme.primary),
             label: '買い物',
           ),
@@ -85,5 +65,15 @@ class _MainScaffoldState extends State<MainScaffold> {
         ],
       ),
     );
+  }
+
+  Widget _buildShoppingIcon(int uncheckedCount) {
+    if (uncheckedCount > 0) {
+      return Badge(
+        label: Text('$uncheckedCount'),
+        child: const Icon(Icons.shopping_cart_outlined),
+      );
+    }
+    return const Icon(Icons.shopping_cart_outlined);
   }
 }

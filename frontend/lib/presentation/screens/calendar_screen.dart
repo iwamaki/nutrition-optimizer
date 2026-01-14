@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/menu_provider.dart';
-import '../models/dish.dart';
-import '../models/menu_plan.dart';
+import '../../domain/entities/dish.dart';
+import '../../domain/entities/menu_plan.dart';
 import '../modals/dish_detail_modal.dart';
 
-/// 献立カレンダー画面
-class CalendarScreen extends StatefulWidget {
+/// 献立カレンダー画面（Riverpod版）
+class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   bool _isWeekView = true; // true: 週表示, false: 月表示
   final DateTime _startDate = DateTime.now();
 
@@ -22,36 +22,38 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final menuState = ref.watch(menuNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('献立カレンダー'),
         backgroundColor: const Color(0xFF2196F3),
         foregroundColor: Colors.white,
       ),
-      body: Consumer<MenuProvider>(
-        builder: (context, menuProvider, child) {
-          if (!menuProvider.hasPlan) {
-            return _buildEmptyState(context);
-          }
+      body: _buildBody(context, menuState),
+    );
+  }
 
-          final plan = menuProvider.currentPlan!;
-          return Column(
-            children: [
-              // 週/月表示トグル
-              _buildViewToggle(),
-              // ヒント
-              _buildHint(),
-              const Divider(height: 1),
-              // 献立リスト
-              Expanded(
-                child: _isWeekView
-                    ? _buildWeekView(context, plan, menuProvider)
-                    : _buildMonthView(context, plan, menuProvider),
-              ),
-            ],
-          );
-        },
-      ),
+  Widget _buildBody(BuildContext context, MenuState menuState) {
+    if (!menuState.hasPlan) {
+      return _buildEmptyState(context);
+    }
+
+    final plan = menuState.currentPlan!;
+    return Column(
+      children: [
+        // 週/月表示トグル
+        _buildViewToggle(),
+        // ヒント
+        _buildHint(),
+        const Divider(height: 1),
+        // 献立リスト
+        Expanded(
+          child: _isWeekView
+              ? _buildWeekView(context, plan)
+              : _buildMonthView(context, plan),
+        ),
+      ],
     );
   }
 
@@ -134,26 +136,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   // ========== 週表示 ==========
-  Widget _buildWeekView(
-    BuildContext context,
-    MultiDayMenuPlan plan,
-    MenuProvider menuProvider,
-  ) {
+  Widget _buildWeekView(BuildContext context, MultiDayMenuPlan plan) {
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 32),
       itemCount: plan.days,
       itemBuilder: (context, index) {
         final dayPlan = plan.dailyPlans[index];
-        return _buildDaySection(context, dayPlan, menuProvider);
+        return _buildDaySection(context, dayPlan);
       },
     );
   }
 
-  Widget _buildDaySection(
-    BuildContext context,
-    DailyMealAssignment dayPlan,
-    MenuProvider menuProvider,
-  ) {
+  Widget _buildDaySection(BuildContext context, DailyMealAssignment dayPlan) {
     final date = _startDate.add(Duration(days: dayPlan.day - 1));
     final dateStr = _formatDate(date);
     final achievement = dayPlan.achievementRate['calories'] ?? 0;
@@ -194,9 +188,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ),
         // 食事カード
-        _buildMealCards(context, dayPlan, MealType.breakfast, '朝食', menuProvider),
-        _buildMealCards(context, dayPlan, MealType.lunch, '昼食', menuProvider),
-        _buildMealCards(context, dayPlan, MealType.dinner, '夕食', menuProvider),
+        _buildMealCards(context, dayPlan, MealType.breakfast, '朝食'),
+        _buildMealCards(context, dayPlan, MealType.lunch, '昼食'),
+        _buildMealCards(context, dayPlan, MealType.dinner, '夕食'),
         const SizedBox(height: 8),
       ],
     );
@@ -207,7 +201,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     DailyMealAssignment dayPlan,
     MealType mealType,
     String mealLabel,
-    MenuProvider menuProvider,
   ) {
     final dishes = dayPlan.getMealDishes(mealType);
     if (dishes.isEmpty) return const SizedBox.shrink();
@@ -222,7 +215,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
           mealType,
           index,
           portion,
-          menuProvider,
         );
       }).toList(),
     );
@@ -234,7 +226,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     MealType mealType,
     int index,
     DishPortion portion,
-    MenuProvider menuProvider,
   ) {
     final dragData = _DragData(day: day, mealType: mealType, index: index, portion: portion);
     final isDragging = _dragData?.portion.dish.id == portion.dish.id;
@@ -245,7 +236,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       },
       onAcceptWithDetails: (details) {
         // 入れ替え実行
-        menuProvider.swapDishes(
+        ref.read(menuNotifierProvider.notifier).swapDishes(
           day1: details.data.day,
           meal1: details.data.mealType,
           index1: details.data.index,
@@ -313,11 +304,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   // ========== 月表示（簡易版） ==========
-  Widget _buildMonthView(
-    BuildContext context,
-    MultiDayMenuPlan plan,
-    MenuProvider menuProvider,
-  ) {
+  Widget _buildMonthView(BuildContext context, MultiDayMenuPlan plan) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

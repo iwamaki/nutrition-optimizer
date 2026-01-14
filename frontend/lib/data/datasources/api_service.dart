@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import '../models/food.dart';
-import '../models/dish.dart';
-import '../models/menu_plan.dart';
-import '../models/settings.dart';
+import '../../domain/entities/food.dart';
+import '../../domain/entities/dish.dart';
+import '../../domain/entities/menu_plan.dart';
+import '../../domain/entities/settings.dart';
 
 class ApiService {
   // Web: 同一オリジン（相対パス）, モバイル: localhost
@@ -146,20 +146,6 @@ class ApiService {
     }
   }
 
-  // UIの「献立ボリューム」をバックエンドの「作り置きレベル」に変換
-  // UI: 多め=料理多い → バックエンド: small=調理回数ペナルティ低
-  // UI: 少なめ=作り置き重視 → バックエンド: large=調理回数ペナルティ高
-  String _invertBatchCookingLevel(String level) {
-    switch (level) {
-      case 'small':
-        return 'large';
-      case 'large':
-        return 'small';
-      default:
-        return 'normal';
-    }
-  }
-
   Future<MultiDayMenuPlan> optimizeMultiDay({
     int days = 3,
     int people = 2,
@@ -175,7 +161,7 @@ class ApiService {
       'people': people,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
       'excluded_dish_ids': excludedDishIds,
-      'batch_cooking_level': _invertBatchCookingLevel(batchCookingLevel),
+      'batch_cooking_level': batchCookingLevel,
       'volume_level': volumeLevel,
       'variety_level': varietyLevel,
     };
@@ -215,7 +201,7 @@ class ApiService {
       'keep_dish_ids': keepDishIds,
       'exclude_dish_ids': excludeDishIds,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
-      'batch_cooking_level': _invertBatchCookingLevel(batchCookingLevel),
+      'batch_cooking_level': batchCookingLevel,
       'volume_level': volumeLevel,
       'variety_level': varietyLevel,
     };

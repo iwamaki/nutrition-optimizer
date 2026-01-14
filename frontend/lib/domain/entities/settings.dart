@@ -41,7 +41,7 @@ class NutrientTarget {
   final double vitaminCMin;
   final double vitaminDMin;
 
-  NutrientTarget({
+  const NutrientTarget({
     this.caloriesMin = 1800,
     this.caloriesMax = 2200,
     this.proteinMin = 60,
@@ -167,13 +167,13 @@ class AppSettings {
   final NutrientTarget nutrientTarget;
   final bool preferBatchCooking;
 
-  AppSettings({
+  const AppSettings({
     this.defaultDays = 3,
     this.defaultPeople = 2,
     this.excludedAllergens = const {},
-    NutrientTarget? nutrientTarget,
+    this.nutrientTarget = const NutrientTarget(),
     this.preferBatchCooking = false,
-  }) : nutrientTarget = nutrientTarget ?? NutrientTarget();
+  });
 
   AppSettings copyWith({
     int? defaultDays,

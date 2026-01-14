@@ -46,14 +46,36 @@ MEAL_RATIOS = {
     "dinner": 0.40,
 }
 
-# カテゴリごとの品数制約
-CATEGORY_CONSTRAINTS = {
-    "主食": (1, 1),   # 必ず1品
-    "主菜": (1, 1),   # 必ず1品
-    "副菜": (1, 2),   # 1-2品
-    "汁物": (0, 1),   # 0-1品
-    "デザート": (0, 1),  # 0-1品
+# カテゴリごとの品数制約（献立ボリューム別）
+CATEGORY_CONSTRAINTS_BY_VOLUME = {
+    "small": {
+        # 少なめ: 1食2品（主食+主菜のみ）
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (0, 0),
+        "汁物": (0, 0),
+        "デザート": (0, 0),
+    },
+    "normal": {
+        # 普通: 1食3-4品
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 2),
+        "汁物": (0, 1),
+        "デザート": (0, 0),
+    },
+    "large": {
+        # 多め: 1食4-6品
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 2),
+        "汁物": (0, 1),
+        "デザート": (0, 1),
+    },
 }
+
+# デフォルト（後方互換性）
+CATEGORY_CONSTRAINTS = CATEGORY_CONSTRAINTS_BY_VOLUME["normal"]
 
 
 def db_dish_to_model(dish_db: DishDB) -> Dish:
@@ -107,8 +129,13 @@ def optimize_meal(
     target: NutrientTarget,
     meal_name: str,
     excluded_dish_ids: set[int] = None,
+    volume_multiplier: float = 1.0,
 ) -> MealPlan | None:
-    """1食分のメニューを最適化（料理ベース）"""
+    """1食分のメニューを最適化（料理ベース）
+
+    Args:
+        volume_multiplier: 人前数の倍率（1.0=普通, 1.2=多め, 0.8=少なめ）
+    """
     excluded_dish_ids = excluded_dish_ids or set()
     meal_type = MealTypeEnum(meal_name)
 
@@ -137,9 +164,11 @@ def optimize_meal(
     # 変数: 各料理を選択するかどうか（バイナリ）
     y = {d.id: LpVariable(f"dish_{d.id}", cat="Binary") for d in available_dishes}
 
-    # 変数: 各料理の人前数（0.5〜2.0人前）
+    # 変数: 各料理の人前数（volume_multiplierで調整）
+    max_servings = 2.0 * volume_multiplier
+    min_servings_per_dish = 0.5 * volume_multiplier
     servings = {
-        d.id: LpVariable(f"servings_{d.id}", lowBound=0, upBound=2.0)
+        d.id: LpVariable(f"servings_{d.id}", lowBound=0, upBound=max_servings)
         for d in available_dishes
     }
 
@@ -189,8 +218,8 @@ def optimize_meal(
 
     # 料理選択と人前数のリンク（選択された場合のみ人前数を設定）
     for d in available_dishes:
-        prob += servings[d.id] <= 2.0 * y[d.id]
-        prob += servings[d.id] >= 0.5 * y[d.id]  # 選ぶなら最低0.5人前
+        prob += servings[d.id] <= max_servings * y[d.id]
+        prob += servings[d.id] >= min_servings_per_dish * y[d.id]  # 選ぶなら最低人前
 
     # カテゴリ別の品数制約
     for cat, (min_count, max_count) in CATEGORY_CONSTRAINTS.items():
@@ -592,9 +621,11 @@ def solve_multi_day_plan(
                 prob += lpSum(consumptions) <= s[(d.id, t)]
 
     # C3: 消費変数と消費量のリンク
+    # c=1（消費する）なら q>=1（最低1人前）、c=0なら q=0
     for key in q:
         d_id, t, t_prime, m = key
         prob += q[key] <= people * c[key]
+        prob += q[key] >= 1 * c[key]  # 消費するなら最低1人前
 
     # C4: 各日の栄養素制約
     for day in range(1, days + 1):
@@ -628,10 +659,11 @@ def solve_multi_day_plan(
                     if target_val > 0:
                         prob += intake_per_person + dev_neg[day][nutrient] - dev_pos[day][nutrient] == target_val
 
-    # C5: 各食事のカテゴリ別品数制約
+    # C5: 各食事のカテゴリ別品数制約（batch_cooking_levelで品数を調整）
+    category_constraints = CATEGORY_CONSTRAINTS_BY_VOLUME.get(batch_cooking_level, CATEGORY_CONSTRAINTS)
     for day in range(1, days + 1):
         for m in meals:
-            for cat, (min_count, max_count) in CATEGORY_CONSTRAINTS.items():
+            for cat, (min_count, max_count) in category_constraints.items():
                 cat_dishes = [d for d in dishes if d.category.value == cat and MealTypeEnum(m) in d.meal_types]
                 if cat_dishes:
                     cat_selected = []
@@ -845,6 +877,7 @@ def _fallback_multi_day_plan(
     people: int,
     target: NutrientTarget,
     dishes: list[Dish],
+    volume_multiplier: float = 1.0,
 ) -> MultiDayMenuPlan | None:
     """フォールバック: 1日ずつ個別に最適化"""
     daily_plans = []
@@ -858,7 +891,7 @@ def _fallback_multi_day_plan(
         day_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
 
         for meal_name in ["breakfast", "lunch", "dinner"]:
-            result = optimize_meal(dishes, target, meal_name, used_dish_ids)
+            result = optimize_meal(dishes, target, meal_name, used_dish_ids, volume_multiplier)
             if result:
                 day_meals[meal_name] = result.dishes
                 for dp in result.dishes:

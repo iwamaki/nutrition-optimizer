@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/dish.dart';
+import '../../domain/entities/dish.dart';
 
 /// 料理カード（新デザイン）
 class MealCardNew extends StatelessWidget {
