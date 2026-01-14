@@ -151,9 +151,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         final settings = context.read<SettingsProvider>();
+        final shoppingProvider = context.read<ShoppingProvider>();
         await menuProvider.generatePlan(target: settings.nutrientTarget);
         if (menuProvider.currentPlan != null) {
-          context.read<ShoppingProvider>().updateFromPlan(menuProvider.currentPlan!);
+          shoppingProvider.updateFromPlan(menuProvider.currentPlan!);
         }
       },
       child: SingleChildScrollView(

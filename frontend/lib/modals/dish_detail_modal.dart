@@ -476,9 +476,11 @@ class _DishDetailModalState extends State<DishDetailModal> {
         _recipeDetails = details;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('レシピの生成に失敗しました: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('レシピの生成に失敗しました: $e')),
+        );
+      }
     } finally {
       setState(() => _isLoadingRecipe = false);
     }

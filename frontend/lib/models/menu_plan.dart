@@ -67,6 +67,9 @@ class MealPlan {
   }
 }
 
+/// 食事タイプ
+enum MealType { breakfast, lunch, dinner }
+
 /// 1日分の食事割り当て
 class DailyMealAssignment {
   final int day;
@@ -84,6 +87,37 @@ class DailyMealAssignment {
     required this.totalNutrients,
     required this.achievementRate,
   });
+
+  /// 指定した食事タイプの料理リストを取得
+  List<DishPortion> getMealDishes(MealType mealType) {
+    switch (mealType) {
+      case MealType.breakfast:
+        return breakfast;
+      case MealType.lunch:
+        return lunch;
+      case MealType.dinner:
+        return dinner;
+    }
+  }
+
+  /// コピーを作成（食事リストを更新可能）
+  DailyMealAssignment copyWith({
+    int? day,
+    List<DishPortion>? breakfast,
+    List<DishPortion>? lunch,
+    List<DishPortion>? dinner,
+    Map<String, double>? totalNutrients,
+    Map<String, double>? achievementRate,
+  }) {
+    return DailyMealAssignment(
+      day: day ?? this.day,
+      breakfast: breakfast ?? List.from(this.breakfast),
+      lunch: lunch ?? List.from(this.lunch),
+      dinner: dinner ?? List.from(this.dinner),
+      totalNutrients: totalNutrients ?? Map.from(this.totalNutrients),
+      achievementRate: achievementRate ?? Map.from(this.achievementRate),
+    );
+  }
 
   factory DailyMealAssignment.fromJson(Map<String, dynamic> json) {
     return DailyMealAssignment(

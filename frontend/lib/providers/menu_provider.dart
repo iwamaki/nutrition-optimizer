@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/dish.dart';
 import '../models/menu_plan.dart';
 import '../models/settings.dart';
 import '../services/api_service.dart';
@@ -160,4 +161,140 @@ class MenuProvider extends ChangeNotifier {
 
   /// 全日程の平均栄養達成率
   double get averageAchievement => _currentPlan?.averageAchievement ?? 0;
+
+  /// 料理を別の日/食事に移動（ドラッグ&ドロップ用）
+  void moveDish({
+    required int fromDay,
+    required MealType fromMeal,
+    required int fromIndex,
+    required int toDay,
+    required MealType toMeal,
+    required int toIndex,
+  }) {
+    if (_currentPlan == null) return;
+
+    // 同じ場所への移動は無視
+    if (fromDay == toDay && fromMeal == toMeal && fromIndex == toIndex) return;
+
+    final dailyPlans = List<DailyMealAssignment>.from(_currentPlan!.dailyPlans);
+
+    // ソースの日を取得
+    final fromDayIndex = dailyPlans.indexWhere((p) => p.day == fromDay);
+    final toDayIndex = dailyPlans.indexWhere((p) => p.day == toDay);
+    if (fromDayIndex == -1 || toDayIndex == -1) return;
+
+    // ソースの料理を取得
+    final fromDayPlan = dailyPlans[fromDayIndex];
+    final fromMealList = List<DishPortion>.from(fromDayPlan.getMealDishes(fromMeal));
+    if (fromIndex >= fromMealList.length) return;
+
+    final dish = fromMealList.removeAt(fromIndex);
+
+    // 同じ日の場合
+    if (fromDay == toDay) {
+      if (fromMeal == toMeal) {
+        // 同じ食事内での並べ替え
+        final adjustedIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+        fromMealList.insert(adjustedIndex.clamp(0, fromMealList.length), dish);
+        dailyPlans[fromDayIndex] = _updateMealList(fromDayPlan, fromMeal, fromMealList);
+      } else {
+        // 異なる食事への移動
+        final toMealList = List<DishPortion>.from(fromDayPlan.getMealDishes(toMeal));
+        toMealList.insert(toIndex.clamp(0, toMealList.length), dish);
+        var updatedPlan = _updateMealList(fromDayPlan, fromMeal, fromMealList);
+        updatedPlan = _updateMealList(updatedPlan, toMeal, toMealList);
+        dailyPlans[fromDayIndex] = updatedPlan;
+      }
+    } else {
+      // 異なる日への移動
+      dailyPlans[fromDayIndex] = _updateMealList(fromDayPlan, fromMeal, fromMealList);
+
+      final toDayPlan = dailyPlans[toDayIndex];
+      final toMealList = List<DishPortion>.from(toDayPlan.getMealDishes(toMeal));
+      toMealList.insert(toIndex.clamp(0, toMealList.length), dish);
+      dailyPlans[toDayIndex] = _updateMealList(toDayPlan, toMeal, toMealList);
+    }
+
+    // プランを更新
+    _currentPlan = MultiDayMenuPlan(
+      planId: _currentPlan!.planId,
+      days: _currentPlan!.days,
+      people: _currentPlan!.people,
+      dailyPlans: dailyPlans,
+      cookingTasks: _currentPlan!.cookingTasks,
+      shoppingList: _currentPlan!.shoppingList,
+      overallNutrients: _currentPlan!.overallNutrients,
+      overallAchievement: _currentPlan!.overallAchievement,
+      warnings: _currentPlan!.warnings,
+    );
+
+    notifyListeners();
+  }
+
+  /// 食事リストを更新したDailyMealAssignmentを返す
+  DailyMealAssignment _updateMealList(
+    DailyMealAssignment plan,
+    MealType mealType,
+    List<DishPortion> newList,
+  ) {
+    switch (mealType) {
+      case MealType.breakfast:
+        return plan.copyWith(breakfast: newList);
+      case MealType.lunch:
+        return plan.copyWith(lunch: newList);
+      case MealType.dinner:
+        return plan.copyWith(dinner: newList);
+    }
+  }
+
+  /// 2つの料理を入れ替え
+  void swapDishes({
+    required int day1,
+    required MealType meal1,
+    required int index1,
+    required int day2,
+    required MealType meal2,
+    required int index2,
+  }) {
+    if (_currentPlan == null) return;
+
+    final dailyPlans = List<DailyMealAssignment>.from(_currentPlan!.dailyPlans);
+
+    final dayIndex1 = dailyPlans.indexWhere((p) => p.day == day1);
+    final dayIndex2 = dailyPlans.indexWhere((p) => p.day == day2);
+    if (dayIndex1 == -1 || dayIndex2 == -1) return;
+
+    final dayPlan1 = dailyPlans[dayIndex1];
+    final dayPlan2 = dailyPlans[dayIndex2];
+    final mealList1 = List<DishPortion>.from(dayPlan1.getMealDishes(meal1));
+    final mealList2 = List<DishPortion>.from(dayPlan2.getMealDishes(meal2));
+
+    if (index1 >= mealList1.length || index2 >= mealList2.length) return;
+
+    // 入れ替え
+    final temp = mealList1[index1];
+    mealList1[index1] = mealList2[index2];
+    mealList2[index2] = temp;
+
+    dailyPlans[dayIndex1] = _updateMealList(dayPlan1, meal1, mealList1);
+    if (dayIndex1 != dayIndex2) {
+      dailyPlans[dayIndex2] = _updateMealList(dayPlan2, meal2, mealList2);
+    } else if (meal1 != meal2) {
+      dailyPlans[dayIndex1] = _updateMealList(dailyPlans[dayIndex1], meal2, mealList2);
+    }
+
+    _currentPlan = MultiDayMenuPlan(
+      planId: _currentPlan!.planId,
+      days: _currentPlan!.days,
+      people: _currentPlan!.people,
+      dailyPlans: dailyPlans,
+      cookingTasks: _currentPlan!.cookingTasks,
+      shoppingList: _currentPlan!.shoppingList,
+      overallNutrients: _currentPlan!.overallNutrients,
+      overallAchievement: _currentPlan!.overallAchievement,
+      warnings: _currentPlan!.warnings,
+    );
+
+    notifyListeners();
+  }
 }
