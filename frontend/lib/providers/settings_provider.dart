@@ -40,6 +40,10 @@ class SettingsProvider extends ChangeNotifier {
       final caloriesMin = prefs.getDouble('caloriesMin') ?? 1800;
       final caloriesMax = prefs.getDouble('caloriesMax') ?? 2200;
 
+      // タンパク質目標
+      final proteinMin = prefs.getDouble('proteinMin') ?? 60;
+      final proteinMax = prefs.getDouble('proteinMax') ?? 100;
+
       _settings = AppSettings(
         defaultDays: days,
         defaultPeople: people,
@@ -48,6 +52,8 @@ class SettingsProvider extends ChangeNotifier {
         nutrientTarget: NutrientTarget(
           caloriesMin: caloriesMin,
           caloriesMax: caloriesMax,
+          proteinMin: proteinMin,
+          proteinMax: proteinMax,
         ),
       );
     } catch (e) {
@@ -73,6 +79,8 @@ class SettingsProvider extends ChangeNotifier {
       );
       await prefs.setDouble('caloriesMin', _settings.nutrientTarget.caloriesMin);
       await prefs.setDouble('caloriesMax', _settings.nutrientTarget.caloriesMax);
+      await prefs.setDouble('proteinMin', _settings.nutrientTarget.proteinMin);
+      await prefs.setDouble('proteinMax', _settings.nutrientTarget.proteinMax);
     } catch (e) {
       // 保存失敗を無視
     }
@@ -125,6 +133,18 @@ class SettingsProvider extends ChangeNotifier {
       nutrientTarget: _settings.nutrientTarget.copyWith(
         caloriesMin: min,
         caloriesMax: max,
+      ),
+    );
+    notifyListeners();
+    await _saveSettings();
+  }
+
+  /// タンパク質範囲を設定
+  Future<void> setProteinRange(double min, double max) async {
+    _settings = _settings.copyWith(
+      nutrientTarget: _settings.nutrientTarget.copyWith(
+        proteinMin: min,
+        proteinMax: max,
       ),
     );
     notifyListeners();

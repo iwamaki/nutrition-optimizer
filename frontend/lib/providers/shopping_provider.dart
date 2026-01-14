@@ -6,10 +6,13 @@ class ShoppingProvider extends ChangeNotifier {
   List<ShoppingItem> _items = [];
   int _days = 0;
   int _people = 0;
+  DateTime _startDate = DateTime.now();
 
   List<ShoppingItem> get items => _items;
   int get days => _days;
   int get people => _people;
+  DateTime get startDate => _startDate;
+  DateTime get endDate => _startDate.add(Duration(days: _days - 1));
 
   /// チェック済みアイテム数
   int get checkedCount => _items.where((i) => i.isChecked).length;
@@ -39,10 +42,11 @@ class ShoppingProvider extends ChangeNotifier {
   }
 
   /// 献立から買い物リストを更新
-  void updateFromPlan(MultiDayMenuPlan plan) {
+  void updateFromPlan(MultiDayMenuPlan plan, {DateTime? startDate}) {
     _items = plan.shoppingList;
     _days = plan.days;
     _people = plan.people;
+    _startDate = startDate ?? DateTime.now();
     notifyListeners();
   }
 
@@ -73,13 +77,29 @@ class ShoppingProvider extends ChangeNotifier {
     _items = [];
     _days = 0;
     _people = 0;
+    _startDate = DateTime.now();
     notifyListeners();
+  }
+
+  /// 日付を「1/15(月)」形式にフォーマット
+  String formatDate(DateTime date) {
+    const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+    final weekday = weekdays[date.weekday - 1];
+    return '${date.month}/${date.day}($weekday)';
+  }
+
+  /// 日付範囲の表示用文字列
+  String get dateRangeDisplay {
+    if (_days <= 1) {
+      return formatDate(_startDate);
+    }
+    return '${formatDate(_startDate)}〜${formatDate(endDate)}';
   }
 
   /// 共有用テキストを生成
   String toShareText() {
     final buffer = StringBuffer();
-    buffer.writeln('買い物リスト（$_days日分・$_people人）');
+    buffer.writeln('買い物リスト（$dateRangeDisplay $_people人分）');
     buffer.writeln('');
 
     final groups = groupedByCategory;

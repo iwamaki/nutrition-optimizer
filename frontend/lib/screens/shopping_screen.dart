@@ -112,30 +112,66 @@ class ShoppingScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, ShoppingProvider shopping) {
+    final checked = shopping.checkedCount;
+    final total = shopping.items.length;
+    final remaining = total - checked;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${shopping.days}日分・${shopping.people}人分',
-                  style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${shopping.dateRangeDisplay} ${shopping.people}人分',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    // サマリー詳細
+                    Text(
+                      '全$total品目 / 購入済み: $checked品 / 残り: $remaining品',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+              ),
+              // 進捗
+              _buildProgress(context, shopping),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 注記
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 14,
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: 6),
                 Text(
-                  '${shopping.items.length}品目',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
+                  '手持ち食材を除いた不足分のみ表示',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSecondaryContainer,
                       ),
                 ),
               ],
             ),
           ),
-          // 進捗
-          _buildProgress(context, shopping),
         ],
       ),
     );

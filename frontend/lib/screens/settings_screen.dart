@@ -32,6 +32,8 @@ class SettingsScreen extends StatelessWidget {
               // 栄養目標セクション
               _buildSectionHeader(context, '栄養目標'),
               _buildCaloriesSetting(context, settings),
+              _buildProteinSetting(context, settings),
+              _buildOtherNutrientsSetting(context, settings),
               const Divider(),
 
               // アレルゲン除外セクション
@@ -209,6 +211,150 @@ class SettingsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildProteinSetting(
+      BuildContext context, SettingsProvider settings) {
+    final target = settings.nutrientTarget;
+
+    return ListTile(
+      leading: const Icon(Icons.fitness_center),
+      title: const Text('タンパク質目標'),
+      subtitle: Text(
+          '${target.proteinMin.toInt()} - ${target.proteinMax.toInt()} g'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showProteinDialog(context, settings),
+    );
+  }
+
+  void _showProteinDialog(BuildContext context, SettingsProvider settings) {
+    final target = settings.nutrientTarget;
+    var minValue = target.proteinMin;
+    var maxValue = target.proteinMax;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('タンパク質目標'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('最小: ${minValue.toInt()} g'),
+              Slider(
+                value: minValue,
+                min: 30,
+                max: 150,
+                divisions: 24,
+                onChanged: (value) {
+                  setState(() {
+                    minValue = value;
+                    if (maxValue < minValue + 20) {
+                      maxValue = minValue + 20;
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              Text('最大: ${maxValue.toInt()} g'),
+              Slider(
+                value: maxValue,
+                min: 50,
+                max: 200,
+                divisions: 30,
+                onChanged: (value) {
+                  setState(() {
+                    maxValue = value;
+                    if (minValue > maxValue - 20) {
+                      minValue = maxValue - 20;
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              onPressed: () {
+                settings.setProteinRange(minValue, maxValue);
+                Navigator.pop(context);
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOtherNutrientsSetting(
+      BuildContext context, SettingsProvider settings) {
+    return ListTile(
+      leading: const Icon(Icons.science),
+      title: const Text('その他栄養素'),
+      subtitle: const Text('脂質・炭水化物・食物繊維など'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showOtherNutrientsDialog(context, settings),
+    );
+  }
+
+  void _showOtherNutrientsDialog(
+      BuildContext context, SettingsProvider settings) {
+    final target = settings.nutrientTarget;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('その他栄養素目標'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildNutrientInfoRow('脂質', '${target.fatMin.toInt()} - ${target.fatMax.toInt()} g'),
+              _buildNutrientInfoRow('炭水化物', '${target.carbohydrateMin.toInt()} - ${target.carbohydrateMax.toInt()} g'),
+              _buildNutrientInfoRow('食物繊維', '${target.fiberMin.toInt()} g以上'),
+              _buildNutrientInfoRow('ナトリウム', '${target.sodiumMax.toInt()} mg以下'),
+              _buildNutrientInfoRow('カルシウム', '${target.calciumMin.toInt()} mg以上'),
+              _buildNutrientInfoRow('鉄', '${target.ironMin} mg以上'),
+              _buildNutrientInfoRow('ビタミンA', '${target.vitaminAMin.toInt()} μgRAE以上'),
+              _buildNutrientInfoRow('ビタミンC', '${target.vitaminCMin.toInt()} mg以上'),
+              _buildNutrientInfoRow('ビタミンD', '${target.vitaminDMin} μg以上'),
+              const SizedBox(height: 16),
+              Text(
+                '※ これらの値は厚生労働省の「日本人の食事摂取基準」に基づく推奨値です。',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNutrientInfoRow(String name, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(name),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }
