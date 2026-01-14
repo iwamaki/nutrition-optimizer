@@ -72,41 +72,141 @@ minimize Σ (weight_i × |actual_i - target_i| / target_i)
 - [x] 41品目のサンプル食材データ
 - [x] Flutter による基本UI（メニュー表示、栄養グラフ）
 
-### Phase 1: データ拡充（進行中）
+### Phase 1: データ拡充（完了）
 
 - [x] 文科省食品成分表（Excel）パーサー実装
 - [x] 2,000品目以上の食品データ投入
-- [ ] 調理係数（加熱ロス、茹で汁廃棄等）のマスタ追加
+- [x] 料理マスタ（117件）整備
+- [x] Gemini APIによるレシピ詳細自動生成
 
-### Phase 2: UI機能拡張
+### Phase 2: バックエンドAPI拡張（完了）
 
-- [ ] 設定画面の実装
-  - カロリー目標（1,500〜3,000 kcal）
-  - 除外カテゴリ・食材
-  - アレルギー対応
-- [ ] 食材詳細画面（栄養素一覧）
-- [ ] メニュー履歴・お気に入り機能
+- [x] 複数日最適化API (`/optimize/multi-day`)
+- [x] 献立調整API (`/optimize/multi-day/refine`)
+- [x] アレルゲン除外機能（7大アレルゲン）
+- [x] 買い物リスト自動生成
+- [x] 作り置き対応（storage_days）
 
-### Phase 3: 最適化の高度化
+### Phase 3: Flutter UI刷新（進行中）
 
-- [ ] 1週間ローテーション最適化（同じ食材の重複回避）
-- [ ] 調理時間・調理難易度の制約追加
-- [ ] コスト最適化（食材価格データ連携）
-- [ ] 季節食材の優先度設定
+UI設計書: `docs/ui-design-mobile.svg` (v6)
 
-### Phase 4: 実用化
+---
 
-- [ ] ユーザー認証（Firebase Auth等）
-- [ ] クラウドデプロイ（Cloud Run + Cloud SQL）
-- [ ] 買い物リスト生成機能
-- [ ] レシピ提案（外部APIまたはLLM連携）
+## Flutter実装計画
 
-### Phase 5: フィードバックループ
+### 画面構成（8画面）
 
-- [ ] 実食記録機能
-- [ ] 血液検査データ連携（オプション）
-- [ ] 体調・満足度フィードバック
-- [ ] 機械学習による嗜好学習
+| # | 画面名 | ファイル | 説明 |
+|---|--------|----------|------|
+| ① | ホーム | `home_screen.dart` | 今日の献立・栄養達成率・生成ボタン |
+| ② | 献立カレンダー | `calendar_screen.dart` | 週/月表示・ドラッグで入れ替え |
+| ③ | 買い物リスト | `shopping_screen.dart` | 不足食材のみ表示・チェック機能 |
+| ④ | 設定 | `settings_screen.dart` | 人数・目標・アレルゲン |
+| ⑤ | Step1 | `generate_modal.dart` | 期間・人数・ボリューム・アレルゲン |
+| ⑥ | Step2 | `generate_modal.dart` | 手持ち食材選択 |
+| ⑦ | Step3 | `generate_modal.dart` | 献立確認・除外・栄養達成率 |
+| ⑧ | 料理詳細 | `dish_detail_modal.dart` | 栄養素・作り方・除外ボタン |
+
+### ディレクトリ構成（予定）
+
+```
+frontend/lib/
+├── main.dart
+├── app.dart                      # MaterialApp設定
+├── models/
+│   ├── food.dart                 # 既存
+│   ├── dish.dart                 # 料理モデル
+│   ├── menu_plan.dart            # 献立モデル
+│   └── shopping_item.dart        # 買い物モデル
+├── services/
+│   ├── api_service.dart          # 既存（拡張）
+│   └── storage_service.dart      # ローカル保存
+├── providers/
+│   ├── menu_provider.dart        # 献立状態管理
+│   ├── settings_provider.dart    # 設定状態管理
+│   └── shopping_provider.dart    # 買い物状態管理
+├── screens/
+│   ├── main_scaffold.dart        # 共通レイアウト+タブナビ
+│   ├── home_screen.dart          # ①ホーム
+│   ├── calendar_screen.dart      # ②献立カレンダー
+│   ├── shopping_screen.dart      # ③買い物リスト
+│   └── settings_screen.dart      # ④設定
+├── widgets/
+│   ├── meal_card.dart            # 既存
+│   ├── nutrient_chart.dart       # 既存
+│   ├── nutrient_progress_bar.dart # 栄養達成率バー
+│   ├── period_toggle.dart        # 今日/週間/月間切替
+│   ├── draggable_meal_card.dart  # ドラッグ可能カード
+│   └── allergen_chip.dart        # アレルゲン選択チップ
+└── modals/
+    ├── generate_modal.dart       # ⑤⑥⑦献立生成モーダル
+    └── dish_detail_modal.dart    # ⑧料理詳細モーダル
+```
+
+### API対応表
+
+| Flutter機能 | バックエンドAPI | 備考 |
+|-------------|----------------|------|
+| 献立生成 | `POST /optimize/multi-day` | days, people, allergens |
+| 献立再生成 | `POST /optimize/multi-day/refine` | keep/exclude dish IDs |
+| 食材検索 | `GET /foods/search` | キーワード・カテゴリ検索 |
+| 料理一覧 | `GET /dishes` | カテゴリ・食事タイプ絞込 |
+| 料理詳細 | `GET /dishes/{id}` | 栄養素・レシピ |
+| レシピ生成 | `POST /dishes/{id}/generate-recipe` | Gemini API |
+| アレルゲン一覧 | `GET /allergens` | 7大アレルゲン |
+| 設定取得/更新 | `GET/PUT /preferences` | デフォルト値 |
+
+### 実装ステップ
+
+#### Step 1: 基盤整備
+- [ ] Providerパッケージ導入（状態管理）
+- [ ] モデルクラス追加（Dish, MultiDayMenuPlan, ShoppingItem）
+- [ ] ApiService拡張（multi-day, refine, foods/search）
+- [ ] MainScaffold（タブナビゲーション）
+
+#### Step 2: ホーム画面リニューアル
+- [ ] 栄養達成率バー（今日/週間/月間切替）
+- [ ] 朝昼夕カード表示
+- [ ] 「献立を生成」ボタン
+
+#### Step 3: 献立生成モーダル（3ステップ）
+- [ ] Step1: 期間・人数・ボリューム・アレルゲン選択
+- [ ] Step2: 手持ち食材選択（検索・カテゴリ・よく使う）
+- [ ] Step3: 献立確認・除外・栄養達成率・再生成/確定
+
+#### Step 4: 献立カレンダー
+- [ ] 週表示/月表示切替
+- [ ] 日別・食事別リスト表示
+- [ ] ドラッグ&ドロップで入れ替え（ReorderableListView）
+
+#### Step 5: 買い物リスト
+- [ ] カテゴリ別表示（野菜/肉/魚/卵乳）
+- [ ] チェック機能
+- [ ] 期間・人数表示
+- [ ] 共有機能（share_plus）
+
+#### Step 6: 設定画面
+- [ ] デフォルト人数・日数
+- [ ] 栄養目標（カロリー範囲など）
+- [ ] アレルゲン除外設定
+
+#### Step 7: 料理詳細モーダル
+- [ ] 栄養素表示（P/F/C）
+- [ ] 作り方表示
+- [ ] 除外ボタン
+
+### 必要なパッケージ
+
+```yaml
+dependencies:
+  provider: ^6.0.0        # 状態管理
+  shared_preferences: ^2.0.0  # ローカル保存
+  share_plus: ^7.0.0      # 共有機能
+  fl_chart: ^0.66.0       # グラフ（既存）
+  google_fonts: ^6.0.0    # フォント（既存）
+  http: ^1.0.0            # API通信（既存）
+```
 
 ---
 
@@ -134,11 +234,30 @@ minimize Σ (weight_i × |actual_i - target_i| / target_i)
 
 ## API エンドポイント
 
+### 最適化API
+
 | Method | Path | 説明 |
 |--------|------|------|
-| POST | `/api/v1/optimize` | メニュー最適化リクエスト |
-| GET | `/api/v1/foods` | 食材一覧取得 |
-| GET | `/api/v1/categories` | カテゴリ一覧取得 |
+| POST | `/api/v1/optimize` | 1日分メニュー最適化 |
+| POST | `/api/v1/optimize/multi-day` | 複数日最適化（作り置き対応） |
+| POST | `/api/v1/optimize/multi-day/refine` | 献立調整（イテレーション） |
+
+### マスタAPI
+
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | `/api/v1/foods` | 食品一覧 |
+| GET | `/api/v1/foods/search` | 食品検索 |
+| GET | `/api/v1/dishes` | 料理一覧 |
+| GET | `/api/v1/dishes/{id}` | 料理詳細 |
+| POST | `/api/v1/dishes/{id}/generate-recipe` | レシピ生成 |
+| GET | `/api/v1/allergens` | アレルゲン一覧 |
+
+### 設定API
+
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | `/api/v1/preferences` | ユーザー設定取得 |
 | PUT | `/api/v1/preferences` | ユーザー設定更新 |
 
 ---
@@ -151,10 +270,12 @@ minimize Σ (weight_i × |actual_i - target_i| / target_i)
 - PuLP (CBC Solver)
 - SQLAlchemy + SQLite
 - pandas (Excel読み込み)
+- Google Generative AI (Gemini)
 
 ### Frontend
 - Flutter 3.x
 - Material Design 3
+- Provider (状態管理)
 - fl_chart (グラフ描画)
 - http (API通信)
 
@@ -182,4 +303,4 @@ flutter run -d chrome
 
 ---
 
-*最終更新: 2026-01-10*
+*最終更新: 2026-01-14*

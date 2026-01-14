@@ -45,6 +45,7 @@ python tools/generate_recipes.py -c 主食      # カテゴリ指定
 
 ## アーキテクチャ
 
+### Backend
 ```
 backend/
 ├── app/
@@ -61,7 +62,10 @@ backend/
 │   ├── dishes.csv                  # 料理マスタ（117件）
 │   └── recipe_details.json         # レシピ詳細（手順・コツ）
 └── tools/                   # CLI ユーティリティ
+```
 
+### Frontend（現状）
+```
 frontend/lib/
 ├── main.dart                # Material Design 3 アプリ
 ├── screens/home_screen.dart # メイン画面（献立表示）
@@ -70,13 +74,44 @@ frontend/lib/
 └── widgets/                 # MealCard, NutrientChart
 ```
 
+### Frontend（実装予定）
+UI設計書: `docs/ui-design-mobile.svg` (v6) を参照
+
+```
+frontend/lib/
+├── main.dart
+├── models/                  # Dish, MultiDayMenuPlan, ShoppingItem
+├── services/api_service.dart # 拡張（multi-day, refine, search）
+├── providers/               # 状態管理（menu, settings, shopping）
+├── screens/
+│   ├── main_scaffold.dart   # タブナビゲーション（ホーム/週間/買物/設定）
+│   ├── home_screen.dart     # 今日の献立・栄養達成率
+│   ├── calendar_screen.dart # 献立カレンダー（週/月表示・ドラッグ入替）
+│   ├── shopping_screen.dart # 買い物リスト
+│   └── settings_screen.dart # 設定画面
+├── widgets/                 # 共通ウィジェット
+└── modals/
+    ├── generate_modal.dart  # 献立生成（3ステップウィザード）
+    └── dish_detail_modal.dart # 料理詳細
+```
+
 ## 主要API
 
+### 最適化
 - `POST /api/v1/optimize` - 1日分の献立最適化
 - `POST /api/v1/optimize/multi-day` - 複数日×複数人の作り置き対応
 - `POST /api/v1/optimize/multi-day/refine` - 献立調整（イテレーション）
-- `GET /api/v1/dishes`, `/foods` - マスタ参照
+
+### マスタ
+- `GET /api/v1/foods` - 食品一覧
+- `GET /api/v1/foods/search` - 食品検索（キーワード・カテゴリ）
+- `GET /api/v1/dishes` - 料理一覧
+- `GET /api/v1/dishes/{id}` - 料理詳細
 - `POST /api/v1/dishes/{id}/generate-recipe` - レシピ詳細生成（Gemini）
+- `GET /api/v1/allergens` - アレルゲン一覧（7大アレルゲン）
+
+### 設定
+- `GET/PUT /api/v1/preferences` - ユーザー設定
 
 ## 最適化ロジック (solver.py)
 
@@ -90,7 +125,7 @@ frontend/lib/
 - 料理カテゴリ構成: 主食(1) + 主菜(1) + 副菜(1-2) + 汁物(0-1)
 - 食材の最大使用量
 - 作り置き日数 (storage_days)
-- アレルゲン除外
+- アレルゲン除外（卵/乳/小麦/そば/落花生/えび/かに）
 
 **栄養素重み** (優先度):
 - 高: protein(1.5), fiber(1.2), iron(1.3), vitamin_d(1.5)
@@ -106,5 +141,6 @@ frontend/lib/
 
 ## ドキュメント
 
-- `/docs/PLAN.md` - システム設計書
+- `/docs/PLAN.md` - システム設計書・Flutter実装計画
+- `/docs/ui-design-mobile.svg` - スマホUI設計書（v6・8画面構成）
 - `/docs/add-dish-workflow.md` - 料理追加ワークフロー

@@ -1,0 +1,760 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1400" height="1200" viewBox="0 0 1400 1200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1400" height="1200" fill="#f5f5f5"/>
+
+  <!-- Title -->
+  <text x="700" y="40" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">
+    栄養最適化アプリ - スマホUI画面構成案 v6
+  </text>
+
+  <!-- ========== Screen 1: ホーム（今日の献立）========== -->
+  <g transform="translate(50, 70)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Status Bar -->
+    <text x="110" y="22" font-family="Arial" font-size="10" text-anchor="middle" fill="#fff">9:41</text>
+
+    <!-- Screen Title -->
+    <rect x="8" y="35" width="204" height="40" fill="#4CAF50"/>
+    <text x="110" y="60" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">今日の献立</text>
+
+    <!-- Nutrition Summary Card with Period Toggle -->
+    <rect x="16" y="82" width="188" height="75" rx="8" fill="#E8F5E9" stroke="#4CAF50" stroke-width="1"/>
+
+    <!-- Period Toggle Tabs -->
+    <rect x="24" y="88" width="172" height="22" rx="11" fill="#fff"/>
+    <rect x="26" y="90" width="54" height="18" rx="9" fill="#4CAF50"/>
+    <text x="53" y="103" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#fff">今日</text>
+    <text x="110" y="103" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">週間</text>
+    <text x="165" y="103" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">月間</text>
+
+    <!-- Progress bars -->
+    <text x="24" y="125" font-family="Arial" font-size="8" fill="#333">カロリー</text>
+    <rect x="60" y="118" width="80" height="8" rx="4" fill="#ddd"/>
+    <rect x="60" y="118" width="72" height="8" rx="4" fill="#4CAF50"/>
+    <text x="145" y="125" font-family="Arial" font-size="8" fill="#333">95%</text>
+
+    <text x="24" y="139" font-family="Arial" font-size="8" fill="#333">タンパク質</text>
+    <rect x="60" y="132" width="80" height="8" rx="4" fill="#ddd"/>
+    <rect x="60" y="132" width="88" height="8" rx="4" fill="#FF9800"/>
+    <text x="145" y="139" font-family="Arial" font-size="8" fill="#333">110%</text>
+
+    <text x="24" y="153" font-family="Arial" font-size="8" fill="#333">食物繊維</text>
+    <rect x="60" y="146" width="80" height="8" rx="4" fill="#ddd"/>
+    <rect x="60" y="146" width="64" height="8" rx="4" fill="#f44336"/>
+    <text x="145" y="153" font-family="Arial" font-size="8" fill="#f44336">80%</text>
+
+    <!-- Meal Cards -->
+    <!-- Breakfast -->
+    <rect x="16" y="165" width="188" height="52" rx="6" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <circle cx="36" cy="185" r="12" fill="#FFF3E0"/>
+    <text x="36" y="189" font-family="Arial" font-size="12" text-anchor="middle">🌅</text>
+    <text x="55" y="180" font-family="Arial" font-size="11" font-weight="bold" fill="#333">朝食</text>
+    <text x="180" y="180" font-family="Arial" font-size="9" fill="#666">520kcal</text>
+    <text x="55" y="195" font-family="Arial" font-size="8" fill="#666">鮭の塩焼き、味噌汁、ほうれん草</text>
+    <text x="55" y="209" font-family="Arial" font-size="8" fill="#4CAF50">▶ 詳細を見る</text>
+
+    <!-- Lunch -->
+    <rect x="16" y="222" width="188" height="52" rx="6" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <circle cx="36" cy="242" r="12" fill="#E3F2FD"/>
+    <text x="36" y="246" font-family="Arial" font-size="12" text-anchor="middle">☀️</text>
+    <text x="55" y="237" font-family="Arial" font-size="11" font-weight="bold" fill="#333">昼食</text>
+    <text x="180" y="237" font-family="Arial" font-size="9" fill="#666">680kcal</text>
+    <text x="55" y="252" font-family="Arial" font-size="8" fill="#666">親子丼、ほうれん草のおひたし</text>
+    <text x="55" y="266" font-family="Arial" font-size="8" fill="#4CAF50">▶ 詳細を見る</text>
+
+    <!-- Dinner -->
+    <rect x="16" y="279" width="188" height="52" rx="6" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <circle cx="36" cy="299" r="12" fill="#F3E5F5"/>
+    <text x="36" y="303" font-family="Arial" font-size="12" text-anchor="middle">🌙</text>
+    <text x="55" y="294" font-family="Arial" font-size="11" font-weight="bold" fill="#333">夕食</text>
+    <text x="180" y="294" font-family="Arial" font-size="9" fill="#666">750kcal</text>
+    <text x="55" y="309" font-family="Arial" font-size="8" fill="#666">豚の生姜焼き、サラダ、汁物</text>
+    <text x="55" y="323" font-family="Arial" font-size="8" fill="#4CAF50">▶ 詳細を見る</text>
+
+    <!-- Generate Button (ONLY on Home) -->
+    <rect x="16" y="340" width="188" height="35" rx="17" fill="#4CAF50"/>
+    <text x="110" y="362" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle" fill="#fff">🔄 献立を生成</text>
+
+    <!-- Bottom Navigation -->
+    <rect x="8" y="385" width="204" height="45" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <g transform="translate(28, 395)">
+      <rect x="-8" y="-5" width="45" height="35" rx="5" fill="#E8F5E9"/>
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🏠</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#4CAF50" font-weight="bold">ホーム</text>
+    </g>
+    <g transform="translate(78, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">📅</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">週間</text>
+    </g>
+    <g transform="translate(128, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🛒</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">買物</text>
+    </g>
+    <g transform="translate(178, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">⚙️</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">設定</text>
+    </g>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="160" y="510" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">①ホーム画面</text>
+  <text x="160" y="525" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">献立生成の起点</text>
+
+  <!-- ========== Screen 2: 週間計画 ========== -->
+  <g transform="translate(300, 70)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Status Bar -->
+    <text x="110" y="22" font-family="Arial" font-size="10" text-anchor="middle" fill="#fff">9:41</text>
+
+    <!-- Screen Title -->
+    <rect x="8" y="35" width="204" height="40" fill="#2196F3"/>
+    <text x="110" y="60" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">献立カレンダー</text>
+
+    <!-- Week/Month Toggle -->
+    <rect x="16" y="82" width="188" height="24" rx="12" fill="#E3F2FD"/>
+    <rect x="18" y="84" width="90" height="20" rx="10" fill="#2196F3"/>
+    <text x="63" y="97" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#fff">週表示</text>
+    <text x="157" y="97" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">月表示</text>
+
+    <!-- Hint -->
+    <text x="110" y="120" font-family="Arial" font-size="7" text-anchor="middle" fill="#999">長押し→ドラッグで入れ替え</text>
+
+    <!-- Day 1: 1/15 -->
+    <rect x="16" y="128" width="188" height="18" rx="4" fill="#E3F2FD"/>
+    <text x="24" y="141" font-family="Arial" font-size="9" font-weight="bold" fill="#1565C0">1月15日（月）</text>
+
+    <rect x="16" y="148" width="188" height="28" rx="4" fill="#fff" stroke="#e0e0e0"/>
+    <text x="192" y="166" font-family="Arial" font-size="10" text-anchor="end" fill="#ccc">≡</text>
+    <text x="24" y="162" font-family="Arial" font-size="8" fill="#333">🌅 卵焼き、味噌汁</text>
+    <text x="24" y="172" font-family="Arial" font-size="7" fill="#666">480kcal</text>
+
+    <rect x="16" y="178" width="188" height="28" rx="4" fill="#fff" stroke="#e0e0e0"/>
+    <text x="192" y="196" font-family="Arial" font-size="10" text-anchor="end" fill="#ccc">≡</text>
+    <text x="24" y="192" font-family="Arial" font-size="8" fill="#333">☀️ 鶏の照り焼き、サラダ</text>
+    <text x="24" y="202" font-family="Arial" font-size="7" fill="#666">720kcal</text>
+
+    <rect x="16" y="208" width="188" height="28" rx="4" fill="#E3F2FD" stroke="#2196F3" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="192" y="226" font-family="Arial" font-size="10" text-anchor="end" fill="#2196F3">≡</text>
+    <text x="24" y="222" font-family="Arial" font-size="8" fill="#1565C0">🌙 豚汁、焼き魚 ← ドラッグ中</text>
+    <text x="24" y="232" font-family="Arial" font-size="7" fill="#666">800kcal</text>
+
+    <!-- Day 2: 1/16 -->
+    <rect x="16" y="244" width="188" height="18" rx="4" fill="#FFF3E0"/>
+    <text x="24" y="257" font-family="Arial" font-size="9" font-weight="bold" fill="#E65100">1月16日（火）</text>
+
+    <rect x="16" y="264" width="188" height="28" rx="4" fill="#fff" stroke="#e0e0e0"/>
+    <text x="192" y="282" font-family="Arial" font-size="10" text-anchor="end" fill="#ccc">≡</text>
+    <text x="24" y="278" font-family="Arial" font-size="8" fill="#333">🌅 トースト、目玉焼き</text>
+    <text x="24" y="288" font-family="Arial" font-size="7" fill="#666">450kcal</text>
+
+    <rect x="16" y="294" width="188" height="28" rx="4" fill="#FFEBEE" stroke="#f44336" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="192" y="312" font-family="Arial" font-size="10" text-anchor="end" fill="#f44336">≡</text>
+    <text x="24" y="308" font-family="Arial" font-size="8" fill="#c62828">☀️ ここにドロップで入替</text>
+    <text x="24" y="318" font-family="Arial" font-size="7" fill="#666">650kcal</text>
+
+    <!-- Scroll indicator -->
+    <text x="110" y="340" font-family="Arial" font-size="8" text-anchor="middle" fill="#999">↓ スクロールで他の日も表示</text>
+
+    <!-- Bottom Navigation -->
+    <rect x="8" y="385" width="204" height="45" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <g transform="translate(28, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🏠</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">ホーム</text>
+    </g>
+    <g transform="translate(78, 395)">
+      <rect x="-8" y="-5" width="45" height="35" rx="5" fill="#E3F2FD"/>
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">📅</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#2196F3" font-weight="bold">週間</text>
+    </g>
+    <g transform="translate(128, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🛒</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">買物</text>
+    </g>
+    <g transform="translate(178, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">⚙️</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">設定</text>
+    </g>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="410" y="510" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">②献立カレンダー</text>
+  <text x="410" y="525" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">週/月表示・並べ替え可</text>
+
+  <!-- ========== Screen 3: 買い物リスト ========== -->
+  <g transform="translate(550, 70)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Status Bar -->
+    <text x="110" y="22" font-family="Arial" font-size="10" text-anchor="middle" fill="#fff">9:41</text>
+
+    <!-- Screen Title -->
+    <rect x="8" y="35" width="204" height="40" fill="#FF9800"/>
+    <text x="110" y="60" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">買い物リスト</text>
+    <text x="190" y="60" font-family="Arial" font-size="12" fill="#fff">📤</text>
+
+    <!-- Period Info -->
+    <rect x="16" y="82" width="188" height="25" rx="4" fill="#FFF3E0"/>
+    <text x="110" y="99" font-family="Arial" font-size="9" text-anchor="middle" fill="#E65100">1/15(月)〜1/17(水) 2人分</text>
+
+    <!-- Note: Only missing items -->
+    <rect x="16" y="112" width="188" height="20" rx="4" fill="#FFECB3"/>
+    <text x="110" y="126" font-family="Arial" font-size="8" text-anchor="middle" fill="#F57C00">※手持ち食材を除いた不足分のみ</text>
+
+    <!-- Category: 野菜 -->
+    <rect x="16" y="138" width="188" height="20" rx="4" fill="#C8E6C9"/>
+    <text x="24" y="152" font-family="Arial" font-size="10" font-weight="bold" fill="#2E7D32">🥬 野菜類</text>
+    <text x="185" y="152" font-family="Arial" font-size="9" fill="#666">3品</text>
+
+    <!-- Items -->
+    <g transform="translate(16, 163)">
+      <rect x="0" y="0" width="16" height="16" rx="3" fill="#fff" stroke="#ccc"/>
+      <text x="22" y="12" font-family="Arial" font-size="9" fill="#333">キャベツ</text>
+      <text x="165" y="12" font-family="Arial" font-size="9" fill="#666">400g</text>
+    </g>
+    <g transform="translate(16, 183)">
+      <rect x="0" y="0" width="16" height="16" rx="3" fill="#4CAF50"/>
+      <text x="8" y="12" font-family="Arial" font-size="10" text-anchor="middle" fill="#fff">✓</text>
+      <text x="22" y="12" font-family="Arial" font-size="9" fill="#999" text-decoration="line-through">にんじん</text>
+      <text x="165" y="12" font-family="Arial" font-size="9" fill="#999">300g</text>
+    </g>
+
+    <!-- Category: 肉類 -->
+    <rect x="16" y="210" width="188" height="20" rx="4" fill="#FFCCBC"/>
+    <text x="24" y="224" font-family="Arial" font-size="10" font-weight="bold" fill="#BF360C">🥩 肉類</text>
+    <text x="185" y="224" font-family="Arial" font-size="9" fill="#666">2品</text>
+
+    <g transform="translate(16, 235)">
+      <rect x="0" y="0" width="16" height="16" rx="3" fill="#fff" stroke="#ccc"/>
+      <text x="22" y="12" font-family="Arial" font-size="9" fill="#333">豚ロース肉</text>
+      <text x="165" y="12" font-family="Arial" font-size="9" fill="#666">600g</text>
+    </g>
+    <g transform="translate(16, 255)">
+      <rect x="0" y="0" width="16" height="16" rx="3" fill="#fff" stroke="#ccc"/>
+      <text x="22" y="12" font-family="Arial" font-size="9" fill="#333">鶏もも肉</text>
+      <text x="165" y="12" font-family="Arial" font-size="9" fill="#666">500g</text>
+    </g>
+
+    <!-- Category: 魚介類 -->
+    <rect x="16" y="280" width="188" height="20" rx="4" fill="#B3E5FC"/>
+    <text x="24" y="294" font-family="Arial" font-size="10" font-weight="bold" fill="#01579B">🐟 魚介類</text>
+    <text x="185" y="294" font-family="Arial" font-size="9" fill="#666">1品</text>
+
+    <g transform="translate(16, 305)">
+      <rect x="0" y="0" width="16" height="16" rx="3" fill="#fff" stroke="#ccc"/>
+      <text x="22" y="12" font-family="Arial" font-size="9" fill="#333">鮭切り身</text>
+      <text x="165" y="12" font-family="Arial" font-size="9" fill="#666">4切れ</text>
+    </g>
+
+    <!-- Summary -->
+    <rect x="16" y="335" width="188" height="40" rx="8" fill="#FFF3E0" stroke="#FF9800"/>
+    <text x="110" y="352" font-family="Arial" font-size="10" text-anchor="middle" fill="#333">不足分: 6品目</text>
+    <text x="110" y="368" font-family="Arial" font-size="9" text-anchor="middle" fill="#666">購入済み: 1品 / 残り: 5品</text>
+
+    <!-- Bottom Navigation -->
+    <rect x="8" y="385" width="204" height="45" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <g transform="translate(28, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🏠</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">ホーム</text>
+    </g>
+    <g transform="translate(78, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">📅</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">週間</text>
+    </g>
+    <g transform="translate(128, 395)">
+      <rect x="-8" y="-5" width="45" height="35" rx="5" fill="#FFF3E0"/>
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🛒</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#FF9800" font-weight="bold">買物</text>
+    </g>
+    <g transform="translate(178, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">⚙️</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">設定</text>
+    </g>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="660" y="510" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">③買い物リスト</text>
+  <text x="660" y="525" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">不足食材のみ表示</text>
+
+  <!-- ========== Screen 4: 設定画面 ========== -->
+  <g transform="translate(800, 70)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#f5f5f5"/>
+
+    <!-- Status Bar -->
+    <text x="110" y="22" font-family="Arial" font-size="10" text-anchor="middle" fill="#fff">9:41</text>
+
+    <!-- Screen Title -->
+    <rect x="8" y="35" width="204" height="40" fill="#607D8B"/>
+    <text x="110" y="60" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">設定</text>
+
+    <!-- Section: 基本設定 -->
+    <text x="24" y="95" font-family="Arial" font-size="10" fill="#666">基本設定</text>
+    <rect x="16" y="102" width="188" height="70" rx="8" fill="#fff"/>
+
+    <text x="24" y="122" font-family="Arial" font-size="10" fill="#333">👥 デフォルト人数</text>
+    <text x="180" y="122" font-family="Arial" font-size="10" fill="#666">2人 ▶</text>
+    <line x1="24" y1="132" x2="196" y2="132" stroke="#eee"/>
+
+    <text x="24" y="150" font-family="Arial" font-size="10" fill="#333">📆 デフォルト日数</text>
+    <text x="180" y="150" font-family="Arial" font-size="10" fill="#666">3日 ▶</text>
+    <line x1="24" y1="160" x2="196" y2="160" stroke="#eee"/>
+
+    <!-- Section: 栄養目標 -->
+    <text x="24" y="195" font-family="Arial" font-size="10" fill="#666">栄養目標（1人1日）</text>
+    <rect x="16" y="202" width="188" height="90" rx="8" fill="#fff"/>
+
+    <text x="24" y="222" font-family="Arial" font-size="10" fill="#333">カロリー</text>
+    <text x="150" y="222" font-family="Arial" font-size="9" fill="#666">1800-2200kcal</text>
+    <line x1="24" y1="232" x2="196" y2="232" stroke="#eee"/>
+
+    <text x="24" y="250" font-family="Arial" font-size="10" fill="#333">タンパク質</text>
+    <text x="165" y="250" font-family="Arial" font-size="9" fill="#666">60-100g</text>
+    <line x1="24" y1="260" x2="196" y2="260" stroke="#eee"/>
+
+    <text x="24" y="278" font-family="Arial" font-size="10" fill="#333">その他栄養素...</text>
+    <text x="180" y="278" font-family="Arial" font-size="10" fill="#666">▶</text>
+
+    <!-- Section: アレルゲン除外 -->
+    <text x="24" y="315" font-family="Arial" font-size="10" fill="#666">アレルゲン除外</text>
+    <rect x="16" y="322" width="188" height="45" rx="8" fill="#fff"/>
+
+    <!-- Allergen chips -->
+    <rect x="24" y="332" width="35" height="20" rx="10" fill="#FFEBEE" stroke="#f44336"/>
+    <text x="41" y="346" font-family="Arial" font-size="8" text-anchor="middle" fill="#f44336">卵</text>
+
+    <rect x="65" y="332" width="35" height="20" rx="10" fill="#fff" stroke="#ccc"/>
+    <text x="82" y="346" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">乳</text>
+
+    <rect x="106" y="332" width="40" height="20" rx="10" fill="#FFEBEE" stroke="#f44336"/>
+    <text x="126" y="346" font-family="Arial" font-size="8" text-anchor="middle" fill="#f44336">小麦</text>
+
+    <rect x="152" y="332" width="40" height="20" rx="10" fill="#fff" stroke="#ccc"/>
+    <text x="172" y="346" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">えび</text>
+
+    <text x="24" y="360" font-family="Arial" font-size="8" fill="#999">タップして除外/解除</text>
+
+    <!-- Bottom Navigation -->
+    <rect x="8" y="385" width="204" height="45" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+    <g transform="translate(28, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🏠</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">ホーム</text>
+    </g>
+    <g transform="translate(78, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">📅</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">週間</text>
+    </g>
+    <g transform="translate(128, 395)">
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">🛒</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">買物</text>
+    </g>
+    <g transform="translate(178, 395)">
+      <rect x="-8" y="-5" width="45" height="35" rx="5" fill="#ECEFF1"/>
+      <text x="15" y="10" font-family="Arial" font-size="16" text-anchor="middle">⚙️</text>
+      <text x="15" y="24" font-family="Arial" font-size="7" text-anchor="middle" fill="#607D8B" font-weight="bold">設定</text>
+    </g>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="910" y="510" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">④設定画面</text>
+  <text x="910" y="525" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">デフォルト値・目標</text>
+
+  <!-- ========== Row 2: 献立生成フロー（3ステップ） ========== -->
+
+  <!-- Section Title -->
+  <text x="400" y="570" font-family="Arial" font-size="16" font-weight="bold" fill="#4CAF50">献立生成フロー（3ステップ）</text>
+  <line x1="50" y1="580" x2="1050" y2="580" stroke="#4CAF50" stroke-width="2"/>
+
+  <!-- ========== Screen 5: Step 1 基本設定 ========== -->
+  <g transform="translate(50, 600)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Modal Overlay -->
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="rgba(0,0,0,0.5)"/>
+
+    <!-- Modal Content -->
+    <rect x="13" y="55" width="194" height="320" rx="12" fill="#fff"/>
+
+    <!-- Modal Header -->
+    <rect x="13" y="55" width="194" height="45" rx="12" fill="#4CAF50"/>
+    <rect x="13" y="85" width="194" height="15" fill="#4CAF50"/>
+    <text x="110" y="82" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">献立を生成</text>
+
+    <!-- Step Indicator -->
+    <g transform="translate(25, 110)">
+      <circle cx="0" cy="0" r="10" fill="#4CAF50"/>
+      <text x="0" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">1</text>
+
+      <line x1="12" y1="0" x2="68" y2="0" stroke="#ddd" stroke-width="2"/>
+
+      <circle cx="80" cy="0" r="10" fill="#ddd"/>
+      <text x="80" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#999">2</text>
+
+      <line x1="92" y1="0" x2="148" y2="0" stroke="#ddd" stroke-width="2"/>
+
+      <circle cx="160" cy="0" r="10" fill="#ddd"/>
+      <text x="160" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#999">3</text>
+    </g>
+    <text x="25" y="135" font-family="Arial" font-size="7" fill="#4CAF50">基本設定</text>
+    <text x="105" y="135" font-family="Arial" font-size="7" text-anchor="middle" fill="#999">食材</text>
+    <text x="185" y="135" font-family="Arial" font-size="7" text-anchor="end" fill="#999">確認</text>
+
+    <!-- Period Selection -->
+    <text x="30" y="148" font-family="Arial" font-size="9" font-weight="bold" fill="#333">📅 期間</text>
+    <g transform="translate(30, 152)">
+      <rect x="0" y="0" width="50" height="20" rx="10" fill="#4CAF50"/>
+      <text x="25" y="14" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#fff">1日</text>
+
+      <rect x="54" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="79" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">3日</text>
+
+      <rect x="108" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="133" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">1週間</text>
+    </g>
+
+    <!-- Person Count -->
+    <text x="30" y="190" font-family="Arial" font-size="9" font-weight="bold" fill="#333">👥 人数</text>
+    <g transform="translate(30, 194)">
+      <rect x="0" y="0" width="120" height="24" rx="6" fill="#f5f5f5"/>
+      <rect x="6" y="4" width="22" height="16" rx="4" fill="#fff" stroke="#ddd"/>
+      <text x="17" y="16" font-family="Arial" font-size="10" text-anchor="middle" fill="#333">−</text>
+      <text x="60" y="17" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">2人</text>
+      <rect x="92" y="4" width="22" height="16" rx="4" fill="#fff" stroke="#ddd"/>
+      <text x="103" y="16" font-family="Arial" font-size="10" text-anchor="middle" fill="#333">+</text>
+    </g>
+
+    <!-- Menu Volume -->
+    <text x="30" y="236" font-family="Arial" font-size="9" font-weight="bold" fill="#333">🍽️ 献立ボリューム</text>
+    <g transform="translate(30, 240)">
+      <rect x="0" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="25" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">少なめ</text>
+
+      <rect x="54" y="0" width="50" height="20" rx="10" fill="#4CAF50"/>
+      <text x="79" y="14" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#fff">普通</text>
+
+      <rect x="108" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="133" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">多め</text>
+    </g>
+
+    <!-- Ingredient Variety -->
+    <text x="30" y="278" font-family="Arial" font-size="9" font-weight="bold" fill="#333">🛒 食材の種類</text>
+    <g transform="translate(30, 282)">
+      <rect x="0" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="25" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">少なめ</text>
+
+      <rect x="54" y="0" width="50" height="20" rx="10" fill="#4CAF50"/>
+      <text x="79" y="14" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#fff">普通</text>
+
+      <rect x="108" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="133" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#333">多め</text>
+    </g>
+
+    <!-- Allergen Exclusion -->
+    <text x="30" y="320" font-family="Arial" font-size="9" font-weight="bold" fill="#333">⚠️ アレルゲン除外</text>
+    <g transform="translate(30, 324)">
+      <rect x="0" y="0" width="32" height="18" rx="9" fill="#FFEBEE" stroke="#f44336"/>
+      <text x="16" y="13" font-family="Arial" font-size="7" text-anchor="middle" fill="#f44336">卵</text>
+
+      <rect x="36" y="0" width="32" height="18" rx="9" fill="#fff" stroke="#ddd"/>
+      <text x="52" y="13" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">乳</text>
+
+      <rect x="72" y="0" width="36" height="18" rx="9" fill="#fff" stroke="#ddd"/>
+      <text x="90" y="13" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">小麦</text>
+
+      <rect x="112" y="0" width="36" height="18" rx="9" fill="#fff" stroke="#ddd"/>
+      <text x="130" y="13" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">えび</text>
+    </g>
+
+    <!-- Next Button -->
+    <rect x="30" y="350" width="162" height="26" rx="13" fill="#4CAF50"/>
+    <text x="111" y="367" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#fff">次へ →</text>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="160" y="1040" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">⑤Step1: 基本設定</text>
+  <text x="160" y="1055" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">期間・人数・ボリューム・食材</text>
+
+  <!-- Arrow -->
+  <g transform="translate(280, 800)">
+    <line x1="0" y1="0" x2="25" y2="0" stroke="#4CAF50" stroke-width="3"/>
+    <polygon points="25,-5 35,0 25,5" fill="#4CAF50"/>
+  </g>
+
+  <!-- ========== Screen 6: Step 2 手持ち食材 ========== -->
+  <g transform="translate(320, 600)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Modal Overlay -->
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="rgba(0,0,0,0.5)"/>
+
+    <!-- Modal Content -->
+    <rect x="13" y="55" width="194" height="320" rx="12" fill="#fff"/>
+
+    <!-- Modal Header -->
+    <rect x="13" y="55" width="194" height="45" rx="12" fill="#4CAF50"/>
+    <rect x="13" y="85" width="194" height="15" fill="#4CAF50"/>
+    <text x="110" y="82" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">献立を生成</text>
+
+    <!-- Step Indicator -->
+    <g transform="translate(25, 110)">
+      <circle cx="0" cy="0" r="10" fill="#4CAF50"/>
+      <text x="0" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">✓</text>
+
+      <line x1="12" y1="0" x2="68" y2="0" stroke="#4CAF50" stroke-width="2"/>
+
+      <circle cx="80" cy="0" r="10" fill="#4CAF50"/>
+      <text x="80" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">2</text>
+
+      <line x1="92" y1="0" x2="148" y2="0" stroke="#ddd" stroke-width="2"/>
+
+      <circle cx="160" cy="0" r="10" fill="#ddd"/>
+      <text x="160" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#999">3</text>
+    </g>
+    <text x="25" y="135" font-family="Arial" font-size="7" fill="#4CAF50">基本設定</text>
+    <text x="105" y="135" font-family="Arial" font-size="7" text-anchor="middle" fill="#4CAF50">食材</text>
+    <text x="185" y="135" font-family="Arial" font-size="7" text-anchor="end" fill="#999">確認</text>
+
+    <!-- Instructions -->
+    <rect x="20" y="143" width="180" height="28" rx="4" fill="#E8F5E9"/>
+    <text x="110" y="156" font-family="Arial" font-size="8" font-weight="bold" text-anchor="middle" fill="#2E7D32">🏠 家にある食材を選択</text>
+    <text x="110" y="167" font-family="Arial" font-size="7" text-anchor="middle" fill="#666">→ 買い物リストから除外されます</text>
+
+    <!-- Search Input -->
+    <rect x="25" y="178" width="170" height="24" rx="12" fill="#f5f5f5" stroke="#ddd"/>
+    <text x="45" y="194" font-family="Arial" font-size="9" fill="#999">🔍 食材を検索...</text>
+
+    <!-- Frequently Used -->
+    <text x="30" y="218" font-family="Arial" font-size="9" font-weight="bold" fill="#333">⭐ よく使う</text>
+    <g transform="translate(30, 224)">
+      <rect x="0" y="0" width="40" height="20" rx="10" fill="#E8F5E9" stroke="#4CAF50"/>
+      <text x="20" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#4CAF50">🥚卵</text>
+
+      <rect x="45" y="0" width="50" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="70" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">🧅玉ねぎ</text>
+
+      <rect x="100" y="0" width="50" height="20" rx="10" fill="#E8F5E9" stroke="#4CAF50"/>
+      <text x="125" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#4CAF50">🥕人参</text>
+    </g>
+    <g transform="translate(30, 248)">
+      <rect x="0" y="0" width="45" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="22" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">🍖豚肉</text>
+
+      <rect x="50" y="0" width="45" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="72" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">🐔鶏肉</text>
+
+      <rect x="100" y="0" width="45" height="20" rx="10" fill="#fff" stroke="#ddd"/>
+      <text x="122" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">🥛牛乳</text>
+    </g>
+
+    <!-- Category Selection -->
+    <text x="30" y="288" font-family="Arial" font-size="9" font-weight="bold" fill="#333">📁 カテゴリから探す</text>
+    <g transform="translate(30, 294)">
+      <rect x="0" y="0" width="38" height="20" rx="4" fill="#FFCCBC"/>
+      <text x="19" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#BF360C">肉類</text>
+
+      <rect x="43" y="0" width="38" height="20" rx="4" fill="#B3E5FC"/>
+      <text x="62" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#01579B">魚介</text>
+
+      <rect x="86" y="0" width="38" height="20" rx="4" fill="#C8E6C9"/>
+      <text x="105" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#2E7D32">野菜</text>
+
+      <rect x="129" y="0" width="38" height="20" rx="4" fill="#FFF9C4"/>
+      <text x="148" y="14" font-family="Arial" font-size="8" text-anchor="middle" fill="#F57F17">卵乳</text>
+    </g>
+
+    <!-- Selected Items -->
+    <rect x="25" y="322" width="170" height="20" rx="4" fill="#E8F5E9"/>
+    <text x="35" y="336" font-family="Arial" font-size="8" fill="#2E7D32">✓ 選択中: 卵, 人参</text>
+
+    <!-- Navigation Buttons -->
+    <rect x="30" y="348" width="55" height="26" rx="6" fill="#fff" stroke="#999"/>
+    <text x="57" y="365" font-family="Arial" font-size="9" text-anchor="middle" fill="#666">← 戻る</text>
+
+    <rect x="92" y="348" width="100" height="26" rx="13" fill="#4CAF50"/>
+    <text x="142" y="365" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#fff">生成 →</text>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="430" y="1040" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">⑥Step2: 手持ち食材</text>
+  <text x="430" y="1055" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">スキップ可能</text>
+
+  <!-- Arrow -->
+  <g transform="translate(550, 800)">
+    <line x1="0" y1="0" x2="25" y2="0" stroke="#4CAF50" stroke-width="3"/>
+    <polygon points="25,-5 35,0 25,5" fill="#4CAF50"/>
+  </g>
+
+  <!-- ========== Screen 7: Step 3 献立確認・調整 ========== -->
+  <g transform="translate(590, 600)">
+    <!-- Phone Frame -->
+    <rect x="0" y="0" width="220" height="420" rx="20" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="#ffffff"/>
+
+    <!-- Modal Overlay -->
+    <rect x="8" y="35" width="204" height="350" rx="5" fill="rgba(0,0,0,0.5)"/>
+
+    <!-- Modal Content -->
+    <rect x="13" y="55" width="194" height="320" rx="12" fill="#fff"/>
+
+    <!-- Modal Header -->
+    <rect x="13" y="55" width="194" height="45" rx="12" fill="#4CAF50"/>
+    <rect x="13" y="85" width="194" height="15" fill="#4CAF50"/>
+    <text x="110" y="82" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#fff">献立を確認</text>
+
+    <!-- Step Indicator -->
+    <g transform="translate(25, 110)">
+      <circle cx="0" cy="0" r="10" fill="#4CAF50"/>
+      <text x="0" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">✓</text>
+
+      <line x1="12" y1="0" x2="68" y2="0" stroke="#4CAF50" stroke-width="2"/>
+
+      <circle cx="80" cy="0" r="10" fill="#4CAF50"/>
+      <text x="80" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">✓</text>
+
+      <line x1="92" y1="0" x2="148" y2="0" stroke="#4CAF50" stroke-width="2"/>
+
+      <circle cx="160" cy="0" r="10" fill="#4CAF50"/>
+      <text x="160" y="4" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">3</text>
+    </g>
+    <text x="25" y="135" font-family="Arial" font-size="7" fill="#4CAF50">基本設定</text>
+    <text x="105" y="135" font-family="Arial" font-size="7" text-anchor="middle" fill="#4CAF50">食材</text>
+    <text x="185" y="135" font-family="Arial" font-size="7" text-anchor="end" fill="#4CAF50">確認</text>
+
+    <!-- Instructions -->
+    <rect x="20" y="143" width="180" height="22" rx="4" fill="#E8F5E9"/>
+    <text x="110" y="158" font-family="Arial" font-size="8" text-anchor="middle" fill="#2E7D32">不要な料理をタップで除外</text>
+
+    <!-- Dish List (主食は表示しない) -->
+    <rect x="20" y="170" width="180" height="32" rx="4" fill="#fff" stroke="#e0e0e0"/>
+    <text x="28" y="184" font-family="Arial" font-size="9" fill="#333">🍳 鮭の塩焼き</text>
+    <text x="28" y="195" font-family="Arial" font-size="7" fill="#666">主菜 ・ 朝食</text>
+
+    <rect x="20" y="206" width="180" height="32" rx="4" fill="#fff" stroke="#e0e0e0"/>
+    <text x="28" y="220" font-family="Arial" font-size="9" fill="#333">🥗 味噌汁</text>
+    <text x="28" y="231" font-family="Arial" font-size="7" fill="#666">汁物 ・ 朝食</text>
+
+    <rect x="20" y="242" width="180" height="32" rx="4" fill="#FFEBEE" stroke="#f44336" stroke-width="1.5"/>
+    <text x="28" y="256" font-family="Arial" font-size="9" fill="#999" text-decoration="line-through">🥬 ほうれん草おひたし</text>
+    <text x="28" y="267" font-family="Arial" font-size="7" fill="#999">副菜 ・ 朝食</text>
+    <text x="180" y="260" font-family="Arial" font-size="8" fill="#f44336" text-anchor="end">除外</text>
+
+    <text x="110" y="286" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">... 他10品（スクロール）</text>
+
+    <!-- Nutrition Summary with Progress -->
+    <rect x="20" y="294" width="180" height="55" rx="4" fill="#E8F5E9"/>
+    <text x="28" y="307" font-family="Arial" font-size="8" font-weight="bold" fill="#333">栄養達成率</text>
+
+    <text x="28" y="320" font-family="Arial" font-size="7" fill="#333">カロリー</text>
+    <rect x="65" y="314" width="70" height="6" rx="3" fill="#ddd"/>
+    <rect x="65" y="314" width="67" height="6" rx="3" fill="#4CAF50"/>
+    <text x="140" y="320" font-family="Arial" font-size="7" fill="#4CAF50">95%</text>
+
+    <text x="28" y="332" font-family="Arial" font-size="7" fill="#333">タンパク質</text>
+    <rect x="65" y="326" width="70" height="6" rx="3" fill="#ddd"/>
+    <rect x="65" y="326" width="70" height="6" rx="3" fill="#4CAF50"/>
+    <text x="140" y="332" font-family="Arial" font-size="7" fill="#4CAF50">102%</text>
+
+    <text x="28" y="344" font-family="Arial" font-size="7" fill="#333">食物繊維</text>
+    <rect x="65" y="338" width="70" height="6" rx="3" fill="#ddd"/>
+    <rect x="65" y="338" width="56" height="6" rx="3" fill="#FF9800"/>
+    <text x="140" y="344" font-family="Arial" font-size="7" fill="#FF9800">80%</text>
+
+    <!-- Action Buttons -->
+    <rect x="20" y="355" width="85" height="26" rx="6" fill="#fff" stroke="#4CAF50" stroke-width="1.5"/>
+    <text x="62" y="372" font-family="Arial" font-size="9" text-anchor="middle" fill="#4CAF50">🔄 再生成</text>
+
+    <rect x="115" y="355" width="85" height="26" rx="13" fill="#4CAF50"/>
+    <text x="157" y="372" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle" fill="#fff">✓ 確定</text>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="700" y="1040" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">⑦Step3: 献立確認</text>
+  <text x="700" y="1055" font-family="Arial" font-size="10" text-anchor="middle" fill="#666">タップで除外→再生成/確定</text>
+
+  <!-- ========== Flow Description Box ========== -->
+  <rect x="850" y="600" width="320" height="380" rx="10" fill="#fff" stroke="#4CAF50" stroke-width="2"/>
+  <text x="1010" y="630" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">フロー説明</text>
+
+  <text x="870" y="660" font-family="Arial" font-size="11" fill="#333">【ユーザーシナリオ】</text>
+  <text x="870" y="682" font-family="Arial" font-size="10" fill="#666">1. ホーム「献立を生成」タップ</text>
+  <text x="870" y="700" font-family="Arial" font-size="10" fill="#666">2. Step1: 期間・人数・ボリューム・食材</text>
+  <text x="870" y="718" font-family="Arial" font-size="10" fill="#666">3. Step2: 手持ち食材を選択（任意）</text>
+  <text x="870" y="736" font-family="Arial" font-size="10" fill="#666">4. Step3: 生成結果を確認</text>
+  <text x="870" y="754" font-family="Arial" font-size="10" fill="#666">   - 不要な料理をタップで除外</text>
+  <text x="870" y="772" font-family="Arial" font-size="10" fill="#666">   - 納得いくまで「再生成」</text>
+  <text x="870" y="790" font-family="Arial" font-size="10" fill="#666">5. 「確定」で完了</text>
+
+  <line x1="870" y1="808" x2="1150" y2="808" stroke="#eee"/>
+
+  <text x="870" y="835" font-family="Arial" font-size="11" fill="#333">【確定後の自動処理】</text>
+  <text x="870" y="857" font-family="Arial" font-size="10" fill="#4CAF50">✓ 献立 → 週間画面に反映</text>
+  <text x="870" y="875" font-family="Arial" font-size="10" fill="#4CAF50">✓ 買い物リスト → 自動生成</text>
+
+  <line x1="870" y1="893" x2="1150" y2="893" stroke="#eee"/>
+
+  <text x="870" y="920" font-family="Arial" font-size="11" fill="#333">【確定後に変更したい場合】</text>
+  <text x="870" y="942" font-family="Arial" font-size="10" fill="#666">• ホーム「献立を生成」で再生成</text>
+  <text x="870" y="960" font-family="Arial" font-size="10" fill="#666">• 前回設定は記憶されている</text>
+
+  <!-- ========== Row 3: 料理詳細モーダル ========== -->
+
+  <!-- Section Title -->
+  <text x="150" y="1095" font-family="Arial" font-size="16" font-weight="bold" fill="#00BCD4">その他</text>
+  <line x1="50" y1="1105" x2="420" y2="1105" stroke="#00BCD4" stroke-width="2"/>
+
+  <!-- ========== Screen 8: 料理詳細モーダル ========== -->
+  <g transform="translate(50, 1115)">
+    <!-- Phone Frame (smaller) -->
+    <rect x="0" y="0" width="200" height="150" rx="15" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+    <rect x="6" y="20" width="188" height="120" rx="5" fill="#ffffff"/>
+
+    <!-- Modal Overlay -->
+    <rect x="6" y="20" width="188" height="120" rx="5" fill="rgba(0,0,0,0.5)"/>
+
+    <!-- Modal Content -->
+    <rect x="16" y="30" width="168" height="100" rx="8" fill="#fff"/>
+
+    <!-- Close button -->
+    <circle cx="172" cy="40" r="8" fill="#f5f5f5"/>
+    <text x="172" y="43" font-family="Arial" font-size="8" text-anchor="middle" fill="#666">✕</text>
+
+    <!-- Dish Title -->
+    <text x="100" y="52" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle" fill="#333">鮭の塩焼き</text>
+    <text x="100" y="65" font-family="Arial" font-size="7" text-anchor="middle" fill="#4CAF50">主菜 ・ 250kcal</text>
+
+    <!-- Quick Info -->
+    <text x="30" y="82" font-family="Arial" font-size="7" fill="#666">P:28g F:15g C:0g</text>
+    <text x="30" y="95" font-family="Arial" font-size="7" fill="#666">作り方: 塩をふり焼く</text>
+
+    <!-- Action Button (除外のみ) -->
+    <rect x="55" y="105" width="90" height="18" rx="4" fill="#fff" stroke="#f44336"/>
+    <text x="100" y="117" font-family="Arial" font-size="8" text-anchor="middle" fill="#f44336">この料理を除外</text>
+  </g>
+
+  <!-- Screen Label -->
+  <text x="150" y="1282" font-family="Arial" font-size="11" font-weight="bold" text-anchor="middle" fill="#333">⑧料理詳細</text>
+
+  <!-- ========== v6 Changes Box ========== -->
+  <rect x="280" y="1115" width="250" height="150" rx="10" fill="#fff" stroke="#ddd" stroke-width="2"/>
+  <text x="405" y="1140" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">v6 変更点</text>
+
+  <text x="295" y="1165" font-family="Arial" font-size="10" fill="#f44336">✗ 調理計画画面を削除</text>
+  <text x="295" y="1183" font-family="Arial" font-size="10" fill="#f44336">✗ 週間画面の「献立を調整」削除</text>
+  <text x="295" y="1201" font-family="Arial" font-size="10" fill="#f44336">✗ Step3の「残す」ボタン削除</text>
+  <text x="295" y="1219" font-family="Arial" font-size="10" fill="#4CAF50">✓ 未タップ＝残す（シンプル化）</text>
+  <text x="295" y="1237" font-family="Arial" font-size="10" fill="#4CAF50">✓ 主食は品数に含めない</text>
+  <text x="295" y="1255" font-family="Arial" font-size="10" fill="#666">※週間画面は「見るだけ」に特化</text>
+</svg>
