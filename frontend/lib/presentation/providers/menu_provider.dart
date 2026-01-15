@@ -263,19 +263,185 @@ class MenuNotifier extends _$MenuNotifier {
       dailyPlans[toDayIndex] = _updateMealList(toDayPlan, toMeal, toMealList);
     }
 
+    // 各日の栄養素を再計算
+    final recalculatedPlans = dailyPlans.map((dayPlan) {
+      return _recalculateDayNutrients(dayPlan);
+    }).toList();
+
+    // 全体の栄養素を再計算
+    final overallNutrients = _calculateOverallNutrients(recalculatedPlans);
+    final overallAchievement = _calculateOverallAchievement(
+      overallNutrients,
+      state.currentPlan!.days,
+    );
+
     final newPlan = MultiDayMenuPlan(
       planId: state.currentPlan!.planId,
       days: state.currentPlan!.days,
       people: state.currentPlan!.people,
-      dailyPlans: dailyPlans,
+      dailyPlans: recalculatedPlans,
       cookingTasks: state.currentPlan!.cookingTasks,
       shoppingList: state.currentPlan!.shoppingList,
-      overallNutrients: state.currentPlan!.overallNutrients,
-      overallAchievement: state.currentPlan!.overallAchievement,
+      overallNutrients: overallNutrients,
+      overallAchievement: overallAchievement,
       warnings: state.currentPlan!.warnings,
     );
 
     state = state.copyWith(currentPlan: newPlan);
+  }
+
+  /// 1日分の栄養素を再計算
+  DailyMealAssignment _recalculateDayNutrients(DailyMealAssignment dayPlan) {
+    final allDishes = [
+      ...dayPlan.breakfast,
+      ...dayPlan.lunch,
+      ...dayPlan.dinner,
+    ];
+
+    final totalNutrients = <String, double>{
+      'calories': 0,
+      'protein': 0,
+      'fat': 0,
+      'carbohydrate': 0,
+      'fiber': 0,
+      'sodium': 0,
+      'calcium': 0,
+      'iron': 0,
+      'vitamin_a': 0,
+      'vitamin_c': 0,
+      'vitamin_d': 0,
+    };
+
+    for (final portion in allDishes) {
+      final dish = portion.dish;
+      final servings = portion.servings;
+      totalNutrients['calories'] = totalNutrients['calories']! + dish.calories * servings;
+      totalNutrients['protein'] = totalNutrients['protein']! + dish.protein * servings;
+      totalNutrients['fat'] = totalNutrients['fat']! + dish.fat * servings;
+      totalNutrients['carbohydrate'] = totalNutrients['carbohydrate']! + dish.carbohydrate * servings;
+      totalNutrients['fiber'] = totalNutrients['fiber']! + dish.fiber * servings;
+      totalNutrients['sodium'] = totalNutrients['sodium']! + dish.sodium * servings;
+      totalNutrients['calcium'] = totalNutrients['calcium']! + dish.calcium * servings;
+      totalNutrients['iron'] = totalNutrients['iron']! + dish.iron * servings;
+      totalNutrients['vitamin_a'] = totalNutrients['vitamin_a']! + dish.vitaminA * servings;
+      totalNutrients['vitamin_c'] = totalNutrients['vitamin_c']! + dish.vitaminC * servings;
+      totalNutrients['vitamin_d'] = totalNutrients['vitamin_d']! + dish.vitaminD * servings;
+    }
+
+    // 達成率を再計算（バックエンドと同じロジック）
+    final achievementRate = _calcAchievement(totalNutrients);
+
+    return dayPlan.copyWith(
+      totalNutrients: totalNutrients,
+      achievementRate: achievementRate,
+    );
+  }
+
+  /// 達成率を計算（バックエンド _calc_achievement と同じロジック）
+  Map<String, double> _calcAchievement(Map<String, double> nutrients) {
+    // デフォルトの目標値を使用
+    const target = NutrientTarget();
+    final achievement = <String, double>{};
+
+    // calories: (min + max) / 2 を目標に
+    final caloriesTarget = (target.caloriesMin + target.caloriesMax) / 2;
+    achievement['calories'] = caloriesTarget > 0
+        ? (nutrients['calories'] ?? 0) / caloriesTarget * 100
+        : 100;
+
+    // protein: (min + max) / 2 を目標に
+    final proteinTarget = (target.proteinMin + target.proteinMax) / 2;
+    achievement['protein'] = proteinTarget > 0
+        ? (nutrients['protein'] ?? 0) / proteinTarget * 100
+        : 100;
+
+    // fat: (min + max) / 2 を目標に
+    final fatTarget = (target.fatMin + target.fatMax) / 2;
+    achievement['fat'] = fatTarget > 0
+        ? (nutrients['fat'] ?? 0) / fatTarget * 100
+        : 100;
+
+    // carbohydrate: (min + max) / 2 を目標に
+    final carbTarget = (target.carbohydrateMin + target.carbohydrateMax) / 2;
+    achievement['carbohydrate'] = carbTarget > 0
+        ? (nutrients['carbohydrate'] ?? 0) / carbTarget * 100
+        : 100;
+
+    // fiber: min を目標に
+    achievement['fiber'] = target.fiberMin > 0
+        ? (nutrients['fiber'] ?? 0) / target.fiberMin * 100
+        : 100;
+
+    // sodium: max を上限として、少ないほど良い（100%が最大）
+    final sodiumVal = nutrients['sodium'] ?? 0;
+    achievement['sodium'] = sodiumVal > 0
+        ? (target.sodiumMax / sodiumVal * 100).clamp(0, 100)
+        : 100;
+
+    // calcium: min を目標に
+    achievement['calcium'] = target.calciumMin > 0
+        ? (nutrients['calcium'] ?? 0) / target.calciumMin * 100
+        : 100;
+
+    // iron: min を目標に
+    achievement['iron'] = target.ironMin > 0
+        ? (nutrients['iron'] ?? 0) / target.ironMin * 100
+        : 100;
+
+    // vitamin_a: min を目標に
+    achievement['vitamin_a'] = target.vitaminAMin > 0
+        ? (nutrients['vitamin_a'] ?? 0) / target.vitaminAMin * 100
+        : 100;
+
+    // vitamin_c: min を目標に
+    achievement['vitamin_c'] = target.vitaminCMin > 0
+        ? (nutrients['vitamin_c'] ?? 0) / target.vitaminCMin * 100
+        : 100;
+
+    // vitamin_d: min を目標に
+    achievement['vitamin_d'] = target.vitaminDMin > 0
+        ? (nutrients['vitamin_d'] ?? 0) / target.vitaminDMin * 100
+        : 100;
+
+    return achievement;
+  }
+
+  /// 全体の栄養素を計算
+  Map<String, double> _calculateOverallNutrients(List<DailyMealAssignment> dailyPlans) {
+    final overall = <String, double>{
+      'calories': 0,
+      'protein': 0,
+      'fat': 0,
+      'carbohydrate': 0,
+      'fiber': 0,
+      'sodium': 0,
+      'calcium': 0,
+      'iron': 0,
+      'vitamin_a': 0,
+      'vitamin_c': 0,
+      'vitamin_d': 0,
+    };
+
+    for (final day in dailyPlans) {
+      for (final key in overall.keys) {
+        overall[key] = overall[key]! + (day.totalNutrients[key] ?? 0);
+      }
+    }
+
+    return overall;
+  }
+
+  /// 全体の達成率を計算（期間平均で計算）
+  Map<String, double> _calculateOverallAchievement(
+    Map<String, double> overallNutrients,
+    int days,
+  ) {
+    // 期間平均（1日あたり）で達成率計算
+    final avgNutrients = <String, double>{};
+    for (final key in overallNutrients.keys) {
+      avgNutrients[key] = (overallNutrients[key] ?? 0) / days;
+    }
+    return _calcAchievement(avgNutrients);
   }
 
   DailyMealAssignment _updateMealList(

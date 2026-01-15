@@ -14,11 +14,68 @@ class CalendarScreen extends ConsumerStatefulWidget {
 }
 
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
-  bool _isWeekView = true; // true: 週表示, false: 月表示
   final DateTime _startDate = DateTime.now();
 
   // ドラッグ中の情報
   _DragData? _dragData;
+
+  // スクロールコントローラー
+  final ScrollController _horizontalScrollController = ScrollController();
+  final ScrollController _verticalScrollController = ScrollController();
+
+  // 自動スクロール用の設定
+  static const double _scrollEdgeThreshold = 50.0; // 端からの距離
+  static const double _scrollSpeed = 8.0; // スクロール速度
+
+  @override
+  void dispose() {
+    _horizontalScrollController.dispose();
+    _verticalScrollController.dispose();
+    super.dispose();
+  }
+
+  /// ドラッグ中の自動スクロール処理
+  void _handleDragAutoScroll(Offset globalPosition) {
+    if (_dragData == null) return;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final localPosition = renderBox.globalToLocal(globalPosition);
+    final size = renderBox.size;
+
+    // 横方向のスクロール
+    if (_horizontalScrollController.hasClients) {
+      if (localPosition.dx < _scrollEdgeThreshold) {
+        // 左端に近い → 左にスクロール
+        final newOffset = (_horizontalScrollController.offset - _scrollSpeed)
+            .clamp(0.0, _horizontalScrollController.position.maxScrollExtent);
+        _horizontalScrollController.jumpTo(newOffset);
+      } else if (localPosition.dx > size.width - _scrollEdgeThreshold) {
+        // 右端に近い → 右にスクロール
+        final newOffset = (_horizontalScrollController.offset + _scrollSpeed)
+            .clamp(0.0, _horizontalScrollController.position.maxScrollExtent);
+        _horizontalScrollController.jumpTo(newOffset);
+      }
+    }
+
+    // 縦方向のスクロール
+    if (_verticalScrollController.hasClients) {
+      // AppBarとヒントの高さを考慮（約100px）
+      final topOffset = 100.0;
+      if (localPosition.dy < topOffset + _scrollEdgeThreshold) {
+        // 上端に近い → 上にスクロール
+        final newOffset = (_verticalScrollController.offset - _scrollSpeed)
+            .clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+        _verticalScrollController.jumpTo(newOffset);
+      } else if (localPosition.dy > size.height - _scrollEdgeThreshold) {
+        // 下端に近い → 下にスクロール
+        final newOffset = (_verticalScrollController.offset + _scrollSpeed)
+            .clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+        _verticalScrollController.jumpTo(newOffset);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,16 +99,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final plan = menuState.currentPlan!;
     return Column(
       children: [
-        // 週/月表示トグル
-        _buildViewToggle(),
         // ヒント
         _buildHint(),
         const Divider(height: 1),
         // 献立リスト
         Expanded(
-          child: _isWeekView
-              ? _buildWeekView(context, plan)
-              : _buildMonthView(context, plan),
+          child: _buildWeekView(context, plan),
         ),
       ],
     );
@@ -84,49 +137,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Widget _buildViewToggle() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('週表示')),
-                ButtonSegment(value: false, label: Text('月表示')),
-              ],
-              selected: {_isWeekView},
-              onSelectionChanged: (selected) {
-                setState(() {
-                  _isWeekView = selected.first;
-                });
-              },
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return const Color(0xFF2196F3);
-                  }
-                  return null;
-                }),
-                foregroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return Colors.white;
-                  }
-                  return null;
-                }),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildHint() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Text(
-        '長押し→ドラッグで入れ替え',
+        '長押し→ドラッグで移動',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.outline,
             ),
@@ -135,92 +150,176 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  // ========== 週表示 ==========
+  // ========== 週表示（横スクロール + 縦スクロール） ==========
   Widget _buildWeekView(BuildContext context, MultiDayMenuPlan plan) {
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 32),
-      itemCount: plan.days,
-      itemBuilder: (context, index) {
-        final dayPlan = plan.dailyPlans[index];
-        return _buildDaySection(context, dayPlan);
+    // 画面幅に応じてカラム幅を決定
+    final screenWidth = MediaQuery.of(context).size.width;
+    final columnWidth = (screenWidth / 2.5).clamp(180.0, 280.0);
+
+    return Listener(
+      onPointerMove: (event) {
+        // ドラッグ中なら自動スクロール処理
+        if (_dragData != null) {
+          _handleDragAutoScroll(event.position);
+        }
       },
-    );
-  }
-
-  Widget _buildDaySection(BuildContext context, DailyMealAssignment dayPlan) {
-    final date = _startDate.add(Duration(days: dayPlan.day - 1));
-    final dateStr = _formatDate(date);
-    final achievement = dayPlan.achievementRate['calories'] ?? 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 日付ヘッダー
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: _getDayHeaderColor(dayPlan.day),
+      child: SingleChildScrollView(
+        controller: _verticalScrollController,
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          controller: _horizontalScrollController,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
-            children: [
-              Text(
-                dateStr,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _getDayHeaderTextColor(dayPlan.day),
-                    ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _getAchievementColor(achievement).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${achievement.toInt()}%',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _getAchievementColor(achievement),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: plan.dailyPlans.map((dayPlan) {
+              return SizedBox(
+                width: columnWidth,
+                child: _buildDayColumn(context, dayPlan),
+              );
+            }).toList(),
           ),
         ),
-        // 食事カード
-        _buildMealCards(context, dayPlan, MealType.breakfast, '朝食'),
-        _buildMealCards(context, dayPlan, MealType.lunch, '昼食'),
-        _buildMealCards(context, dayPlan, MealType.dinner, '夕食'),
-        const SizedBox(height: 8),
-      ],
+      ),
     );
   }
 
-  Widget _buildMealCards(
+  Widget _buildDayColumn(BuildContext context, DailyMealAssignment dayPlan) {
+    final date = _startDate.add(Duration(days: dayPlan.day - 1));
+    // 全栄養素の平均達成率を計算（ホーム画面と同じロジック）
+    final achievementRate = dayPlan.achievementRate;
+    final achievement = achievementRate.isNotEmpty
+        ? achievementRate.values.reduce((a, b) => a + b) / achievementRate.length
+        : 0.0;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      elevation: 2,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 日付ヘッダー
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _getDayHeaderColor(dayPlan.day),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '${date.month}/${date.day}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: _getDayHeaderTextColor(dayPlan.day),
+                      ),
+                ),
+                Text(
+                  _getWeekdayShort(date),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: _getDayHeaderTextColor(dayPlan.day).withValues(alpha: 0.8),
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _getAchievementColor(achievement).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${achievement.toInt()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _getAchievementColor(achievement),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 食事セクション
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMealSection(context, dayPlan, MealType.breakfast, '朝食'),
+                _buildMealSection(context, dayPlan, MealType.lunch, '昼食'),
+                _buildMealSection(context, dayPlan, MealType.dinner, '夕食'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealSection(
     BuildContext context,
     DailyMealAssignment dayPlan,
     MealType mealType,
     String mealLabel,
   ) {
     final dishes = dayPlan.getMealDishes(mealType);
-    if (dishes.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      children: dishes.asMap().entries.map((entry) {
-        final index = entry.key;
-        final portion = entry.value;
-        return _buildDraggableMealCard(
-          context,
-          dayPlan.day,
-          mealType,
-          index,
-          portion,
-        );
-      }).toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 食事タイプヘッダー
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          margin: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(
+            color: _getMealColor(mealType).withValues(alpha: 0.1),
+          ),
+          child: Row(
+            children: [
+              Text(
+                _getMealEmoji(mealType),
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                mealLabel,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: _getMealColor(mealType),
+                    ),
+              ),
+            ],
+          ),
+        ),
+        // 料理リスト
+        if (dishes.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(
+              '未設定',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                    fontStyle: FontStyle.italic,
+                  ),
+            ),
+          )
+        else
+          ...dishes.asMap().entries.map((entry) {
+            return _buildDraggableMealCardCompact(
+              context,
+              dayPlan.day,
+              mealType,
+              entry.key,
+              entry.value,
+            );
+          }),
+      ],
     );
   }
 
-  Widget _buildDraggableMealCard(
+  Widget _buildDraggableMealCardCompact(
     BuildContext context,
     int day,
     MealType mealType,
@@ -235,14 +334,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         return details.data.portion.dish.id != portion.dish.id;
       },
       onAcceptWithDetails: (details) {
-        // 入れ替え実行
-        ref.read(menuNotifierProvider.notifier).swapDishes(
-          day1: details.data.day,
-          meal1: details.data.mealType,
-          index1: details.data.index,
-          day2: day,
-          meal2: mealType,
-          index2: index,
+        ref.read(menuNotifierProvider.notifier).moveDish(
+          fromDay: details.data.day,
+          fromMeal: details.data.mealType,
+          fromIndex: details.data.index,
+          toDay: day,
+          toMeal: mealType,
+          toIndex: index,
         );
         setState(() {
           _dragData = null;
@@ -267,13 +365,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             elevation: 8,
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
-              width: MediaQuery.of(context).size.width - 48,
-              child: _DraggingCard(portion: portion),
+              width: 200,
+              child: _DraggingCard(portion: portion, mealType: mealType),
             ),
           ),
           childWhenDragging: Opacity(
             opacity: 0.3,
-            child: _MealCardWithHandle(
+            child: _CompactMealCard(
               portion: portion,
               isDropTarget: false,
               onTap: () => _showDishDetail(context, portion),
@@ -281,9 +379,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               border: isDropTarget
                   ? Border.all(color: const Color(0xFF2196F3), width: 2)
                   : null,
@@ -291,7 +389,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   ? const Color(0xFF2196F3).withValues(alpha: 0.1)
                   : null,
             ),
-            child: _MealCardWithHandle(
+            child: _CompactMealCard(
               portion: portion,
               isDropTarget: isDropTarget,
               isDragging: isDragging,
@@ -303,79 +401,29 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  // ========== 月表示（簡易版） ==========
-  Widget _buildMonthView(BuildContext context, MultiDayMenuPlan plan) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 0.8,
-      ),
-      itemCount: plan.days,
-      itemBuilder: (context, index) {
-        final dayPlan = plan.dailyPlans[index];
-        final date = _startDate.add(Duration(days: dayPlan.day - 1));
-        final achievement = dayPlan.achievementRate['calories'] ?? 0;
+  String _getMealEmoji(MealType mealType) {
+    switch (mealType) {
+      case MealType.breakfast:
+        return '🌅';
+      case MealType.lunch:
+        return '☀️';
+      case MealType.dinner:
+        return '🌙';
+    }
+  }
 
-        return InkWell(
-          onTap: () {
-            setState(() {
-              _isWeekView = true;
-            });
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              border: Border.all(
-                color: _getAchievementColor(achievement).withValues(alpha: 0.5),
-              ),
-            ),
-            padding: const EdgeInsets.all(4),
-            child: Column(
-              children: [
-                Text(
-                  '${date.day}',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                Text(
-                  _getWeekdayShort(date),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _getAchievementColor(achievement).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    '${achievement.toInt()}%',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: _getAchievementColor(achievement),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  Color _getMealColor(MealType mealType) {
+    switch (mealType) {
+      case MealType.breakfast:
+        return const Color(0xFFFF9800); // オレンジ
+      case MealType.lunch:
+        return const Color(0xFF2196F3); // 青
+      case MealType.dinner:
+        return const Color(0xFF673AB7); // 紫
+    }
   }
 
   // ========== ヘルパー ==========
-  String _formatDate(DateTime date) {
-    final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-    final weekday = weekdays[date.weekday - 1];
-    return '${date.month}月${date.day}日（$weekday）';
-  }
-
   String _getWeekdayShort(DateTime date) {
     final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
     return weekdays[date.weekday - 1];
@@ -438,87 +486,12 @@ class _DragData {
   });
 }
 
-/// ドラッグハンドル付きの料理カード
-class _MealCardWithHandle extends StatelessWidget {
-  final DishPortion portion;
-  final bool isDropTarget;
-  final bool isDragging;
-  final VoidCallback onTap;
-
-  const _MealCardWithHandle({
-    required this.portion,
-    required this.onTap,
-    this.isDropTarget = false,
-    this.isDragging = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: isDropTarget
-          ? const Color(0xFFE3F2FD)
-          : isDragging
-              ? Colors.grey.shade200
-              : null,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              // 料理情報
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${_getMealEmoji(portion.dish.mealTypes.firstOrNull ?? 'dinner')} ${portion.dish.name}',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      '${portion.calories.toInt()} kcal',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              // ドラッグハンドル
-              Icon(
-                Icons.drag_handle,
-                color: isDropTarget
-                    ? const Color(0xFF2196F3)
-                    : Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _getMealEmoji(String mealType) {
-    switch (mealType) {
-      case 'breakfast':
-        return '🌅';
-      case 'lunch':
-        return '☀️';
-      case 'dinner':
-        return '🌙';
-      default:
-        return '🍽️';
-    }
-  }
-}
-
 /// ドラッグ中のフィードバックカード
 class _DraggingCard extends StatelessWidget {
   final DishPortion portion;
+  final MealType mealType;
 
-  const _DraggingCard({required this.portion});
+  const _DraggingCard({required this.portion, required this.mealType});
 
   @override
   Widget build(BuildContext context) {
@@ -534,7 +507,7 @@ class _DraggingCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '🌙 ${portion.dish.name}',
+                    '${_getMealEmoji(mealType)} ${portion.dish.name}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
@@ -552,5 +525,111 @@ class _DraggingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _getMealEmoji(MealType mealType) {
+    switch (mealType) {
+      case MealType.breakfast:
+        return '🌅';
+      case MealType.lunch:
+        return '☀️';
+      case MealType.dinner:
+        return '🌙';
+    }
+  }
+}
+
+/// コンパクトな料理カード（横スクロールレイアウト用）
+class _CompactMealCard extends StatelessWidget {
+  final DishPortion portion;
+  final bool isDropTarget;
+  final bool isDragging;
+  final VoidCallback onTap;
+
+  const _CompactMealCard({
+    required this.portion,
+    required this.onTap,
+    this.isDropTarget = false,
+    this.isDragging = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: isDropTarget ? 2 : 0,
+      color: isDropTarget
+          ? const Color(0xFFE3F2FD)
+          : isDragging
+              ? Colors.grey.shade200
+              : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            children: [
+              // カテゴリ色インジケーター
+              Container(
+                width: 3,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: _getCategoryColor(portion.dish.category),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 料理情報
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      portion.dish.name,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${portion.calories.toInt()} kcal',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              // ドラッグハンドル
+              Icon(
+                Icons.drag_indicator,
+                size: 16,
+                color: isDropTarget
+                    ? const Color(0xFF2196F3)
+                    : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case '主食':
+        return const Color(0xFFFF9800);
+      case '主菜':
+        return const Color(0xFFE91E63);
+      case '副菜':
+        return const Color(0xFF4CAF50);
+      case '汁物':
+        return const Color(0xFF2196F3);
+      default:
+        return Colors.grey;
+    }
   }
 }
