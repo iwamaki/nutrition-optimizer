@@ -1,17 +1,12 @@
-"""
-Database module - Backward compatibility bridge.
+"""Database infrastructure."""
 
-This module re-exports all symbols from the new infrastructure layer
-to maintain backward compatibility with existing code.
-"""
-
-# Re-export from new infrastructure layer
 from app.infrastructure.database.connection import (
     engine,
     SessionLocal,
     Base,
     init_db,
     get_db,
+    get_db_session,
 )
 from app.infrastructure.database.models import (
     FoodDB,
@@ -26,18 +21,14 @@ from app.infrastructure.database.models import (
     AllergenType,
 )
 
-# Keep DATABASE_URL for backward compatibility
-import os
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./nutrition.db")
-
 __all__ = [
     # Connection
-    "DATABASE_URL",
     "engine",
     "SessionLocal",
     "Base",
     "init_db",
     "get_db",
+    "get_db_session",
     # Models
     "FoodDB",
     "DishDB",
