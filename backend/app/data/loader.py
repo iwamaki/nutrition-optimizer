@@ -322,10 +322,10 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
     return count
 
 
-def load_dishes_v2_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
-    """新フォーマットCSVから料理データを読み込み
+def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
+    """CSVから料理データを読み込み
 
-    CSVフォーマット (v2):
+    CSVフォーマット:
     name,category,meal_types,storage_days,ingredients,instructions
     白ごはん,主食,"breakfast,lunch,dinner",0,"6:150:蒸す:01088","米を研いで炊飯器で炊く"
 
@@ -453,139 +453,9 @@ def load_dishes_v2_from_csv(csv_path: Path, db: Session, clear_existing: bool = 
         if len(errors) > 10:
             print(f"  ... 他{len(errors) - 10}件")
 
-    print(f"料理マスタ (v2): {count}件を投入しました")
+    print(f"料理マスタ: {count}件を投入しました")
     return count
 
 
-def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
-    """CSVから料理データを読み込み（旧フォーマット）
-
-    CSVフォーマット:
-    name,category,meal_types,storage_days,ingredients,instructions
-    白ごはん,主食,"breakfast,lunch,dinner",0,"こめ ［水稲めし］ 精白米 うるち米:150:蒸す","米を研いで炊飯器で炊く"
-    カレーライス,主食,"lunch,dinner",3,"...",""
-
-    - storage_days: 作り置き可能日数（0=当日のみ、1=翌日まで...）
-    - ingredients: 食品名:量g:調理法 を | で区切り（食品名は文科省データと完全一致）
-    - instructions: 作り方（改行は \\n でエスケープ）
-    """
-    if not csv_path.exists():
-        print(f"CSVファイルが見つかりません: {csv_path}")
-        return 0
-
-    if clear_existing:
-        db.query(DishIngredientDB).delete()
-        db.query(DishDB).delete()
-        db.commit()
-
-    count = 0
-    errors = []
-
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-
-        for row_num, row in enumerate(reader, start=2):  # ヘッダーが1行目
-            name = row.get("name", "").strip()
-            if not name:
-                continue
-
-            # 既存チェック
-            existing = db.query(DishDB).filter(DishDB.name == name).first()
-            if existing:
-                continue
-
-            # 材料をパース
-            ingredients_str = row.get("ingredients", "").strip()
-            parsed_ingredients = []
-            ingredient_errors = []
-
-            if ingredients_str:
-                for ing_str in ingredients_str.split("|"):
-                    parts = ing_str.strip().split(":")
-                    if len(parts) < 2:
-                        ingredient_errors.append(f"形式エラー: {ing_str}")
-                        continue
-
-                    food_name = parts[0].strip()
-                    try:
-                        amount = float(parts[1].strip())
-                    except ValueError:
-                        ingredient_errors.append(f"量が不正: {ing_str}")
-                        continue
-
-                    cooking_method = parts[2].strip() if len(parts) > 2 else "生"
-
-                    # 食品を検索（食品名で完全一致）
-                    food = db.query(FoodDB).filter(FoodDB.name == food_name).first()
-                    if not food:
-                        ingredient_errors.append(f"食品名が見つかりません: '{food_name}'")
-                        continue
-
-                    parsed_ingredients.append({
-                        "food_id": food.id,
-                        "amount": amount,
-                        "cooking_method": cooking_method,
-                    })
-
-            if ingredient_errors:
-                errors.append(f"行{row_num} '{name}': {', '.join(ingredient_errors)}")
-
-            if not parsed_ingredients:
-                errors.append(f"行{row_num} '{name}': 有効な材料がありません")
-                continue
-
-            # 作り方の改行を復元
-            instructions = row.get("instructions", "").strip()
-            if instructions:
-                instructions = instructions.replace("\\n", "\n")
-
-            # storage_daysをパース
-            storage_days_str = row.get("storage_days", "1").strip()
-            try:
-                storage_days = int(storage_days_str) if storage_days_str else 1
-            except ValueError:
-                storage_days = 1
-
-            # 料理を作成
-            dish = DishDB(
-                name=name,
-                category=row.get("category", "").strip(),
-                meal_types=row.get("meal_types", "").strip(),
-                serving_size=1.0,
-                storage_days=storage_days,
-                instructions=instructions,
-            )
-            db.add(dish)
-            db.flush()
-
-            # 材料を追加
-            for ing_data in parsed_ingredients:
-                ingredient = DishIngredientDB(
-                    dish_id=dish.id,
-                    food_id=ing_data["food_id"],
-                    amount=ing_data["amount"],
-                    cooking_method=ing_data["cooking_method"],
-                )
-                db.add(ingredient)
-
-            # 栄養素を計算
-            db.flush()
-            nutrients = calculate_dish_nutrients(db, dish)
-            for key, value in nutrients.items():
-                setattr(dish, key, round(value, 2))
-
-            count += 1
-
-    db.commit()
-
-    # エラーレポート
-    if errors:
-        print(f"警告: {len(errors)}件のエラー")
-        for err in errors[:10]:  # 最初の10件のみ表示
-            print(f"  {err}")
-        if len(errors) > 10:
-            print(f"  ... 他{len(errors) - 10}件")
-
-    return count
 
 

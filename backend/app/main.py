@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.api.routes import router
 from app.db.database import init_db
-from app.data.loader import SessionLocal, load_dishes_from_csv, load_dishes_v2_from_csv, load_ingredients_from_csv, load_recipe_details
+from app.data.loader import SessionLocal, load_dishes_from_csv, load_ingredients_from_csv, load_recipe_details
 
 # Flutter Webビルドディレクトリ
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "build" / "web"
@@ -74,20 +74,13 @@ def startup_event():
         elif existing_ingredients > 0:
             print(f"既存基本食材データ {existing_ingredients} 件を使用します")
 
-        # 料理マスタをCSVから読み込み（v2形式を優先）
-        dishes_v2_csv = Path(__file__).parent.parent / "data" / "dishes_v2.csv"
+        # 料理マスタをCSVから読み込み
         dishes_csv = Path(__file__).parent.parent / "data" / "dishes.csv"
         if existing_dishes == 0:
-            if dishes_v2_csv.exists():
-                dish_count = load_dishes_v2_from_csv(dishes_v2_csv, db)
-                if dish_count > 0:
-                    print(f"料理マスタ(v2) {dish_count} 件を投入しました")
-            elif dishes_csv.exists():
-                dish_count = load_dishes_from_csv(dishes_csv, db)
-                if dish_count > 0:
-                    print(f"料理マスタ(CSV) {dish_count} 件を投入しました")
+            if dishes_csv.exists():
+                load_dishes_from_csv(dishes_csv, db)
             else:
-                print("警告: 料理データがありません。data/dishes_v2.csv を配置してください。")
+                print("警告: 料理データがありません。data/dishes.csv を配置してください。")
         else:
             print(f"既存料理データ {existing_dishes} 件を使用します")
 
