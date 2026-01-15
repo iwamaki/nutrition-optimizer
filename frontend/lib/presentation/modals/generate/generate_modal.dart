@@ -135,40 +135,43 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
     final isCurrent = state.currentStep == step;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? colorScheme.primary : colorScheme.surfaceContainerHighest,
-            border: isCurrent
-                ? Border.all(color: colorScheme.primary, width: 2)
-                : null,
+    return SizedBox(
+      width: 56,
+      child: Column(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+              border: isCurrent
+                  ? Border.all(color: colorScheme.primary, width: 2)
+                  : null,
+            ),
+            child: Center(
+              child: isActive
+                  ? Icon(
+                      step < state.currentStep ? Icons.check : Icons.circle,
+                      size: 16,
+                      color: colorScheme.onPrimary,
+                    )
+                  : Text(
+                      '${step + 1}',
+                      style: TextStyle(color: colorScheme.outline),
+                    ),
+            ),
           ),
-          child: Center(
-            child: isActive
-                ? Icon(
-                    step < state.currentStep ? Icons.check : Icons.circle,
-                    size: 16,
-                    color: colorScheme.onPrimary,
-                  )
-                : Text(
-                    '${step + 1}',
-                    style: TextStyle(color: colorScheme.outline),
-                  ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isActive ? colorScheme.primary : colorScheme.outline,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: isActive ? colorScheme.primary : colorScheme.outline,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

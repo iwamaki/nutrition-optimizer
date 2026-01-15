@@ -80,30 +80,54 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Widget _buildDaysSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    String getDaysLabel(int days) {
+      switch (days) {
+        case 1:
+          return '1日';
+        case 3:
+          return '3日';
+        case 7:
+          return '1週間';
+        default:
+          return '$days日';
+      }
+    }
+
     return ListTile(
       leading: const Icon(Icons.calendar_today),
       title: const Text('デフォルト日数'),
-      subtitle: Text('${settingsState.defaultDays}日分'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: settingsState.defaultDays > 1
-                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultDays(settingsState.defaultDays - 1)
-                : null,
-          ),
-          Text(
-            '${settingsState.defaultDays}',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: settingsState.defaultDays < 7
-                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultDays(settingsState.defaultDays + 1)
-                : null,
-          ),
-        ],
+      subtitle: Text(getDaysLabel(settingsState.defaultDays)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showDaysModal(context, ref, settingsState),
+    );
+  }
+
+  void _showDaysModal(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('期間を選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            _buildModalOption(context, '1日', '今日の献立', settingsState.defaultDays == 1, () {
+              ref.read(settingsNotifierProvider.notifier).setDefaultDays(1);
+              Navigator.pop(context);
+            }),
+            _buildModalOption(context, '3日', '週の前半・後半', settingsState.defaultDays == 3, () {
+              ref.read(settingsNotifierProvider.notifier).setDefaultDays(3);
+              Navigator.pop(context);
+            }),
+            _buildModalOption(context, '1週間', '週末にまとめて計画', settingsState.defaultDays == 7, () {
+              ref.read(settingsNotifierProvider.notifier).setDefaultDays(7);
+              Navigator.pop(context);
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -112,27 +136,39 @@ class SettingsScreen extends ConsumerWidget {
     return ListTile(
       leading: const Icon(Icons.people),
       title: const Text('デフォルト人数'),
-      subtitle: Text('${settingsState.defaultPeople}人分'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: settingsState.defaultPeople > 1
-                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultPeople(settingsState.defaultPeople - 1)
-                : null,
-          ),
-          Text(
-            '${settingsState.defaultPeople}',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: settingsState.defaultPeople < 6
-                ? () => ref.read(settingsNotifierProvider.notifier).setDefaultPeople(settingsState.defaultPeople + 1)
-                : null,
-          ),
-        ],
+      subtitle: Text('${settingsState.defaultPeople}人'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showPeopleModal(context, ref, settingsState),
+    );
+  }
+
+  void _showPeopleModal(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('人数を選択', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            ...List.generate(6, (i) {
+              final people = i + 1;
+              return _buildModalOption(
+                context,
+                '$people人',
+                null,
+                settingsState.defaultPeople == people,
+                () {
+                  ref.read(settingsNotifierProvider.notifier).setDefaultPeople(people);
+                  Navigator.pop(context);
+                },
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -724,6 +760,23 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildModalOption(
+    BuildContext context,
+    String title,
+    String? subtitle,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      title: Text(title),
+      subtitle: subtitle != null ? Text(subtitle, style: const TextStyle(fontSize: 12)) : null,
+      trailing: isSelected
+          ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+          : null,
+      onTap: onTap,
     );
   }
 }
