@@ -327,6 +327,7 @@ class AppSettings {
   final Set<Allergen> excludedAllergens;
   final NutrientTarget nutrientTarget;
   final bool preferBatchCooking;
+  final Set<int> favoriteDishIds;
 
   const AppSettings({
     this.defaultDays = 3,
@@ -334,6 +335,7 @@ class AppSettings {
     this.excludedAllergens = const {},
     this.nutrientTarget = const NutrientTarget(),
     this.preferBatchCooking = false,
+    this.favoriteDishIds = const {},
   });
 
   AppSettings copyWith({
@@ -342,6 +344,7 @@ class AppSettings {
     Set<Allergen>? excludedAllergens,
     NutrientTarget? nutrientTarget,
     bool? preferBatchCooking,
+    Set<int>? favoriteDishIds,
   }) {
     return AppSettings(
       defaultDays: defaultDays ?? this.defaultDays,
@@ -349,6 +352,7 @@ class AppSettings {
       excludedAllergens: excludedAllergens ?? this.excludedAllergens,
       nutrientTarget: nutrientTarget ?? this.nutrientTarget,
       preferBatchCooking: preferBatchCooking ?? this.preferBatchCooking,
+      favoriteDishIds: favoriteDishIds ?? this.favoriteDishIds,
     );
   }
 }

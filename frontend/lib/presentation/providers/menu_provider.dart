@@ -3,6 +3,7 @@ import '../../domain/entities/dish.dart';
 import '../../domain/entities/menu_plan.dart';
 import '../../domain/entities/settings.dart';
 import '../../data/repositories/menu_repository_impl.dart';
+import 'settings_provider.dart';
 
 part 'menu_provider.g.dart';
 
@@ -141,12 +142,14 @@ class MenuNotifier extends _$MenuNotifier {
 
     try {
       final repo = ref.read(menuRepositoryProvider);
+      final settingsState = ref.read(settingsNotifierProvider);
       final plan = await repo.generateMultiDayPlan(
         days: state.days,
         people: state.people,
         target: target,
         excludedAllergens: state.excludedAllergens.toList(),
         excludedDishIds: state.excludedDishIds.toList(),
+        preferredDishIds: settingsState.favoriteDishIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
       );
@@ -169,6 +172,7 @@ class MenuNotifier extends _$MenuNotifier {
 
     try {
       final repo = ref.read(menuRepositoryProvider);
+      final settingsState = ref.read(settingsNotifierProvider);
       final plan = await repo.refineMultiDayPlan(
         days: state.days,
         people: state.people,
@@ -176,6 +180,7 @@ class MenuNotifier extends _$MenuNotifier {
         keepDishIds: state.keepDishIds.toList(),
         excludeDishIds: state.excludedDishIds.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
+        preferredDishIds: settingsState.favoriteDishIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
       );

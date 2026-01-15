@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/dish.dart';
-import '../providers/menu_provider.dart';
+import '../providers/settings_provider.dart';
 import '../../data/datasources/api_service.dart';
 
 /// 料理詳細モーダル（Riverpod版）
@@ -63,8 +63,6 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                     _buildRecipeSteps(),
                     const SizedBox(height: 24),
 
-                    // アクションボタン
-                    _buildActionButtons(),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -77,6 +75,8 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isFavorite = ref.watch(settingsNotifierProvider).isFavorite(widget.dish.id);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -123,6 +123,26 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(
+              isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              ref.read(settingsNotifierProvider.notifier).toggleFavoriteDish(widget.dish.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    isFavorite
+                        ? '${widget.dish.name}をお気に入りから削除しました'
+                        : '${widget.dish.name}をお気に入りに追加しました',
+                  ),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -412,40 +432,6 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ref.read(menuNotifierProvider.notifier).excludeDish(widget.dish.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${widget.dish.name}を除外しました')),
-              );
-            },
-            icon: const Icon(Icons.block),
-            label: const Text('除外'),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: () {
-              ref.read(menuNotifierProvider.notifier).keepDish(widget.dish.id);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${widget.dish.name}を固定しました')),
-              );
-            },
-            icon: const Icon(Icons.favorite),
-            label: const Text('固定'),
-          ),
-        ),
-      ],
     );
   }
 

@@ -30,6 +30,9 @@ class SettingsState {
   Set<Allergen> get excludedAllergens => settings.excludedAllergens;
   NutrientTarget get nutrientTarget => settings.nutrientTarget;
   bool get preferBatchCooking => settings.preferBatchCooking;
+  Set<int> get favoriteDishIds => settings.favoriteDishIds;
+
+  bool isFavorite(int dishId) => settings.favoriteDishIds.contains(dishId);
 }
 
 /// 設定管理Notifier
@@ -55,6 +58,12 @@ class SettingsNotifier extends _$SettingsNotifier {
           .whereType<Allergen>()
           .toSet();
 
+      final favoriteList = prefs.getStringList('favoriteDishIds') ?? [];
+      final favorites = favoriteList
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .toSet();
+
       final caloriesMin = prefs.getDouble('caloriesMin') ?? 1800;
       final caloriesMax = prefs.getDouble('caloriesMax') ?? 2200;
       final proteinMin = prefs.getDouble('proteinMin') ?? 60;
@@ -66,6 +75,7 @@ class SettingsNotifier extends _$SettingsNotifier {
           defaultPeople: people,
           excludedAllergens: allergens,
           preferBatchCooking: batchCooking,
+          favoriteDishIds: favorites,
           nutrientTarget: NutrientTarget(
             caloriesMin: caloriesMin,
             caloriesMax: caloriesMax,
@@ -91,6 +101,10 @@ class SettingsNotifier extends _$SettingsNotifier {
       await prefs.setStringList(
         'excludedAllergens',
         settings.excludedAllergens.map((a) => a.displayName).toList(),
+      );
+      await prefs.setStringList(
+        'favoriteDishIds',
+        settings.favoriteDishIds.map((id) => id.toString()).toList(),
       );
       await prefs.setDouble('caloriesMin', settings.nutrientTarget.caloriesMin);
       await prefs.setDouble('caloriesMax', settings.nutrientTarget.caloriesMax);
@@ -168,6 +182,19 @@ class SettingsNotifier extends _$SettingsNotifier {
 
   Future<void> resetSettings() async {
     state = const SettingsState();
+    await _saveSettings();
+  }
+
+  Future<void> toggleFavoriteDish(int dishId) async {
+    final current = Set<int>.from(state.settings.favoriteDishIds);
+    if (current.contains(dishId)) {
+      current.remove(dishId);
+    } else {
+      current.add(dishId);
+    }
+    state = state.copyWith(
+      settings: state.settings.copyWith(favoriteDishIds: current),
+    );
     await _saveSettings();
   }
 }

@@ -211,7 +211,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             segments: const [
               ButtonSegment(value: 0, label: Text('今日')),
               ButtonSegment(value: 1, label: Text('週間')),
-              ButtonSegment(value: 2, label: Text('月間')),
             ],
             selected: {_selectedPeriod},
             onSelectionChanged: (selected) {
@@ -233,20 +232,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? todayPlan?.achievementRate ?? {}
         : plan.overallAchievement;
 
-    String periodLabel;
-    switch (_selectedPeriod) {
-      case 0:
-        periodLabel = '今日の栄養達成率';
-        break;
-      case 1:
-        periodLabel = '${plan.days}日間の栄養達成率';
-        break;
-      case 2:
-        periodLabel = '期間全体の栄養達成率';
-        break;
-      default:
-        periodLabel = '栄養達成率';
-    }
+    final periodLabel = _selectedPeriod == 0
+        ? '今日の栄養達成率'
+        : '${plan.days}日間の栄養達成率';
 
     return Card(
       child: Padding(

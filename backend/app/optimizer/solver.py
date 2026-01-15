@@ -521,6 +521,7 @@ def solve_multi_day_plan(
     excluded_dish_ids: list[int] = None,
     keep_dish_ids: list[int] = None,
     preferred_ingredient_ids: list[int] = None,
+    preferred_dish_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -537,6 +538,7 @@ def solve_multi_day_plan(
         excluded_dish_ids: 除外料理ID
         keep_dish_ids: 必ず含める料理ID（調整時に使用）
         preferred_ingredient_ids: 優先食材ID（手持ち食材）- これを使う料理を優先
+        preferred_dish_ids: 優先料理ID（お気に入り）- これらの料理を優先的に選択
         batch_cooking_level: 作り置き優先度（small/normal/large）
         volume_level: 献立ボリューム（small/normal/large）- 後方互換用
         variety_level: 料理の繰り返し（small/normal/large）
@@ -555,6 +557,7 @@ def solve_multi_day_plan(
     excluded_dish_ids = set(excluded_dish_ids or [])
     keep_dish_ids = set(keep_dish_ids or [])
     preferred_ingredient_ids = set(preferred_ingredient_ids or [])
+    preferred_dish_ids = set(preferred_dish_ids or [])
 
     # meal_settingsの初期化
     # 新形式: {"breakfast": {"enabled": True, "categories": {"主食": (1, 1), ...}}, ...}
@@ -742,8 +745,15 @@ def solve_multi_day_plan(
         if d.id in preferred_scores
     )
 
-    # 目的関数: 栄養素偏差 + 調理回数ペナルティ - 手持ち食材ボーナス
-    prob += nutrient_deviation + cooking_weight * cooking_count - preferred_bonus
+    # お気に入り料理ボーナス（お気に入りに登録された料理を優先的に選択）
+    favorite_bonus = lpSum(
+        0.3 * lpSum(x[(d.id, t)] for t in range(1, days + 1))
+        for d in dishes
+        if d.id in preferred_dish_ids
+    )
+
+    # 目的関数: 栄養素偏差 + 調理回数ペナルティ - 手持ち食材ボーナス - お気に入りボーナス
+    prob += nutrient_deviation + cooking_weight * cooking_count - preferred_bonus - favorite_bonus
 
     # ========== 制約条件 ==========
 
@@ -1363,6 +1373,7 @@ def refine_multi_day_plan(
     exclude_dish_ids: list[int] = None,
     excluded_allergens: list[str] = None,
     preferred_ingredient_ids: list[int] = None,
+    preferred_dish_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -1399,6 +1410,7 @@ def refine_multi_day_plan(
         excluded_dish_ids=exclude_dish_ids,
         keep_dish_ids=keep_dish_ids,
         preferred_ingredient_ids=preferred_ingredient_ids,
+        preferred_dish_ids=preferred_dish_ids,
         batch_cooking_level=batch_cooking_level,
         volume_level=volume_level,
         variety_level=variety_level,
