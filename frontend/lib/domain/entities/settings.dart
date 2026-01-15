@@ -202,6 +202,9 @@ class NutrientTarget {
   final double vitaminAMin;   // 男875/女675の平均
   final double vitaminCMin;
   final double vitaminDMin;
+  final double niacinMin;           // ナイアシン
+  final double pantothenicAcidMin;  // パントテン酸
+  final double biotinMin;           // ビオチン
 
   const NutrientTarget({
     this.caloriesMin = 1800,
@@ -219,6 +222,9 @@ class NutrientTarget {
     this.vitaminAMin = 775,   // 男875/女675の平均
     this.vitaminCMin = 100,
     this.vitaminDMin = 8.5,
+    this.niacinMin = 13.5,    // 男15/女12の平均
+    this.pantothenicAcidMin = 5.5,  // 男6/女5の平均
+    this.biotinMin = 50,      // 目安量
   });
 
   Map<String, dynamic> toJson() {
@@ -238,6 +244,9 @@ class NutrientTarget {
       'vitamin_a_min': vitaminAMin,
       'vitamin_c_min': vitaminCMin,
       'vitamin_d_min': vitaminDMin,
+      'niacin_min': niacinMin,
+      'pantothenic_acid_min': pantothenicAcidMin,
+      'biotin_min': biotinMin,
     };
   }
 
@@ -258,6 +267,9 @@ class NutrientTarget {
       vitaminAMin: (json['vitamin_a_min'] ?? 775).toDouble(),
       vitaminCMin: (json['vitamin_c_min'] ?? 100).toDouble(),
       vitaminDMin: (json['vitamin_d_min'] ?? 8.5).toDouble(),
+      niacinMin: (json['niacin_min'] ?? 13.5).toDouble(),
+      pantothenicAcidMin: (json['pantothenic_acid_min'] ?? 5.5).toDouble(),
+      biotinMin: (json['biotin_min'] ?? 50).toDouble(),
     );
   }
 

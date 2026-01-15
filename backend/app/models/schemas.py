@@ -99,6 +99,9 @@ class Food(BaseModel):
     vitamin_b2: float = Field(default=0, ge=0, description="mg/100g (リボフラビン)")
     vitamin_b6: float = Field(default=0, ge=0, description="mg/100g")
     vitamin_b12: float = Field(default=0, ge=0, description="μg/100g")
+    niacin: float = Field(default=0, ge=0, description="mg/100g (ナイアシン/B3)")
+    pantothenic_acid: float = Field(default=0, ge=0, description="mg/100g (パントテン酸/B5)")
+    biotin: float = Field(default=0, ge=0, description="μg/100g (ビオチン/B7)")
     folate: float = Field(default=0, ge=0, description="μg/100g (葉酸)")
     vitamin_c: float = Field(ge=0, description="mg/100g")
     max_portion: float = Field(default=300, ge=0, description="1食あたり最大量(g)")
@@ -140,6 +143,9 @@ class NutrientTarget(BaseModel):
     vitamin_b2_min: float = Field(default=1.4, ge=0, description="mg - 男1.55/女1.2の平均")
     vitamin_b6_min: float = Field(default=1.3, ge=0, description="mg - 男1.4/女1.1の平均")
     vitamin_b12_min: float = Field(default=2.4, ge=0, description="μg - 推奨量")
+    niacin_min: float = Field(default=13.5, ge=0, description="mg NE (ナイアシン) - 男15/女12の平均")
+    pantothenic_acid_min: float = Field(default=5.5, ge=0, description="mg (パントテン酸) - 男6/女5の平均")
+    biotin_min: float = Field(default=50, ge=0, description="μg (ビオチン) - 目安量")
     folate_min: float = Field(default=240, ge=0, description="μg (葉酸) - 推奨量")
     vitamin_c_min: float = Field(default=100, ge=0, description="mg - 推奨量")
 
@@ -246,6 +252,9 @@ class Dish(DishBase):
     vitamin_b2: float = 0
     vitamin_b6: float = 0
     vitamin_b12: float = 0
+    niacin: float = 0
+    pantothenic_acid: float = 0
+    biotin: float = 0
     folate: float = 0
     vitamin_c: float = 0
     # レシピ詳細（JSONから読み込み）
@@ -296,6 +305,9 @@ class MealPlan(BaseModel):
     total_vitamin_b2: float = 0
     total_vitamin_b6: float = 0
     total_vitamin_b12: float = 0
+    total_niacin: float = 0
+    total_pantothenic_acid: float = 0
+    total_biotin: float = 0
     total_folate: float = 0
     total_vitamin_c: float
 

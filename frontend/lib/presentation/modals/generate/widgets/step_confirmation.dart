@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/nutrients.dart';
 import '../../../../domain/entities/dish.dart';
 import '../../../../domain/entities/menu_plan.dart';
 import '../../../../presentation/widgets/nutrient_progress_bar.dart';
@@ -191,39 +192,6 @@ class StepConfirmation extends ConsumerWidget {
   }
 
   Widget _buildAchievementCard(BuildContext context, MultiDayMenuPlan plan) {
-    // エネルギー・三大栄養素
-    final basicNutrients = [
-      {'key': 'calories', 'label': 'カロリー', 'color': Colors.orange},
-      {'key': 'protein', 'label': 'タンパク質', 'color': Colors.red},
-      {'key': 'fat', 'label': '脂質', 'color': Colors.amber},
-      {'key': 'carbohydrate', 'label': '炭水化物', 'color': Colors.blue},
-      {'key': 'fiber', 'label': '食物繊維', 'color': Colors.green},
-    ];
-
-    // ミネラル
-    final mineralNutrients = [
-      {'key': 'sodium', 'label': 'ナトリウム', 'color': Colors.grey},
-      {'key': 'potassium', 'label': 'カリウム', 'color': Colors.purple.shade300},
-      {'key': 'calcium', 'label': 'カルシウム', 'color': Colors.blueGrey},
-      {'key': 'magnesium', 'label': 'マグネシウム', 'color': Colors.cyan},
-      {'key': 'iron', 'label': '鉄', 'color': Colors.brown},
-      {'key': 'zinc', 'label': '亜鉛', 'color': Colors.indigo.shade300},
-    ];
-
-    // ビタミン
-    final vitaminNutrients = [
-      {'key': 'vitamin_a', 'label': 'ビタミンA', 'color': Colors.deepOrange},
-      {'key': 'vitamin_d', 'label': 'ビタミンD', 'color': Colors.teal},
-      {'key': 'vitamin_e', 'label': 'ビタミンE', 'color': Colors.lime.shade700},
-      {'key': 'vitamin_k', 'label': 'ビタミンK', 'color': Colors.green.shade700},
-      {'key': 'vitamin_b1', 'label': 'ビタミンB1', 'color': Colors.pink.shade300},
-      {'key': 'vitamin_b2', 'label': 'ビタミンB2', 'color': Colors.pink.shade500},
-      {'key': 'vitamin_b6', 'label': 'ビタミンB6', 'color': Colors.pink.shade700},
-      {'key': 'vitamin_b12', 'label': 'ビタミンB12', 'color': Colors.red.shade700},
-      {'key': 'folate', 'label': '葉酸', 'color': Colors.lightGreen},
-      {'key': 'vitamin_c', 'label': 'ビタミンC', 'color': Colors.yellow.shade700},
-    ];
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -259,26 +227,26 @@ class StepConfirmation extends ConsumerWidget {
             // エネルギー・三大栄養素
             _buildNutrientSectionHeader(context, 'エネルギー・三大栄養素'),
             const SizedBox(height: 8),
-            ..._buildNutrientBars(plan, basicNutrients),
+            _buildNutrientBarsFromDefinitions(plan, basicNutrients),
             const SizedBox(height: 12),
 
             // ミネラル
             _buildNutrientSectionHeader(context, 'ミネラル'),
             const SizedBox(height: 8),
-            ..._buildNutrientBars(plan, mineralNutrients),
+            _buildNutrientBarsFromDefinitions(plan, mineralNutrients),
             const SizedBox(height: 12),
 
             // ビタミン
             _buildNutrientSectionHeader(context, 'ビタミン'),
             const SizedBox(height: 8),
-            ..._buildNutrientBars(plan, vitaminNutrients),
+            _buildNutrientBarsFromDefinitions(plan, vitaminNutrients),
             const SizedBox(height: 12),
 
             // 出典表示
             const Divider(),
             const SizedBox(height: 8),
             Text(
-              '栄養素データ: 日本食品標準成分表（八訂）増補2023年',
+              '栄養素データ: $nutrientDataSource',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                     fontSize: 10,
@@ -286,7 +254,7 @@ class StepConfirmation extends ConsumerWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '栄養摂取基準: 日本人の食事摂取基準（2020年版）厚生労働省',
+              '栄養摂取基準: $nutrientStandardSource',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                     fontSize: 10,
@@ -308,21 +276,24 @@ class StepConfirmation extends ConsumerWidget {
     );
   }
 
-  List<Widget> _buildNutrientBars(
+  /// 共通定義からプログレスバーを生成
+  Widget _buildNutrientBarsFromDefinitions(
     MultiDayMenuPlan plan,
-    List<Map<String, Object>> nutrients,
+    List<NutrientDefinition> nutrients,
   ) {
-    return nutrients.map((n) {
-      final value = plan.overallAchievement[n['key'] as String] ?? 0;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: NutrientProgressBar(
-          label: n['label'] as String,
-          value: value.toDouble(),
-          color: n['color'] as Color,
-        ),
-      );
-    }).toList();
+    return Column(
+      children: nutrients.map((n) {
+        final value = plan.overallAchievement[n.key] ?? 0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: NutrientProgressBar(
+            label: n.label,
+            value: value.toDouble(),
+            color: n.color,
+          ),
+        );
+      }).toList(),
+    );
   }
 
   Widget _buildDishList(

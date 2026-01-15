@@ -27,6 +27,7 @@ ALL_NUTRIENTS = [
     # ビタミン
     "vitamin_a", "vitamin_d", "vitamin_e", "vitamin_k",
     "vitamin_b1", "vitamin_b2", "vitamin_b6", "vitamin_b12",
+    "niacin", "pantothenic_acid", "biotin",
     "folate", "vitamin_c"
 ]
 
@@ -53,6 +54,9 @@ NUTRIENT_WEIGHTS = {
     "vitamin_b2": 1.2,
     "vitamin_b6": 1.0,
     "vitamin_b12": 1.3,
+    "niacin": 1.0,
+    "pantothenic_acid": 0.8,
+    "biotin": 0.8,
     "folate": 1.2,
     "vitamin_c": 1.0,
 }
@@ -224,6 +228,9 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
         vitamin_b2=dish_db.vitamin_b2,
         vitamin_b6=dish_db.vitamin_b6,
         vitamin_b12=dish_db.vitamin_b12,
+        niacin=dish_db.niacin,
+        pantothenic_acid=dish_db.pantothenic_acid,
+        biotin=dish_db.biotin,
         folate=dish_db.folate,
         vitamin_c=dish_db.vitamin_c,
         # レシピ詳細
@@ -309,6 +316,9 @@ def optimize_meal(
         "vitamin_b2": target.vitamin_b2_min * ratio,
         "vitamin_b6": target.vitamin_b6_min * ratio,
         "vitamin_b12": target.vitamin_b12_min * ratio,
+        "niacin": target.niacin_min * ratio,
+        "pantothenic_acid": target.pantothenic_acid_min * ratio,
+        "biotin": target.biotin_min * ratio,
         "folate": target.folate_min * ratio,
         "vitamin_c": target.vitamin_c_min * ratio,
     }
@@ -390,6 +400,9 @@ def optimize_meal(
         total_vitamin_b2=round(totals["vitamin_b2"], 1),
         total_vitamin_b6=round(totals["vitamin_b6"], 1),
         total_vitamin_b12=round(totals["vitamin_b12"], 1),
+        total_niacin=round(totals["niacin"], 1),
+        total_pantothenic_acid=round(totals["pantothenic_acid"], 1),
+        total_biotin=round(totals["biotin"], 1),
         total_folate=round(totals["folate"], 1),
         total_vitamin_c=round(totals["vitamin_c"], 1),
     )
@@ -488,6 +501,9 @@ def db_food_to_model(food_db: FoodDB) -> Food:
         vitamin_b2=food_db.vitamin_b2,
         vitamin_b6=food_db.vitamin_b6,
         vitamin_b12=food_db.vitamin_b12,
+        niacin=food_db.niacin,
+        pantothenic_acid=food_db.pantothenic_acid,
+        biotin=food_db.biotin,
         folate=food_db.folate,
         vitamin_c=food_db.vitamin_c,
         max_portion=food_db.max_portion,
@@ -525,6 +541,9 @@ NUTRIENT_NAMES = {
     "vitamin_b2": "ビタミンB2",
     "vitamin_b6": "ビタミンB6",
     "vitamin_b12": "ビタミンB12",
+    "niacin": "ナイアシン",
+    "pantothenic_acid": "パントテン酸",
+    "biotin": "ビオチン",
     "folate": "葉酸",
     "vitamin_c": "ビタミンC",
 }
@@ -686,6 +705,9 @@ def solve_multi_day_plan(
             vitamin_b2_min=target.vitamin_b2_min,
             vitamin_b6_min=target.vitamin_b6_min,
             vitamin_b12_min=target.vitamin_b12_min,
+            niacin_min=target.niacin_min,
+            pantothenic_acid_min=target.pantothenic_acid_min,
+            biotin_min=target.biotin_min,
             folate_min=target.folate_min,
             vitamin_c_min=target.vitamin_c_min,
         )

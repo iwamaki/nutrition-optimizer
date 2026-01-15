@@ -88,6 +88,9 @@ def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) 
         "vitb2": 50,         # ビタミンB2(mg) - RIBF (リボフラビン)
         "vitb6": 53,         # ビタミンB6(mg) - VITB6A
         "vitb12": 54,        # ビタミンB12(μg)
+        "niacin": 51,        # ナイアシン(mg) - NIA
+        "pantac": 56,        # パントテン酸(mg) - PANTAC
+        "biotin": 57,        # ビオチン(μg) - BIOT
         "folate": 55,        # 葉酸(μg) - FOL
         "vitc": 58,          # ビタミンC(mg)
     }
@@ -188,6 +191,9 @@ def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) 
             vitamin_b2=parse_value(row[COL["vitb2"]]),
             vitamin_b6=parse_value(row[COL["vitb6"]]),
             vitamin_b12=parse_value(row[COL["vitb12"]]),
+            niacin=parse_value(row[COL["niacin"]]),
+            pantothenic_acid=parse_value(row[COL["pantac"]]),
+            biotin=parse_value(row[COL["biotin"]]),
             folate=parse_value(row[COL["folate"]]),
             vitamin_c=parse_value(row[COL["vitc"]]),
             max_portion=get_max_portion(category, name),
@@ -245,6 +251,7 @@ def calculate_dish_nutrients(db: Session, dish: DishDB) -> dict:
         # ビタミン
         "vitamin_a": 0, "vitamin_d": 0, "vitamin_e": 0, "vitamin_k": 0,
         "vitamin_b1": 0, "vitamin_b2": 0, "vitamin_b6": 0, "vitamin_b12": 0,
+        "niacin": 0, "pantothenic_acid": 0, "biotin": 0,
         "folate": 0, "vitamin_c": 0,
     }
 

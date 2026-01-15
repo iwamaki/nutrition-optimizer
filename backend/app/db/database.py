@@ -43,6 +43,9 @@ class FoodDB(Base):
     vitamin_b2 = Column(Float, default=0)   # mg/100g (リボフラビン)
     vitamin_b6 = Column(Float, default=0)   # mg/100g
     vitamin_b12 = Column(Float, default=0)  # μg/100g
+    niacin = Column(Float, default=0)       # mg/100g (ナイアシン/B3)
+    pantothenic_acid = Column(Float, default=0)  # mg/100g (パントテン酸/B5)
+    biotin = Column(Float, default=0)       # μg/100g (ビオチン/B7)
     folate = Column(Float, default=0)       # μg/100g (葉酸)
     vitamin_c = Column(Float, default=0)    # mg/100g
     max_portion = Column(Float, default=300)
@@ -131,6 +134,9 @@ class DishDB(Base):
     vitamin_b2 = Column(Float, default=0)
     vitamin_b6 = Column(Float, default=0)
     vitamin_b12 = Column(Float, default=0)
+    niacin = Column(Float, default=0)
+    pantothenic_acid = Column(Float, default=0)
+    biotin = Column(Float, default=0)
     folate = Column(Float, default=0)
     vitamin_c = Column(Float, default=0)
 
