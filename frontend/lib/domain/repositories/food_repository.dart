@@ -1,20 +1,12 @@
-import '../entities/food.dart';
 import '../entities/dish.dart';
 
 /// 食品・料理リポジトリのインターフェース
 abstract class FoodRepository {
-  /// 食品一覧を取得
-  Future<List<Food>> getFoods({String? category});
+  /// 基本食材一覧を取得（正規化された食材マスタ）
+  Future<List<Map<String, dynamic>>> getIngredients({String? category});
 
-  /// 食品を検索
-  Future<List<Map<String, dynamic>>> searchFoods({
-    String? query,
-    String? category,
-    int limit = 20,
-  });
-
-  /// 食品カテゴリ一覧を取得
-  Future<List<String>> getFoodCategories();
+  /// 基本食材カテゴリ一覧を取得
+  Future<List<String>> getIngredientCategories();
 
   /// 料理一覧を取得
   Future<List<Dish>> getDishes({String? category, String? mealType});

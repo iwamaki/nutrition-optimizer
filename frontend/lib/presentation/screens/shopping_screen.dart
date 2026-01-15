@@ -140,30 +140,31 @@ class ShoppingScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           // 注記
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(8),
+          if (shoppingState.ownedItems.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.home,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '手持ち食材 ${shoppingState.ownedItems.length}品目（下部に表示）',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onTertiaryContainer,
+                        ),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 14,
-                  color: Theme.of(context).colorScheme.onSecondaryContainer,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '手持ち食材を除いた不足分のみ表示',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSecondaryContainer,
-                      ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -201,17 +202,95 @@ class ShoppingScreen extends ConsumerWidget {
     WidgetRef ref,
     ShoppingState shoppingState,
   ) {
-    final categories = shoppingState.sortedCategories;
+    final toBuyGroups = shoppingState.toBuyGroupedByCategory;
+    final ownedGroups = shoppingState.ownedGroupedByCategory;
 
-    return ListView.builder(
+    // カテゴリ順でソート
+    List<String> sortCategories(Iterable<String> cats) {
+      final list = cats.toList();
+      list.sort((a, b) {
+        final indexA = ShoppingState.categoryOrder.indexOf(a);
+        final indexB = ShoppingState.categoryOrder.indexOf(b);
+        if (indexA == -1 && indexB == -1) return a.compareTo(b);
+        if (indexA == -1) return 1;
+        if (indexB == -1) return -1;
+        return indexA.compareTo(indexB);
+      });
+      return list;
+    }
+
+    final toBuyCategories = sortCategories(toBuyGroups.keys);
+    final ownedCategories = sortCategories(ownedGroups.keys);
+
+    return ListView(
       padding: const EdgeInsets.only(bottom: 32),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        final category = categories[index];
-        final items = shoppingState.groupedByCategory[category] ?? [];
+      children: [
+        // 購入必須セクション
+        if (toBuyCategories.isNotEmpty) ...[
+          ...toBuyCategories.map((category) {
+            final items = toBuyGroups[category] ?? [];
+            return _buildCategorySection(context, ref, shoppingState, category, items);
+          }),
+        ],
+        // 手持ち食材セクション
+        if (ownedCategories.isNotEmpty) ...[
+          _buildOwnedSectionHeader(context, shoppingState.ownedItems.length),
+          ...ownedCategories.map((category) {
+            final items = ownedGroups[category] ?? [];
+            return _buildCategorySection(
+              context, ref, shoppingState, category, items,
+              isOwnedSection: true,
+            );
+          }),
+        ],
+      ],
+    );
+  }
 
-        return _buildCategorySection(context, ref, shoppingState, category, items);
-      },
+  Widget _buildOwnedSectionHeader(BuildContext context, int count) {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.home,
+            size: 20,
+            color: Theme.of(context).colorScheme.tertiary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '手持ち食材（在庫確認用）',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.tertiary,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count品目',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.tertiary,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -220,27 +299,38 @@ class ShoppingScreen extends ConsumerWidget {
     WidgetRef ref,
     ShoppingState shoppingState,
     String category,
-    List<ShoppingItem> items,
-  ) {
+    List<ShoppingItem> items, {
+    bool isOwnedSection = false,
+  }) {
+    final headerColor = isOwnedSection
+        ? Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.5)
+        : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final iconColor = isOwnedSection
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.primary;
+    final textColor = isOwnedSection
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // カテゴリヘッダー
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: headerColor,
           child: Row(
             children: [
               Icon(
                 _getCategoryIcon(category),
                 size: 18,
-                color: Theme.of(context).colorScheme.primary,
+                color: iconColor,
               ),
               const SizedBox(width: 8),
               Text(
                 category,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
+                      color: textColor,
                     ),
               ),
               const Spacer(),
@@ -254,7 +344,10 @@ class ShoppingScreen extends ConsumerWidget {
           ),
         ),
         // アイテムリスト
-        ...items.map((item) => _buildShoppingItem(context, ref, shoppingState, item)),
+        ...items.map((item) => _buildShoppingItem(
+          context, ref, shoppingState, item,
+          isOwnedSection: isOwnedSection,
+        )),
       ],
     );
   }
@@ -263,30 +356,56 @@ class ShoppingScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     ShoppingState shoppingState,
-    ShoppingItem item,
-  ) {
+    ShoppingItem item, {
+    bool isOwnedSection = false,
+  }) {
+    // 手持ち食材は薄いスタイル
+    final isOwned = item.isOwned || isOwnedSection;
+    final baseColor = isOwned
+        ? Theme.of(context).colorScheme.outline
+        : null;
+    final amountColor = isOwned
+        ? Theme.of(context).colorScheme.tertiary
+        : Theme.of(context).colorScheme.primary;
+
     return ListTile(
       leading: Checkbox(
         value: item.isChecked,
         onChanged: (_) {
           ref.read(shoppingNotifierProvider.notifier).toggleItemByFood(item.foodName);
         },
+        activeColor: isOwned ? Theme.of(context).colorScheme.tertiary : null,
       ),
-      title: Text(
-        item.foodName,
-        style: TextStyle(
-          decoration: item.isChecked ? TextDecoration.lineThrough : null,
-          color: item.isChecked
-              ? Theme.of(context).colorScheme.outline
-              : null,
-        ),
+      title: Row(
+        children: [
+          if (isOwned && !isOwnedSection)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(
+                Icons.home,
+                size: 16,
+                color: Theme.of(context).colorScheme.tertiary,
+              ),
+            ),
+          Expanded(
+            child: Text(
+              item.foodName,
+              style: TextStyle(
+                decoration: item.isChecked ? TextDecoration.lineThrough : null,
+                color: item.isChecked
+                    ? Theme.of(context).colorScheme.outline
+                    : baseColor,
+              ),
+            ),
+          ),
+        ],
       ),
       trailing: Text(
         item.amountDisplay,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: item.isChecked
                   ? Theme.of(context).colorScheme.outline
-                  : Theme.of(context).colorScheme.primary,
+                  : amountColor,
               fontWeight: FontWeight.bold,
             ),
       ),

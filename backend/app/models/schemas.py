@@ -64,6 +64,15 @@ class CookingMethodEnum(str, Enum):
     MICROWAVE = "電子レンジ"
 
 
+class Ingredient(BaseModel):
+    """基本食材データモデル（正規化された食材）"""
+    id: int
+    name: str = Field(description="正規化された食材名（例: 卵, 玉ねぎ）")
+    category: str = Field(description="カテゴリ（例: 野菜類, 肉類）")
+    mext_code: str = Field(default="", description="代表的な文科省食品コード")
+    emoji: str = Field(default="", description="表示用絵文字")
+
+
 class Food(BaseModel):
     """食品データモデル"""
     id: int
@@ -131,7 +140,7 @@ class OptimizeRequest(BaseModel):
     """最適化リクエスト"""
     target: Optional[NutrientTarget] = None
     excluded_food_ids: list[int] = Field(default_factory=list)
-    preferred_food_ids: list[int] = Field(default_factory=list)
+    preferred_ingredient_ids: list[int] = Field(default_factory=list)
 
 
 class UserPreferences(BaseModel):
@@ -157,6 +166,8 @@ class DishIngredient(BaseModel):
     """料理の材料"""
     food_id: int
     food_name: Optional[str] = None
+    ingredient_id: Optional[int] = Field(default=None, description="基本食材ID（買い物リスト用）")
+    ingredient_name: Optional[str] = Field(default=None, description="基本食材名（正規化された名前）")
     amount: float = Field(ge=0, description="g")
     display_amount: str = Field(default="", description="表示用の量（例: 1本, 1/2個）")
     unit: str = Field(default="g", description="単位（個, 本, 束, 枚, g）")
@@ -385,7 +396,7 @@ class MultiDayOptimizeRequest(BaseModel):
     target: Optional[NutrientTarget] = None
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
-    preferred_food_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
+    preferred_ingredient_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
@@ -407,6 +418,7 @@ class ShoppingItem(BaseModel):
     display_amount: str = Field(default="", description="表示用の量（例: 2本, 1/2束）")
     unit: str = Field(default="g", description="単位（個, 本, 束, 枚, パック, g）")
     category: str
+    is_owned: bool = Field(default=False, description="手持ち食材かどうか（念のため購入検討用）")
 
 
 class DailyMealAssignment(BaseModel):
@@ -449,7 +461,7 @@ class RefineOptimizeRequest(BaseModel):
     keep_dish_ids: list[int] = Field(default_factory=list, description="残したい料理ID")
     exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
-    preferred_food_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
+    preferred_ingredient_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")

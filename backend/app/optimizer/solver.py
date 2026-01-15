@@ -149,12 +149,18 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
         raw_name = ing.food.name if ing.food else ""
         normalized_name = _normalize_food_name(raw_name) if raw_name else None
 
+        # 基本食材情報を取得
+        ingredient_id = ing.ingredient_id
+        ingredient_name = ing.ingredient.name if ing.ingredient else None
+
         # 単位変換
         display_amount, unit = _convert_to_display_unit(normalized_name or "", ing.amount)
 
         ingredients.append(DishIngredient(
             food_id=ing.food_id,
             food_name=normalized_name,
+            ingredient_id=ingredient_id,
+            ingredient_name=ingredient_name,
             amount=ing.amount,
             display_amount=display_amount,
             unit=unit,
@@ -514,7 +520,7 @@ def solve_multi_day_plan(
     excluded_allergens: list[str] = None,
     excluded_dish_ids: list[int] = None,
     keep_dish_ids: list[int] = None,
-    preferred_food_ids: list[int] = None,
+    preferred_ingredient_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -530,7 +536,7 @@ def solve_multi_day_plan(
         excluded_allergens: 除外アレルゲン
         excluded_dish_ids: 除外料理ID
         keep_dish_ids: 必ず含める料理ID（調整時に使用）
-        preferred_food_ids: 優先食材ID（手持ち食材）- これを使う料理を優先
+        preferred_ingredient_ids: 優先食材ID（手持ち食材）- これを使う料理を優先
         batch_cooking_level: 作り置き優先度（small/normal/large）
         volume_level: 献立ボリューム（small/normal/large）- 後方互換用
         variety_level: 料理の繰り返し（small/normal/large）
@@ -548,7 +554,7 @@ def solve_multi_day_plan(
     excluded_allergens = excluded_allergens or []
     excluded_dish_ids = set(excluded_dish_ids or [])
     keep_dish_ids = set(keep_dish_ids or [])
-    preferred_food_ids = set(preferred_food_ids or [])
+    preferred_ingredient_ids = set(preferred_ingredient_ids or [])
 
     # meal_settingsの初期化
     # 新形式: {"breakfast": {"enabled": True, "categories": {"主食": (1, 1), ...}}, ...}
@@ -717,12 +723,12 @@ def solve_multi_day_plan(
     # 手持ち食材を使う料理へのボーナス（優先）
     # 各料理が手持ち食材をどれだけ含むかスコア化
     preferred_scores = {}
-    if preferred_food_ids:
+    if preferred_ingredient_ids:
         for d in dishes:
             # この料理に含まれる手持ち食材の数をカウント
             matching_count = sum(
                 1 for ing in d.ingredients
-                if ing.food_id in preferred_food_ids
+                if ing.food_id in preferred_ingredient_ids
             )
             if matching_count > 0:
                 # スコア: 手持ち食材を1つ含むごとに0.5ポイント
@@ -869,11 +875,17 @@ def solve_multi_day_plan(
     if LpStatus[prob.status] not in ["Optimal", "Not Solved"]:
         print(f"Warning: Optimization status: {LpStatus[prob.status]}")
         # フォールバック: シンプルなアプローチを試す
-        return _fallback_multi_day_plan(db, days, people, target, dishes)
+        return _fallback_multi_day_plan(
+            db, days, people, target, dishes,
+            preferred_ingredient_ids=preferred_ingredient_ids
+        )
 
     # ========== 結果抽出 ==========
 
-    return _extract_multi_day_result(dishes, days, people, target, x, s, c, q)
+    return _extract_multi_day_result(
+        dishes, days, people, target, x, s, c, q,
+        preferred_ingredient_ids=preferred_ingredient_ids
+    )
 
 
 def _extract_multi_day_result(
@@ -885,6 +897,7 @@ def _extract_multi_day_result(
     s: dict,
     c: dict,
     q: dict,
+    preferred_ingredient_ids: list[int] = None,
 ) -> MultiDayMenuPlan:
     """最適化結果からMultiDayMenuPlanを生成"""
     meals = ["breakfast", "lunch", "dinner"]
@@ -956,8 +969,9 @@ def _extract_multi_day_result(
     avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
     overall_achievement = _calc_achievement(avg_nutrients, target)
 
-    # 買い物リスト生成
-    shopping_list = _generate_shopping_list(cooking_tasks)
+    # 買い物リスト生成（手持ち食材をマーク）
+    preferred_ids_set = set(preferred_ingredient_ids) if preferred_ingredient_ids else set()
+    shopping_list = _generate_shopping_list(cooking_tasks, preferred_ids_set)
 
     # 警告生成
     warnings = _generate_warnings(avg_nutrients, target)
@@ -1219,27 +1233,50 @@ def _normalize_food_name(raw_name: str) -> str:
     return name if name else raw_name
 
 
-def _generate_shopping_list(cooking_tasks: list[CookingTask]) -> list[ShoppingItem]:
-    """調理タスクから買い物リストを生成（同一食材を統合、実用的な単位に変換）"""
-    shopping = {}  # {normalized_name: total_amount}
+def _generate_shopping_list(
+    cooking_tasks: list[CookingTask],
+    preferred_ingredient_ids: set[int] | None = None,
+) -> list[ShoppingItem]:
+    """調理タスクから買い物リストを生成（同一食材を統合、実用的な単位に変換）
+
+    Args:
+        cooking_tasks: 調理タスクリスト
+        preferred_ingredient_ids: 手持ち食材の基本食材ID集合（これに含まれる食材は is_owned=True でマーク）
+    """
+    preferred_ingredient_ids = preferred_ingredient_ids or set()
+    # {ingredient_id or food_name: {'amount': float, 'ingredient_ids': set, 'name': str}}
+    shopping = {}
 
     for task in cooking_tasks:
         for ing in task.dish.ingredients:
-            raw_name = ing.food_name or f"食品ID:{ing.food_id}"
-            normalized = _normalize_food_name(raw_name)
-            if normalized not in shopping:
-                shopping[normalized] = 0
-            shopping[normalized] += ing.amount * task.servings
+            # 基本食材IDがあれば使用、なければ正規化した名前を使用
+            if ing.ingredient_id:
+                key = f"ing_{ing.ingredient_id}"
+                name = ing.ingredient_name or ing.food_name or f"食品ID:{ing.food_id}"
+            else:
+                raw_name = ing.food_name or f"食品ID:{ing.food_id}"
+                name = _normalize_food_name(raw_name)
+                key = f"name_{name}"
+
+            if key not in shopping:
+                shopping[key] = {'amount': 0, 'ingredient_ids': set(), 'name': name}
+            shopping[key]['amount'] += ing.amount * task.servings
+            if ing.ingredient_id:
+                shopping[key]['ingredient_ids'].add(ing.ingredient_id)
 
     result = []
-    for name, amount in sorted(shopping.items()):
-        display_amount, unit = _convert_to_display_unit(name, amount)
+    for key, data in sorted(shopping.items(), key=lambda x: x[1]['name']):
+        name = data['name']
+        display_amount, unit = _convert_to_display_unit(name, data['amount'])
+        # この食材の ingredient_id が preferred_ingredient_ids に含まれていれば手持ち
+        is_owned = bool(data['ingredient_ids'] & preferred_ingredient_ids)
         result.append(ShoppingItem(
             food_name=name,
-            total_amount=round(amount, 1),
+            total_amount=round(data['amount'], 1),
             display_amount=display_amount,
             unit=unit,
             category="",
+            is_owned=is_owned,
         ))
 
     return result
@@ -1252,6 +1289,7 @@ def _fallback_multi_day_plan(
     target: NutrientTarget,
     dishes: list[Dish],
     volume_multiplier: float = 1.0,
+    preferred_ingredient_ids: list[int] = None,
 ) -> MultiDayMenuPlan | None:
     """フォールバック: 1日ずつ個別に最適化"""
     daily_plans = []
@@ -1299,7 +1337,8 @@ def _fallback_multi_day_plan(
 
     avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
     overall_achievement = _calc_achievement(avg_nutrients, target)
-    shopping_list = _generate_shopping_list(cooking_tasks)
+    preferred_ids_set = set(preferred_ingredient_ids) if preferred_ingredient_ids else set()
+    shopping_list = _generate_shopping_list(cooking_tasks, preferred_ids_set)
     warnings = _generate_warnings(avg_nutrients, target)
 
     return MultiDayMenuPlan(
@@ -1323,7 +1362,7 @@ def refine_multi_day_plan(
     keep_dish_ids: list[int] = None,
     exclude_dish_ids: list[int] = None,
     excluded_allergens: list[str] = None,
-    preferred_food_ids: list[int] = None,
+    preferred_ingredient_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -1342,7 +1381,7 @@ def refine_multi_day_plan(
         keep_dish_ids: 残したい料理ID
         exclude_dish_ids: 外したい料理ID
         excluded_allergens: 除外アレルゲン
-        preferred_food_ids: 優先食材ID（手持ち食材）
+        preferred_ingredient_ids: 優先食材ID（手持ち食材）
         batch_cooking_level: 作り置き優先度
         volume_level: 献立ボリューム
         variety_level: 料理の繰り返し
@@ -1359,7 +1398,7 @@ def refine_multi_day_plan(
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=exclude_dish_ids,
         keep_dish_ids=keep_dish_ids,
-        preferred_food_ids=preferred_food_ids,
+        preferred_ingredient_ids=preferred_ingredient_ids,
         batch_cooking_level=batch_cooking_level,
         volume_level=volume_level,
         variety_level=variety_level,

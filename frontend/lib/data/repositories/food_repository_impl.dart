@@ -1,5 +1,4 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../domain/entities/food.dart';
 import '../../domain/entities/dish.dart';
 import '../../domain/repositories/food_repository.dart';
 import '../datasources/api_service.dart';
@@ -14,26 +13,13 @@ class FoodRepositoryImpl implements FoodRepository {
   FoodRepositoryImpl(this._apiService);
 
   @override
-  Future<List<Food>> getFoods({String? category}) {
-    return _apiService.getFoods(category: category);
+  Future<List<Map<String, dynamic>>> getIngredients({String? category}) {
+    return _apiService.getIngredients(category: category);
   }
 
   @override
-  Future<List<Map<String, dynamic>>> searchFoods({
-    String? query,
-    String? category,
-    int limit = 20,
-  }) {
-    return _apiService.searchFoods(
-      query: query,
-      category: category,
-      limit: limit,
-    );
-  }
-
-  @override
-  Future<List<String>> getFoodCategories() {
-    return _apiService.getFoodCategories();
+  Future<List<String>> getIngredientCategories() {
+    return _apiService.getIngredientCategories();
   }
 
   @override

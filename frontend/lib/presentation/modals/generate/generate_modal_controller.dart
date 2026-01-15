@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../domain/entities/menu_plan.dart';
 import '../../../domain/entities/settings.dart';
@@ -21,7 +22,9 @@ class GenerateModalState {
   final Map<String, MealSetting> mealSettings;
 
   // Step2: 手持ち食材
-  final Set<int> ownedFoodIds;
+  final Set<int> ownedIngredientIds;
+  final List<Map<String, dynamic>> ingredients; // APIから取得した基本食材リスト
+  final bool isLoadingIngredients;
   final List<Map<String, dynamic>> searchResults;
   final String searchQuery;
   final bool isSearching;
@@ -44,7 +47,9 @@ class GenerateModalState {
       'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
       'dinner': MealSetting(enabled: true, preset: MealPreset.full),
     },
-    this.ownedFoodIds = const {},
+    this.ownedIngredientIds = const {},
+    this.ingredients = const [],
+    this.isLoadingIngredients = false,
     this.searchResults = const [],
     this.searchQuery = '',
     this.isSearching = false,
@@ -62,7 +67,9 @@ class GenerateModalState {
     String? batchCookingLevel,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
-    Set<int>? ownedFoodIds,
+    Set<int>? ownedIngredientIds,
+    List<Map<String, dynamic>>? ingredients,
+    bool? isLoadingIngredients,
     List<Map<String, dynamic>>? searchResults,
     String? searchQuery,
     bool? isSearching,
@@ -81,7 +88,9 @@ class GenerateModalState {
       batchCookingLevel: batchCookingLevel ?? this.batchCookingLevel,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
-      ownedFoodIds: ownedFoodIds ?? this.ownedFoodIds,
+      ownedIngredientIds: ownedIngredientIds ?? this.ownedIngredientIds,
+      ingredients: ingredients ?? this.ingredients,
+      isLoadingIngredients: isLoadingIngredients ?? this.isLoadingIngredients,
       searchResults: searchResults ?? this.searchResults,
       searchQuery: searchQuery ?? this.searchQuery,
       isSearching: isSearching ?? this.isSearching,
@@ -93,24 +102,18 @@ class GenerateModalState {
   }
 }
 
-/// よく使う食材のデータ
-const frequentFoods = [
-  {'id': 1, 'name': '卵', 'emoji': '🥚'},
-  {'id': 2, 'name': '玉ねぎ', 'emoji': '🧅'},
-  {'id': 3, 'name': 'にんじん', 'emoji': '🥕'},
-  {'id': 4, 'name': '豚肉', 'emoji': '🍖'},
-  {'id': 5, 'name': '鶏肉', 'emoji': '🐔'},
-  {'id': 6, 'name': '牛乳', 'emoji': '🥛'},
-  {'id': 7, 'name': 'キャベツ', 'emoji': '🥬'},
-  {'id': 8, 'name': '豆腐', 'emoji': '🧈'},
-];
-
-/// 食品カテゴリのデータ
-const foodCategories = [
+/// 基本食材カテゴリのデータ（フィルタリング用）
+const ingredientCategories = [
+  {'name': '穀類', 'colorValue': 0xFFFFF3E0, 'textColorValue': 0xFFE65100},
+  {'name': '野菜類', 'colorValue': 0xFFC8E6C9, 'textColorValue': 0xFF2E7D32},
+  {'name': 'きのこ類', 'colorValue': 0xFFEFEBE9, 'textColorValue': 0xFF6D4C41},
+  {'name': '豆類', 'colorValue': 0xFFD7CCC8, 'textColorValue': 0xFF5D4037},
+  {'name': 'いも類', 'colorValue': 0xFFFBE9E7, 'textColorValue': 0xFFBF360C},
   {'name': '肉類', 'colorValue': 0xFFFFCCBC, 'textColorValue': 0xFFBF360C},
   {'name': '魚介類', 'colorValue': 0xFFB3E5FC, 'textColorValue': 0xFF01579B},
-  {'name': '野菜類', 'colorValue': 0xFFC8E6C9, 'textColorValue': 0xFF2E7D32},
   {'name': '卵類', 'colorValue': 0xFFFFF9C4, 'textColorValue': 0xFFF57F17},
+  {'name': '乳類', 'colorValue': 0xFFFFFDE7, 'textColorValue': 0xFFF57F17},
+  {'name': '調味料', 'colorValue': 0xFFECEFF1, 'textColorValue': 0xFF455A64},
 ];
 
 /// 献立生成モーダルのコントローラ
@@ -238,48 +241,59 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(mealSettings: current);
   }
 
-  // === Step2: Owned Foods ===
-  void toggleFood(int foodId) {
-    final current = Set<int>.from(state.ownedFoodIds);
-    if (current.contains(foodId)) {
-      current.remove(foodId);
-    } else {
-      current.add(foodId);
+  // === Step2: Owned Ingredients ===
+
+  /// APIから基本食材一覧を読み込み
+  Future<void> loadIngredients() async {
+    if (state.ingredients.isNotEmpty || state.isLoadingIngredients) {
+      return; // 既に読み込み済みまたは読み込み中
     }
-    state = state.copyWith(ownedFoodIds: current);
+
+    state = state.copyWith(isLoadingIngredients: true);
+
+    try {
+      final repo = ref.read(foodRepositoryProvider);
+      final ingredients = await repo.getIngredients();
+      state = state.copyWith(
+        ingredients: ingredients,
+        isLoadingIngredients: false,
+      );
+    } catch (e) {
+      debugPrint('基本食材の読み込みに失敗: $e');
+      state = state.copyWith(isLoadingIngredients: false);
+    }
   }
 
-  void clearOwnedFoods() {
-    state = state.copyWith(ownedFoodIds: {});
+  void toggleIngredient(int ingredientId) {
+    final current = Set<int>.from(state.ownedIngredientIds);
+    if (current.contains(ingredientId)) {
+      current.remove(ingredientId);
+    } else {
+      current.add(ingredientId);
+    }
+    state = state.copyWith(ownedIngredientIds: current);
   }
 
-  Future<void> searchFoods(String query) async {
+  void clearOwnedIngredients() {
+    state = state.copyWith(ownedIngredientIds: {});
+  }
+
+  /// 基本食材をローカル検索（API不要）
+  void searchIngredients(String query) {
     if (query.isEmpty) {
       state = state.copyWith(searchResults: [], searchQuery: '');
       return;
     }
 
-    state = state.copyWith(isSearching: true, searchQuery: query);
+    state = state.copyWith(searchQuery: query);
 
-    try {
-      final repo = ref.read(foodRepositoryProvider);
-      final results = await repo.searchFoods(query: query, limit: 10);
-      state = state.copyWith(searchResults: results, isSearching: false);
-    } catch (e) {
-      state = state.copyWith(searchResults: [], isSearching: false);
-    }
-  }
+    // ローカルの ingredients リストから検索
+    final lowerQuery = query.toLowerCase();
+    final results = state.ingredients
+        .where((ing) => (ing['name'] as String? ?? '').toLowerCase().contains(lowerQuery))
+        .toList();
 
-  Future<void> searchFoodsByCategory(String category) async {
-    state = state.copyWith(isSearching: true, searchQuery: category);
-
-    try {
-      final repo = ref.read(foodRepositoryProvider);
-      final results = await repo.searchFoods(category: category, limit: 20);
-      state = state.copyWith(searchResults: results, isSearching: false);
-    } catch (e) {
-      state = state.copyWith(searchResults: [], isSearching: false);
-    }
+    state = state.copyWith(searchResults: results);
   }
 
   void clearSearch() {
@@ -311,7 +325,7 @@ class GenerateModalController extends _$GenerateModalController {
         people: state.people,
         target: target,
         excludedAllergens: state.excludedAllergens.toList(),
-        preferredFoodIds: state.ownedFoodIds.toList(),
+        preferredIngredientIds: state.ownedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
@@ -333,7 +347,7 @@ class GenerateModalController extends _$GenerateModalController {
         target: target,
         excludeDishIds: state.excludedDishIdsInStep3.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
-        preferredFoodIds: state.ownedFoodIds.toList(),
+        preferredIngredientIds: state.ownedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,

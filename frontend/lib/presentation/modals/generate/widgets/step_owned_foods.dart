@@ -21,6 +21,15 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
   bool _hasSearched = false;
 
   @override
+  void initState() {
+    super.initState();
+    // 基本食材リストをAPIから読み込み
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(generateModalControllerProvider.notifier).loadIngredients();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -31,8 +40,8 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     final state = ref.watch(generateModalControllerProvider);
     final controller = ref.read(generateModalControllerProvider.notifier);
 
-    // 検索中かどうか（クエリがあるか、カテゴリが選択されているか）
-    final isFiltering = state.searchQuery.isNotEmpty || _selectedCategory != null;
+    // テキスト検索中かどうか（検索クエリがある場合のみ）
+    final isTextSearching = state.searchQuery.isNotEmpty && _hasSearched;
 
     return ListView(
       controller: widget.scrollController,
@@ -42,18 +51,18 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         const SizedBox(height: 12),
         _buildSearchBarWithCategory(context, state, controller),
         const SizedBox(height: 12),
-        if (state.ownedFoodIds.isNotEmpty)
+        if (state.ownedIngredientIds.isNotEmpty)
           _buildSelectedCount(context, state, controller),
-        if (state.ownedFoodIds.isNotEmpty) const SizedBox(height: 12),
-        if (state.isSearching)
+        if (state.ownedIngredientIds.isNotEmpty) const SizedBox(height: 12),
+        if (state.isSearching || state.isLoadingIngredients)
           const Padding(
             padding: EdgeInsets.all(32),
             child: Center(child: CircularProgressIndicator()),
           )
-        else if (isFiltering && _hasSearched)
+        else if (isTextSearching)
           _buildSearchResults(context, state, controller)
         else
-          _buildFrequentFoodsGrid(context, state, controller),
+          _buildIngredientsGrid(context, state, controller),
       ],
     );
   }
@@ -110,20 +119,15 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
             onSelected: (category) {
               setState(() {
                 _selectedCategory = category;
-                _hasSearched = true;
+                // カテゴリ選択はローカルでフィルタリング（API検索は使わない）
               });
-              if (category != null) {
-                controller.searchFoodsByCategory(category);
-              } else {
-                controller.clearSearch();
-              }
             },
             itemBuilder: (context) => [
               const PopupMenuItem<String?>(
                 value: null,
                 child: Text('全て'),
               ),
-              ...foodCategories.map((cat) => PopupMenuItem<String>(
+              ...ingredientCategories.map((cat) => PopupMenuItem<String>(
                 value: cat['name'] as String,
                 child: Text(cat['name'] as String),
               )),
@@ -195,13 +199,13 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
               setState(() {
                 _hasSearched = true;
               });
-              controller.searchFoods(value);
+              controller.searchIngredients(value);
             },
             onSubmitted: (value) {
               setState(() {
                 _hasSearched = true;
               });
-              controller.searchFoods(value);
+              controller.searchIngredients(value);
             },
           ),
         ),
@@ -272,7 +276,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                 ),
           ),
         ),
-        _buildFoodGrid(
+        _buildIngredientGrid(
           context,
           foodsList,
           state,
@@ -312,31 +316,36 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     return '🍽️';
   }
 
-  Widget _buildFrequentFoodsGrid(
+  Widget _buildIngredientsGrid(
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
   ) {
+    // カテゴリでフィルタリング
+    final filteredIngredients = _selectedCategory != null
+        ? state.ingredients.where((i) => i['category'] == _selectedCategory).toList()
+        : state.ingredients;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
-            'よく使う食材',
+            _selectedCategory != null ? '$_selectedCategory（${filteredIngredients.length}件）' : '基本食材（${state.ingredients.length}件）',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
                 ),
           ),
         ),
-        _buildFoodGrid(context, frequentFoods, state, controller),
+        _buildIngredientGrid(context, filteredIngredients, state, controller),
       ],
     );
   }
 
-  Widget _buildFoodGrid(
+  Widget _buildIngredientGrid(
     BuildContext context,
-    List<Map<String, dynamic>> foods,
+    List<Map<String, dynamic>> ingredients,
     GenerateModalState state,
     GenerateModalController controller,
   ) {
@@ -349,15 +358,15 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         crossAxisSpacing: 4,
         childAspectRatio: 0.85,
       ),
-      itemCount: foods.length,
+      itemCount: ingredients.length,
       itemBuilder: (context, index) {
-        final food = foods[index];
-        final isSelected = state.ownedFoodIds.contains(food['id']);
-        final emoji = food['emoji'] ?? _getEmojiForFood(food['name'] ?? '');
-        final name = food['name'] ?? '';
+        final ingredient = ingredients[index];
+        final isSelected = state.ownedIngredientIds.contains(ingredient['id']);
+        final emoji = ingredient['emoji'] ?? _getEmojiForFood(ingredient['name'] ?? '');
+        final name = ingredient['name'] ?? '';
 
         return GestureDetector(
-          onTap: () => controller.toggleFood(food['id'] as int),
+          onTap: () => controller.toggleIngredient(ingredient['id'] as int),
           child: Container(
             decoration: BoxDecoration(
               color: isSelected
@@ -439,12 +448,12 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                '選択中: ${state.ownedFoodIds.length}品目',
+                '選択中: ${state.ownedIngredientIds.length}品目',
                 style: const TextStyle(color: Color(0xFF2E7D32)),
               ),
             ),
             TextButton(
-              onPressed: controller.clearOwnedFoods,
+              onPressed: controller.clearOwnedIngredients,
               child: const Text('クリア'),
             ),
           ],

@@ -258,6 +258,7 @@ class ShoppingItem {
   final String displayAmount;  // 表示用の量（例: "2", "1/2"）
   final String unit;           // 単位（例: "本", "個", "g"）
   final String category;
+  final bool isOwned;          // 手持ち食材かどうか（念のため購入検討用）
   bool isChecked;
 
   ShoppingItem({
@@ -266,6 +267,7 @@ class ShoppingItem {
     this.displayAmount = '',
     this.unit = 'g',
     required this.category,
+    this.isOwned = false,
     this.isChecked = false,
   });
 
@@ -276,6 +278,7 @@ class ShoppingItem {
       displayAmount: json['display_amount'] ?? '',
       unit: json['unit'] ?? 'g',
       category: json['category'] ?? '',
+      isOwned: json['is_owned'] ?? false,
     );
   }
 

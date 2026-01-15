@@ -37,9 +37,33 @@ class ShoppingState {
   int get uncheckedCount => items.where((i) => !i.isChecked).length;
   bool get allChecked => items.isNotEmpty && checkedCount == items.length;
 
+  /// 購入必須アイテム（手持ち食材以外）
+  List<ShoppingItem> get itemsToBuy => items.where((i) => !i.isOwned).toList();
+
+  /// 手持ち食材（念のため確認用）
+  List<ShoppingItem> get ownedItems => items.where((i) => i.isOwned).toList();
+
   Map<String, List<ShoppingItem>> get groupedByCategory {
     final groups = <String, List<ShoppingItem>>{};
     for (final item in items) {
+      groups.putIfAbsent(item.category, () => []).add(item);
+    }
+    return groups;
+  }
+
+  /// 購入必須アイテムをカテゴリ別にグループ化
+  Map<String, List<ShoppingItem>> get toBuyGroupedByCategory {
+    final groups = <String, List<ShoppingItem>>{};
+    for (final item in itemsToBuy) {
+      groups.putIfAbsent(item.category, () => []).add(item);
+    }
+    return groups;
+  }
+
+  /// 手持ち食材をカテゴリ別にグループ化
+  Map<String, List<ShoppingItem>> get ownedGroupedByCategory {
+    final groups = <String, List<ShoppingItem>>{};
+    for (final item in ownedItems) {
       groups.putIfAbsent(item.category, () => []).add(item);
     }
     return groups;
@@ -97,14 +121,32 @@ class ShoppingState {
     buffer.writeln('買い物リスト（$dateRangeDisplay $people人分）');
     buffer.writeln('');
 
-    final groups = groupedByCategory;
-    for (final category in groups.keys) {
-      buffer.writeln('【$category】');
-      for (final item in groups[category]!) {
-        final check = item.isChecked ? '✓' : '□';
-        buffer.writeln('$check ${item.foodName} ${item.amountDisplay}');
+    // 購入必須
+    final toBuyGroups = toBuyGroupedByCategory;
+    if (toBuyGroups.isNotEmpty) {
+      buffer.writeln('━━ 購入必須 ━━');
+      for (final category in toBuyGroups.keys) {
+        buffer.writeln('【$category】');
+        for (final item in toBuyGroups[category]!) {
+          final check = item.isChecked ? '✓' : '□';
+          buffer.writeln('$check ${item.foodName} ${item.amountDisplay}');
+        }
+        buffer.writeln('');
       }
-      buffer.writeln('');
+    }
+
+    // 手持ち食材（在庫確認用）
+    final ownedGroups = ownedGroupedByCategory;
+    if (ownedGroups.isNotEmpty) {
+      buffer.writeln('━━ 手持ち食材（在庫確認用）━━');
+      for (final category in ownedGroups.keys) {
+        buffer.writeln('【$category】');
+        for (final item in ownedGroups[category]!) {
+          final check = item.isChecked ? '✓' : '□';
+          buffer.writeln('$check ${item.foodName} ${item.amountDisplay}');
+        }
+        buffer.writeln('');
+      }
     }
 
     return buffer.toString();

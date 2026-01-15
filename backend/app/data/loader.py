@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from sqlalchemy.orm import Session
 from app.db.database import (
-    FoodDB, DishDB, DishIngredientDB, CookingFactorDB,
+    FoodDB, DishDB, DishIngredientDB, CookingFactorDB, IngredientDB,
     init_db, SessionLocal
 )
 
@@ -279,8 +279,186 @@ def load_cooking_factors(db: Session) -> int:
     return count
 
 
+def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
+    """基本食材マスタCSVを読み込み
+
+    CSVフォーマット:
+    id,name,category,mext_code,emoji
+    1,米,穀類,01088,🍚
+    2,卵,卵類,12004,🥚
+    """
+    if not csv_path.exists():
+        print(f"基本食材マスタが見つかりません: {csv_path}")
+        return 0
+
+    if clear_existing:
+        db.query(IngredientDB).delete()
+        db.commit()
+
+    count = 0
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            ingredient_id = int(row["id"])
+            name = row["name"].strip()
+
+            # 既存チェック
+            existing = db.query(IngredientDB).filter(IngredientDB.id == ingredient_id).first()
+            if existing:
+                continue
+
+            ingredient = IngredientDB(
+                id=ingredient_id,
+                name=name,
+                category=row.get("category", "").strip(),
+                mext_code=row.get("mext_code", "").strip(),
+                emoji=row.get("emoji", "").strip(),
+            )
+            db.add(ingredient)
+            count += 1
+
+    db.commit()
+    print(f"基本食材マスタ: {count}件を投入しました")
+    return count
+
+
+def load_dishes_v2_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
+    """新フォーマットCSVから料理データを読み込み
+
+    CSVフォーマット (v2):
+    name,category,meal_types,storage_days,ingredients,instructions
+    白ごはん,主食,"breakfast,lunch,dinner",0,"6:150:蒸す:01088","米を研いで炊飯器で炊く"
+
+    - ingredients: ingredient_id:量g:調理法:mext_code を | で区切り
+      - ingredient_id: 基本食材マスタのID（買い物リスト用）
+      - mext_code: 文科省食品コード（栄養素計算用）
+    """
+    if not csv_path.exists():
+        print(f"CSVファイルが見つかりません: {csv_path}")
+        return 0
+
+    if clear_existing:
+        db.query(DishIngredientDB).delete()
+        db.query(DishDB).delete()
+        db.commit()
+
+    count = 0
+    errors = []
+
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+
+        for row_num, row in enumerate(reader, start=2):
+            name = row.get("name", "").strip()
+            if not name:
+                continue
+
+            # 既存チェック
+            existing = db.query(DishDB).filter(DishDB.name == name).first()
+            if existing:
+                continue
+
+            # 材料をパース（新フォーマット: ingredient_id:amount:cooking_method:mext_code）
+            ingredients_str = row.get("ingredients", "").strip()
+            parsed_ingredients = []
+            ingredient_errors = []
+
+            if ingredients_str:
+                for ing_str in ingredients_str.split("|"):
+                    parts = ing_str.strip().split(":")
+                    if len(parts) < 4:
+                        ingredient_errors.append(f"形式エラー: {ing_str}")
+                        continue
+
+                    try:
+                        ingredient_id = int(parts[0].strip())
+                        amount = float(parts[1].strip())
+                    except ValueError:
+                        ingredient_errors.append(f"値が不正: {ing_str}")
+                        continue
+
+                    cooking_method = parts[2].strip()
+                    mext_code = parts[3].strip()
+
+                    # mext_code で食品を検索
+                    food = db.query(FoodDB).filter(FoodDB.mext_code == mext_code).first()
+                    if not food:
+                        ingredient_errors.append(f"食品コードが見つかりません: '{mext_code}'")
+                        continue
+
+                    parsed_ingredients.append({
+                        "food_id": food.id,
+                        "ingredient_id": ingredient_id,
+                        "amount": amount,
+                        "cooking_method": cooking_method,
+                    })
+
+            if ingredient_errors:
+                errors.append(f"行{row_num} '{name}': {', '.join(ingredient_errors)}")
+
+            if not parsed_ingredients:
+                errors.append(f"行{row_num} '{name}': 有効な材料がありません")
+                continue
+
+            # 作り方の改行を復元
+            instructions = row.get("instructions", "").strip()
+            if instructions:
+                instructions = instructions.replace("\\n", "\n")
+
+            # storage_daysをパース
+            storage_days_str = row.get("storage_days", "1").strip()
+            try:
+                storage_days = int(storage_days_str) if storage_days_str else 1
+            except ValueError:
+                storage_days = 1
+
+            # 料理を作成
+            dish = DishDB(
+                name=name,
+                category=row.get("category", "").strip(),
+                meal_types=row.get("meal_types", "").strip(),
+                serving_size=1.0,
+                storage_days=storage_days,
+                instructions=instructions,
+            )
+            db.add(dish)
+            db.flush()
+
+            # 材料を追加
+            for ing_data in parsed_ingredients:
+                ingredient = DishIngredientDB(
+                    dish_id=dish.id,
+                    food_id=ing_data["food_id"],
+                    ingredient_id=ing_data["ingredient_id"],
+                    amount=ing_data["amount"],
+                    cooking_method=ing_data["cooking_method"],
+                )
+                db.add(ingredient)
+
+            # 栄養素を計算
+            db.flush()
+            nutrients = calculate_dish_nutrients(db, dish)
+            for key, value in nutrients.items():
+                setattr(dish, key, round(value, 2))
+
+            count += 1
+
+    db.commit()
+
+    # エラーレポート
+    if errors:
+        print(f"警告: {len(errors)}件のエラー")
+        for err in errors[:10]:
+            print(f"  {err}")
+        if len(errors) > 10:
+            print(f"  ... 他{len(errors) - 10}件")
+
+    print(f"料理マスタ (v2): {count}件を投入しました")
+    return count
+
+
 def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = False) -> int:
-    """CSVから料理データを読み込み
+    """CSVから料理データを読み込み（旧フォーマット）
 
     CSVフォーマット:
     name,category,meal_types,storage_days,ingredients,instructions

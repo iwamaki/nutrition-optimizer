@@ -121,12 +121,14 @@ class DishIngredientDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     dish_id = Column(Integer, ForeignKey("dishes.id"), nullable=False)
     food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
+    ingredient_id = Column(Integer, ForeignKey("ingredients.id"), nullable=True)  # 基本食材ID（買い物リスト用）
     amount = Column(Float, nullable=False)  # g
     cooking_method = Column(String, default="生")  # CookingMethod の値
 
     # リレーション
     dish = relationship("DishDB", back_populates="ingredients")
     food = relationship("FoodDB", back_populates="dish_ingredients")
+    ingredient = relationship("IngredientDB", back_populates="dish_ingredients")
 
 
 class CookingFactorDB(Base):
@@ -150,6 +152,20 @@ class FoodAllergenDB(Base):
 
     # リレーション
     food = relationship("FoodDB", back_populates="allergens")
+
+
+class IngredientDB(Base):
+    """基本食材マスタ（アプリ専用の正規化された食材リスト）"""
+    __tablename__ = "ingredients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)  # 正規化された食材名（例: "卵", "玉ねぎ"）
+    category = Column(String, index=True)  # カテゴリ（例: "野菜類", "肉類"）
+    mext_code = Column(String, index=True)  # 代表的な文科省食品コード（栄養素参照用）
+    emoji = Column(String, nullable=True)  # 表示用絵文字
+
+    # リレーション
+    dish_ingredients = relationship("DishIngredientDB", back_populates="ingredient")
 
 
 def init_db():

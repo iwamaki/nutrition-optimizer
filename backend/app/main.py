@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.api.routes import router
 from app.db.database import init_db
-from app.data.loader import SessionLocal, load_dishes_from_csv, load_recipe_details
+from app.data.loader import SessionLocal, load_dishes_from_csv, load_dishes_v2_from_csv, load_ingredients_from_csv, load_recipe_details
 
 # Flutter Webビルドディレクトリ
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "build" / "web"
@@ -39,7 +39,7 @@ app.include_router(router, prefix="/api/v1")
 def startup_event():
     """起動時にDBを初期化"""
     from app.data.loader import load_excel_data, load_cooking_factors
-    from app.db.database import FoodDB, DishDB
+    from app.db.database import FoodDB, DishDB, IngredientDB
 
     init_db()
     db = SessionLocal()
@@ -47,6 +47,7 @@ def startup_event():
         # 既存データ数を確認
         existing_foods = db.query(FoodDB).count()
         existing_dishes = db.query(DishDB).count()
+        existing_ingredients = db.query(IngredientDB).count()
 
         # 文科省Excelから食品データを読み込み
         excel_path = Path(__file__).parent.parent / "data" / "food_composition_2023.xlsx"
@@ -64,14 +65,29 @@ def startup_event():
         if cf_count > 0:
             print(f"調理係数 {cf_count} 件を投入しました")
 
-        # 料理マスタをCSVから読み込み
+        # 基本食材マスタを読み込み
+        ingredients_csv = Path(__file__).parent.parent / "data" / "app_ingredients.csv"
+        if ingredients_csv.exists() and existing_ingredients == 0:
+            ing_count = load_ingredients_from_csv(ingredients_csv, db)
+            if ing_count > 0:
+                print(f"基本食材マスタ {ing_count} 件を投入しました")
+        elif existing_ingredients > 0:
+            print(f"既存基本食材データ {existing_ingredients} 件を使用します")
+
+        # 料理マスタをCSVから読み込み（v2形式を優先）
+        dishes_v2_csv = Path(__file__).parent.parent / "data" / "dishes_v2.csv"
         dishes_csv = Path(__file__).parent.parent / "data" / "dishes.csv"
-        if dishes_csv.exists() and existing_dishes == 0:
-            dish_count = load_dishes_from_csv(dishes_csv, db)
-            if dish_count > 0:
-                print(f"料理マスタ(CSV) {dish_count} 件を投入しました")
-        elif existing_dishes == 0:
-            print("警告: 料理データがありません。data/dishes.csv を配置してください。")
+        if existing_dishes == 0:
+            if dishes_v2_csv.exists():
+                dish_count = load_dishes_v2_from_csv(dishes_v2_csv, db)
+                if dish_count > 0:
+                    print(f"料理マスタ(v2) {dish_count} 件を投入しました")
+            elif dishes_csv.exists():
+                dish_count = load_dishes_from_csv(dishes_csv, db)
+                if dish_count > 0:
+                    print(f"料理マスタ(CSV) {dish_count} 件を投入しました")
+            else:
+                print("警告: 料理データがありません。data/dishes_v2.csv を配置してください。")
         else:
             print(f"既存料理データ {existing_dishes} 件を使用します")
 

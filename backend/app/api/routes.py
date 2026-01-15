@@ -1,16 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.db.database import get_db, FoodDB, DishDB, AllergenType
+from app.db.database import get_db, FoodDB, DishDB, AllergenType, IngredientDB
 from app.models.schemas import (
-    Food, NutrientTarget, OptimizeRequest, UserPreferences,
+    NutrientTarget, OptimizeRequest, UserPreferences,
     Dish, DishCreate, DailyMenuPlan, DishCategoryEnum,
     MultiDayOptimizeRequest, MultiDayMenuPlan, AllergenEnum,
-    RefineOptimizeRequest
+    RefineOptimizeRequest, Ingredient
 )
 from app.optimizer.solver import (
-    optimize_daily_menu, db_food_to_model, db_dish_to_model,
+    optimize_daily_menu, db_dish_to_model,
     solve_multi_day_plan, refine_multi_day_plan,
-    _normalize_food_name as normalize_food_name
 )
 from app.services.recipe_generator import generate_recipe_detail, get_or_generate_recipe_detail
 from app.models.schemas import RecipeDetails
@@ -21,81 +20,56 @@ router = APIRouter()
 _user_preferences = UserPreferences()
 
 
-# ========== 食品（素材）API ==========
+# ========== 基本食材API ==========
 
-@router.get("/foods", response_model=list[Food])
-def get_foods(
+@router.get("/ingredients", response_model=list[Ingredient])
+def get_ingredients(
     category: str = None,
-    skip: int = 0,
-    limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """食品（素材）一覧を取得"""
-    query = db.query(FoodDB)
-    if category:
-        query = query.filter(FoodDB.category == category)
-    foods_db = query.offset(skip).limit(limit).all()
-    return [db_food_to_model(f) for f in foods_db]
+    """基本食材一覧を取得（正規化された食材マスタ）
 
-
-@router.get("/foods/search")
-def search_foods(
-    q: str = None,
-    code: str = None,
-    category: str = None,
-    limit: int = 20,
-    db: Session = Depends(get_db)
-):
-    """食品検索API
-
-    - q: キーワード検索（スペース区切りでAND検索）
-    - code: 文科省コード（mext_code）で完全一致検索
-    - category: カテゴリで絞り込み
+    フロントエンドの「よく使う食材」選択や買い物リストに使用
     """
-    query = db.query(FoodDB)
-
-    # コード検索
-    if code:
-        query = query.filter(FoodDB.mext_code == code)
-
-    # カテゴリ絞り込み
+    query = db.query(IngredientDB)
     if category:
-        query = query.filter(FoodDB.category == category)
-
-    # キーワード検索（AND検索）
-    if q:
-        keywords = q.split()
-        for kw in keywords:
-            query = query.filter(FoodDB.name.like(f"%{kw}%"))
-
-    foods_db = query.limit(limit).all()
+        query = query.filter(IngredientDB.category == category)
+    ingredients_db = query.order_by(IngredientDB.id).all()
     return [
-        {
-            "id": f.id,
-            "mext_code": f.mext_code,
-            "name": normalize_food_name(f.name),  # 正規化された表示名
-            "raw_name": f.name,  # 生データ（デバッグ用）
-            "category": f.category,
-            "calories": f.calories,
-        }
-        for f in foods_db
+        Ingredient(
+            id=ing.id,
+            name=ing.name,
+            category=ing.category,
+            mext_code=ing.mext_code or "",
+            emoji=ing.emoji or "",
+        )
+        for ing in ingredients_db
     ]
 
 
-@router.get("/foods/{food_id}", response_model=Food)
-def get_food(food_id: int, db: Session = Depends(get_db)):
-    """特定の食品を取得"""
-    food_db = db.query(FoodDB).filter(FoodDB.id == food_id).first()
-    if not food_db:
-        raise HTTPException(status_code=404, detail="Food not found")
-    return db_food_to_model(food_db)
+@router.get("/ingredients/{ingredient_id}", response_model=Ingredient)
+def get_ingredient(ingredient_id: int, db: Session = Depends(get_db)):
+    """特定の基本食材を取得"""
+    ing_db = db.query(IngredientDB).filter(IngredientDB.id == ingredient_id).first()
+    if not ing_db:
+        raise HTTPException(status_code=404, detail="Ingredient not found")
+    return Ingredient(
+        id=ing_db.id,
+        name=ing_db.name,
+        category=ing_db.category,
+        mext_code=ing_db.mext_code or "",
+        emoji=ing_db.emoji or "",
+    )
 
 
-@router.get("/food-categories")
-def get_food_categories(db: Session = Depends(get_db)):
-    """食品カテゴリ一覧を取得（文科省分類）"""
-    categories = db.query(FoodDB.category).distinct().all()
-    return sorted([c[0] for c in categories])
+@router.get("/ingredient-categories")
+def get_ingredient_categories(db: Session = Depends(get_db)):
+    """基本食材のカテゴリ一覧を取得"""
+    categories = db.query(IngredientDB.category).distinct().all()
+    # 定義順でソート
+    order = ['穀類', '野菜類', 'きのこ類', '藻類', '豆類', 'いも類', '肉類', '魚介類', '卵類', '乳類', '果実類', '調味料']
+    result = [c[0] for c in categories]
+    return sorted(result, key=lambda x: order.index(x) if x in order else 99)
 
 
 # ========== 料理API ==========
@@ -231,13 +205,6 @@ def get_dish_categories():
     return [cat.value for cat in DishCategoryEnum]
 
 
-@router.get("/categories")
-def get_categories(db: Session = Depends(get_db)):
-    """カテゴリ一覧を取得（旧API互換 - 食品カテゴリ）"""
-    categories = db.query(FoodDB.category).distinct().all()
-    return sorted([c[0] for c in categories])
-
-
 # ========== 栄養素API ==========
 
 @router.get("/nutrients/target", response_model=NutrientTarget)
@@ -321,7 +288,7 @@ def optimize_multi_day_menu(
         target=target,
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=request.excluded_dish_ids,
-        preferred_food_ids=request.preferred_food_ids,
+        preferred_ingredient_ids=request.preferred_ingredient_ids,
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
@@ -389,7 +356,7 @@ def refine_multi_day_menu(
         keep_dish_ids=request.keep_dish_ids,
         exclude_dish_ids=request.exclude_dish_ids,
         excluded_allergens=excluded_allergens,
-        preferred_food_ids=request.preferred_food_ids,
+        preferred_ingredient_ids=request.preferred_ingredient_ids,
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,

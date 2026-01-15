@@ -15,61 +15,31 @@ class ApiService {
     return 'http://localhost:8000/api/v1';
   }
 
-  // ========== 食品API ==========
+  // ========== 基本食材API ==========
 
-  Future<List<Food>> getFoods({String? category}) async {
-    String url = '$baseUrl/foods';
-    if (category != null) {
-      url += '?category=$category';
-    }
-
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-      return data.map((f) => Food.fromJson(f)).toList();
-    } else {
-      throw Exception('Failed to load foods');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> searchFoods({
-    String? query,
-    String? category,
-    int limit = 20,
-  }) async {
+  Future<List<Map<String, dynamic>>> getIngredients({String? category}) async {
     final params = <String, String>{};
-    if (query != null && query.isNotEmpty) params['q'] = query;
     if (category != null) params['category'] = category;
-    params['limit'] = limit.toString();
 
-    final uri = Uri.parse('$baseUrl/foods/search').replace(queryParameters: params);
+    final uri = Uri.parse('$baseUrl/ingredients')
+        .replace(queryParameters: params.isEmpty ? null : params);
     final response = await http.get(uri);
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-      return data.map((f) => f as Map<String, dynamic>).toList();
+      return data.map((i) => i as Map<String, dynamic>).toList();
     } else {
-      throw Exception('Failed to search foods');
+      throw Exception('Failed to load ingredients');
     }
   }
 
-  Future<List<String>> getCategories() async {
-    final response = await http.get(Uri.parse('$baseUrl/categories'));
+  Future<List<String>> getIngredientCategories() async {
+    final response = await http.get(Uri.parse('$baseUrl/ingredient-categories'));
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
       return data.map((c) => c.toString()).toList();
     } else {
-      throw Exception('Failed to load categories');
-    }
-  }
-
-  Future<List<String>> getFoodCategories() async {
-    final response = await http.get(Uri.parse('$baseUrl/food-categories'));
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-      return data.map((c) => c.toString()).toList();
-    } else {
-      throw Exception('Failed to load food categories');
+      throw Exception('Failed to load ingredient categories');
     }
   }
 
@@ -152,7 +122,7 @@ class ApiService {
     NutrientTarget? target,
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
-    List<int> preferredFoodIds = const [],
+    List<int> preferredIngredientIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
@@ -162,7 +132,7 @@ class ApiService {
       'people': people,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
       'excluded_dish_ids': excludedDishIds,
-      'preferred_food_ids': preferredFoodIds,
+      'preferred_ingredient_ids': preferredIngredientIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };
@@ -199,7 +169,7 @@ class ApiService {
     List<int> keepDishIds = const [],
     List<int> excludeDishIds = const [],
     List<Allergen> excludedAllergens = const [],
-    List<int> preferredFoodIds = const [],
+    List<int> preferredIngredientIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
@@ -210,7 +180,7 @@ class ApiService {
       'keep_dish_ids': keepDishIds,
       'exclude_dish_ids': excludeDishIds,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
-      'preferred_food_ids': preferredFoodIds,
+      'preferred_ingredient_ids': preferredIngredientIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };
