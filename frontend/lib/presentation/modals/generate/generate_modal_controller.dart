@@ -16,9 +16,8 @@ class GenerateModalState {
   final int people;
   final Set<Allergen> excludedAllergens;
   final String batchCookingLevel;
-  final String volumeLevel;
   final String varietyLevel;
-  // 朝昼夜別の設定
+  // 朝昼夜別の設定（プリセット or カスタム）
   final Map<String, MealSetting> mealSettings;
 
   // Step2: 手持ち食材
@@ -39,12 +38,11 @@ class GenerateModalState {
     this.people = 2,
     this.excludedAllergens = const {},
     this.batchCookingLevel = 'normal',
-    this.volumeLevel = 'normal',
     this.varietyLevel = 'normal',
     this.mealSettings = const {
-      'breakfast': MealSetting(enabled: true, volume: VolumeLevel.small),
-      'lunch': MealSetting(enabled: true, volume: VolumeLevel.normal),
-      'dinner': MealSetting(enabled: true, volume: VolumeLevel.normal),
+      'breakfast': MealSetting(enabled: true, preset: MealPreset.light),
+      'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
+      'dinner': MealSetting(enabled: true, preset: MealPreset.full),
     },
     this.ownedFoodIds = const {},
     this.searchResults = const [],
@@ -62,7 +60,6 @@ class GenerateModalState {
     int? people,
     Set<Allergen>? excludedAllergens,
     String? batchCookingLevel,
-    String? volumeLevel,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
     Set<int>? ownedFoodIds,
@@ -82,7 +79,6 @@ class GenerateModalState {
       people: people ?? this.people,
       excludedAllergens: excludedAllergens ?? this.excludedAllergens,
       batchCookingLevel: batchCookingLevel ?? this.batchCookingLevel,
-      volumeLevel: volumeLevel ?? this.volumeLevel,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
       ownedFoodIds: ownedFoodIds ?? this.ownedFoodIds,
@@ -179,10 +175,6 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(batchCookingLevel: level);
   }
 
-  void setVolumeLevel(String level) {
-    state = state.copyWith(volumeLevel: level);
-  }
-
   void setVarietyLevel(String level) {
     state = state.copyWith(varietyLevel: level);
   }
@@ -195,10 +187,54 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(mealSettings: current);
   }
 
-  void setMealVolume(String mealType, VolumeLevel volume) {
+  void setMealPreset(String mealType, MealPreset preset) {
     final current = Map<String, MealSetting>.from(state.mealSettings);
     final currentSetting = current[mealType] ?? const MealSetting();
-    current[mealType] = currentSetting.copyWith(volume: volume);
+    current[mealType] = currentSetting.copyWith(
+      preset: preset,
+      // プリセット変更時はカスタム設定をクリア（customの場合を除く）
+      customCategories: preset == MealPreset.custom ? currentSetting.customCategories : null,
+    );
+    state = state.copyWith(mealSettings: current);
+  }
+
+  void setMealCategoryConstraint(
+    String mealType,
+    String category,
+    int min,
+    int max,
+  ) {
+    final current = Map<String, MealSetting>.from(state.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+
+    // カスタムモードに切り替え
+    var customCategories = currentSetting.customCategories ??
+        mealPresets[currentSetting.preset] ??
+        const MealCategoryConstraints();
+
+    final constraint = CategoryConstraint(min: min, max: max);
+    switch (category) {
+      case '主食':
+        customCategories = customCategories.copyWith(staple: constraint);
+        break;
+      case '主菜':
+        customCategories = customCategories.copyWith(main: constraint);
+        break;
+      case '副菜':
+        customCategories = customCategories.copyWith(side: constraint);
+        break;
+      case '汁物':
+        customCategories = customCategories.copyWith(soup: constraint);
+        break;
+      case 'デザート':
+        customCategories = customCategories.copyWith(dessert: constraint);
+        break;
+    }
+
+    current[mealType] = currentSetting.copyWith(
+      preset: MealPreset.custom,
+      customCategories: customCategories,
+    );
     state = state.copyWith(mealSettings: current);
   }
 
@@ -276,7 +312,6 @@ class GenerateModalController extends _$GenerateModalController {
         target: target,
         excludedAllergens: state.excludedAllergens.toList(),
         batchCookingLevel: state.batchCookingLevel,
-        volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
       );
@@ -298,7 +333,6 @@ class GenerateModalController extends _$GenerateModalController {
         excludeDishIds: state.excludedDishIdsInStep3.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
         batchCookingLevel: state.batchCookingLevel,
-        volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
       );

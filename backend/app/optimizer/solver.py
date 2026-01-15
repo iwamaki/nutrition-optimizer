@@ -46,105 +46,98 @@ MEAL_RATIOS = {
     "dinner": 0.40,
 }
 
-# カテゴリごとの品数制約（食事タイプ×ボリューム別）
-# 朝昼夜それぞれで異なる品数を設定
-CATEGORY_CONSTRAINTS_BY_MEAL_VOLUME = {
+# デフォルトのカテゴリ別品数制約（朝昼夜別プリセット）
+# 新形式: 各食事でプリセットまたはcategoriesを直接指定可能
+DEFAULT_MEAL_CATEGORY_CONSTRAINTS = {
     "breakfast": {
-        "small": {
-            # 朝食・少なめ: 主食のみ
-            "主食": (1, 1),
-            "主菜": (0, 0),
-            "副菜": (0, 0),
-            "汁物": (0, 0),
-            "デザート": (0, 0),
-        },
-        "normal": {
-            # 朝食・普通: 主食+副菜
-            "主食": (1, 1),
-            "主菜": (0, 1),
-            "副菜": (0, 1),
-            "汁物": (0, 0),
-            "デザート": (0, 0),
-        },
-        "large": {
-            # 朝食・多め: 主食+主菜+副菜
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (0, 1),
-            "汁物": (0, 1),
-            "デザート": (0, 0),
-        },
+        # 朝食デフォルト: 軽め（主食+主菜）
+        "主食": (1, 1),
+        "主菜": (0, 1),
+        "副菜": (0, 1),
+        "汁物": (0, 0),
+        "デザート": (0, 0),
     },
     "lunch": {
-        "small": {
-            # 昼食・少なめ: 主食+主菜
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (0, 0),
-            "汁物": (0, 0),
-            "デザート": (0, 0),
-        },
-        "normal": {
-            # 昼食・普通: 主食+主菜+副菜
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (0, 1),
-            "汁物": (0, 1),
-            "デザート": (0, 0),
-        },
-        "large": {
-            # 昼食・多め: 主食+主菜+副菜+汁物
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (1, 2),
-            "汁物": (0, 1),
-            "デザート": (0, 0),
-        },
+        # 昼食デフォルト: 標準（主食+主菜+副菜）
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (0, 1),
+        "汁物": (0, 1),
+        "デザート": (0, 0),
     },
     "dinner": {
-        "small": {
-            # 夕食・少なめ: 主食+主菜
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (0, 0),
-            "汁物": (0, 0),
-            "デザート": (0, 0),
-        },
-        "normal": {
-            # 夕食・普通: 主食+主菜+副菜+汁物
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (1, 2),
-            "汁物": (0, 1),
-            "デザート": (0, 0),
-        },
-        "large": {
-            # 夕食・多め: 主食+主菜+副菜2+汁物+デザート
-            "主食": (1, 1),
-            "主菜": (1, 1),
-            "副菜": (1, 2),
-            "汁物": (0, 1),
-            "デザート": (0, 1),
-        },
+        # 夕食デフォルト: 充実（主食+主菜+副菜+汁物）
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 2),
+        "汁物": (0, 1),
+        "デザート": (0, 0),
     },
 }
 
-# デフォルトの食事別ボリューム（朝は軽め、昼は普通、夜は普通）
-DEFAULT_MEAL_VOLUMES = {
-    "breakfast": "small",
-    "lunch": "normal",
-    "dinner": "normal",
-}
-
-# 後方互換用（全体ボリュームレベル→各食事のボリューム変換）
-VOLUME_TO_MEAL_VOLUMES = {
-    "small": {"breakfast": "small", "lunch": "small", "dinner": "small"},
-    "normal": {"breakfast": "small", "lunch": "normal", "dinner": "normal"},
-    "large": {"breakfast": "normal", "lunch": "large", "dinner": "large"},
+# 後方互換用: volume（small/normal/large）からカテゴリ制約への変換
+CATEGORY_CONSTRAINTS_BY_VOLUME = {
+    "minimal": {
+        "主食": (1, 1),
+        "主菜": (0, 0),
+        "副菜": (0, 0),
+        "汁物": (0, 0),
+        "デザート": (0, 0),
+    },
+    "light": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (0, 0),
+        "汁物": (0, 0),
+        "デザート": (0, 0),
+    },
+    "standard": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 1),
+        "汁物": (0, 1),
+        "デザート": (0, 0),
+    },
+    "full": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 2),
+        "汁物": (1, 1),
+        "デザート": (0, 1),
+    },
+    "japanese": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (2, 3),
+        "汁物": (1, 1),
+        "デザート": (0, 0),
+    },
+    # 後方互換（旧volume値）
+    "small": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (0, 0),
+        "汁物": (0, 0),
+        "デザート": (0, 0),
+    },
+    "normal": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 1),
+        "汁物": (0, 1),
+        "デザート": (0, 0),
+    },
+    "large": {
+        "主食": (1, 1),
+        "主菜": (1, 1),
+        "副菜": (1, 2),
+        "汁物": (1, 1),
+        "デザート": (0, 1),
+    },
 }
 
 # デフォルト（後方互換性）
-CATEGORY_CONSTRAINTS = CATEGORY_CONSTRAINTS_BY_MEAL_VOLUME["dinner"]["normal"]
+CATEGORY_CONSTRAINTS = DEFAULT_MEAL_CATEGORY_CONSTRAINTS["dinner"]
 
 
 def db_dish_to_model(dish_db: DishDB) -> Dish:
@@ -545,22 +538,34 @@ def solve_multi_day_plan(
     keep_dish_ids = set(keep_dish_ids or [])
 
     # meal_settingsの初期化
-    # 指定がない場合は後方互換用の変換を使用
+    # 新形式: {"breakfast": {"enabled": True, "categories": {"主食": (1, 1), ...}}, ...}
+    # 旧形式: {"breakfast": {"enabled": True, "volume": "normal"}, ...}
     if meal_settings is None:
-        meal_volumes = VOLUME_TO_MEAL_VOLUMES.get(batch_cooking_level, DEFAULT_MEAL_VOLUMES)
+        # デフォルト設定を使用
         meal_settings = {
-            meal: {"enabled": True, "volume": vol}
-            for meal, vol in meal_volumes.items()
+            meal: {"enabled": True, "categories": DEFAULT_MEAL_CATEGORY_CONSTRAINTS[meal]}
+            for meal in ["breakfast", "lunch", "dinner"]
         }
     else:
-        # 未指定の食事はデフォルト値を使用
+        # 各食事の設定を正規化
         for meal in ["breakfast", "lunch", "dinner"]:
             if meal not in meal_settings:
-                meal_settings[meal] = {"enabled": True, "volume": DEFAULT_MEAL_VOLUMES[meal]}
-            elif "enabled" not in meal_settings[meal]:
-                meal_settings[meal]["enabled"] = True
-            elif "volume" not in meal_settings[meal]:
-                meal_settings[meal]["volume"] = DEFAULT_MEAL_VOLUMES[meal]
+                # 未指定の食事はデフォルト値を使用
+                meal_settings[meal] = {"enabled": True, "categories": DEFAULT_MEAL_CATEGORY_CONSTRAINTS[meal]}
+            else:
+                setting = meal_settings[meal]
+                if "enabled" not in setting:
+                    setting["enabled"] = True
+                # categoriesの設定
+                if "categories" not in setting:
+                    # volumeが指定されている場合は対応する制約を使用（後方互換）
+                    if "volume" in setting:
+                        volume = setting["volume"]
+                        setting["categories"] = CATEGORY_CONSTRAINTS_BY_VOLUME.get(
+                            volume, DEFAULT_MEAL_CATEGORY_CONSTRAINTS[meal]
+                        )
+                    else:
+                        setting["categories"] = DEFAULT_MEAL_CATEGORY_CONSTRAINTS[meal]
 
     # 有効な食事タイプのみ抽出
     enabled_meals = [m for m in ["breakfast", "lunch", "dinner"] if meal_settings[m].get("enabled", True)]
@@ -756,13 +761,12 @@ def solve_multi_day_plan(
                     if target_val > 0:
                         prob += intake_per_person + dev_neg[day][nutrient] - dev_pos[day][nutrient] == target_val
 
-    # C5: 各食事のカテゴリ別品数制約（朝昼夜別に異なる制約を適用）
+    # C5: 各食事のカテゴリ別品数制約（各食事のcategoriesを直接使用）
     for day in range(1, days + 1):
         for m in meals:
-            # この食事のボリューム設定を取得
-            meal_volume = meal_settings[m].get("volume", DEFAULT_MEAL_VOLUMES[m])
-            category_constraints = CATEGORY_CONSTRAINTS_BY_MEAL_VOLUME.get(m, {}).get(
-                meal_volume, CATEGORY_CONSTRAINTS
+            # この食事のカテゴリ制約を取得
+            category_constraints = meal_settings[m].get(
+                "categories", DEFAULT_MEAL_CATEGORY_CONSTRAINTS[m]
             )
 
             for cat, (min_count, max_count) in category_constraints.items():

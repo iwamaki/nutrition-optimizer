@@ -12,7 +12,6 @@ abstract class MenuRepository {
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
     String batchCookingLevel = 'normal',
-    String volumeLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
   });
@@ -26,7 +25,6 @@ abstract class MenuRepository {
     List<int> excludeDishIds = const [],
     List<Allergen> excludedAllergens = const [],
     String batchCookingLevel = 'normal',
-    String volumeLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
   });

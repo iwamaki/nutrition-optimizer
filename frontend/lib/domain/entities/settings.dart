@@ -1,39 +1,160 @@
-/// 品数レベル
-enum VolumeLevel {
-  small('少なめ', 'small'),
-  normal('普通', 'normal'),
-  large('多め', 'large');
+/// 食事プリセット
+enum MealPreset {
+  minimal('最小限', 'minimal', '主食のみ'),
+  light('軽め', 'light', '主食＋主菜'),
+  standard('標準', 'standard', '主食＋主菜＋副菜'),
+  full('充実', 'full', '主食＋主菜＋副菜＋汁物'),
+  japanese('和定食', 'japanese', '一汁三菜'),
+  custom('カスタム', 'custom', '各カテゴリを個別に設定');
 
   final String displayName;
   final String apiValue;
+  final String description;
 
-  const VolumeLevel(this.displayName, this.apiValue);
+  const MealPreset(this.displayName, this.apiValue, this.description);
 }
 
-/// 食事タイプ別の設定
+/// カテゴリ別品数制約（min/max）
+class CategoryConstraint {
+  final int min;
+  final int max;
+
+  const CategoryConstraint({this.min = 0, this.max = 2});
+
+  Map<String, dynamic> toJson() => {'min': min, 'max': max};
+
+  CategoryConstraint copyWith({int? min, int? max}) {
+    return CategoryConstraint(
+      min: min ?? this.min,
+      max: max ?? this.max,
+    );
+  }
+}
+
+/// 1食分のカテゴリ別品数制約
+class MealCategoryConstraints {
+  final CategoryConstraint staple;   // 主食
+  final CategoryConstraint main;     // 主菜
+  final CategoryConstraint side;     // 副菜
+  final CategoryConstraint soup;     // 汁物
+  final CategoryConstraint dessert;  // デザート
+
+  const MealCategoryConstraints({
+    this.staple = const CategoryConstraint(min: 1, max: 1),
+    this.main = const CategoryConstraint(min: 1, max: 1),
+    this.side = const CategoryConstraint(min: 0, max: 2),
+    this.soup = const CategoryConstraint(min: 0, max: 1),
+    this.dessert = const CategoryConstraint(min: 0, max: 1),
+  });
+
+  Map<String, dynamic> toJson() => {
+    '主食': [staple.min, staple.max],
+    '主菜': [main.min, main.max],
+    '副菜': [side.min, side.max],
+    '汁物': [soup.min, soup.max],
+    'デザート': [dessert.min, dessert.max],
+  };
+
+  MealCategoryConstraints copyWith({
+    CategoryConstraint? staple,
+    CategoryConstraint? main,
+    CategoryConstraint? side,
+    CategoryConstraint? soup,
+    CategoryConstraint? dessert,
+  }) {
+    return MealCategoryConstraints(
+      staple: staple ?? this.staple,
+      main: main ?? this.main,
+      side: side ?? this.side,
+      soup: soup ?? this.soup,
+      dessert: dessert ?? this.dessert,
+    );
+  }
+}
+
+/// プリセット定義（各プリセットのカテゴリ制約）
+const Map<MealPreset, MealCategoryConstraints> mealPresets = {
+  MealPreset.minimal: MealCategoryConstraints(
+    staple: CategoryConstraint(min: 1, max: 1),
+    main: CategoryConstraint(min: 0, max: 0),
+    side: CategoryConstraint(min: 0, max: 0),
+    soup: CategoryConstraint(min: 0, max: 0),
+    dessert: CategoryConstraint(min: 0, max: 0),
+  ),
+  MealPreset.light: MealCategoryConstraints(
+    staple: CategoryConstraint(min: 1, max: 1),
+    main: CategoryConstraint(min: 1, max: 1),
+    side: CategoryConstraint(min: 0, max: 0),
+    soup: CategoryConstraint(min: 0, max: 0),
+    dessert: CategoryConstraint(min: 0, max: 0),
+  ),
+  MealPreset.standard: MealCategoryConstraints(
+    staple: CategoryConstraint(min: 1, max: 1),
+    main: CategoryConstraint(min: 1, max: 1),
+    side: CategoryConstraint(min: 1, max: 1),
+    soup: CategoryConstraint(min: 0, max: 1),
+    dessert: CategoryConstraint(min: 0, max: 0),
+  ),
+  MealPreset.full: MealCategoryConstraints(
+    staple: CategoryConstraint(min: 1, max: 1),
+    main: CategoryConstraint(min: 1, max: 1),
+    side: CategoryConstraint(min: 1, max: 2),
+    soup: CategoryConstraint(min: 1, max: 1),
+    dessert: CategoryConstraint(min: 0, max: 1),
+  ),
+  MealPreset.japanese: MealCategoryConstraints(
+    staple: CategoryConstraint(min: 1, max: 1),
+    main: CategoryConstraint(min: 1, max: 1),
+    side: CategoryConstraint(min: 2, max: 3),
+    soup: CategoryConstraint(min: 1, max: 1),
+    dessert: CategoryConstraint(min: 0, max: 0),
+  ),
+};
+
+/// デフォルトの朝昼夜別プリセット
+const Map<String, MealPreset> defaultMealPresets = {
+  'breakfast': MealPreset.light,
+  'lunch': MealPreset.standard,
+  'dinner': MealPreset.full,
+};
+
+/// 食事タイプ別の設定（拡張版）
 class MealSetting {
   final bool enabled;
-  final VolumeLevel volume;
+  final MealPreset preset;
+  final MealCategoryConstraints? customCategories;  // preset=customの場合に使用
 
   const MealSetting({
     this.enabled = true,
-    this.volume = VolumeLevel.normal,
+    this.preset = MealPreset.standard,
+    this.customCategories,
   });
 
+  /// 有効なカテゴリ制約を取得
+  MealCategoryConstraints getCategories() {
+    if (preset == MealPreset.custom && customCategories != null) {
+      return customCategories!;
+    }
+    return mealPresets[preset] ?? const MealCategoryConstraints();
+  }
+
   Map<String, dynamic> toJson() {
+    final categories = getCategories();
     return {
       'enabled': enabled,
-      'volume': volume.apiValue,
+      'categories': categories.toJson(),
     };
   }
 
   MealSetting copyWith({
     bool? enabled,
-    VolumeLevel? volume,
+    MealPreset? preset,
+    MealCategoryConstraints? customCategories,
   }) {
     return MealSetting(
       enabled: enabled ?? this.enabled,
-      volume: volume ?? this.volume,
+      preset: preset ?? this.preset,
+      customCategories: customCategories ?? this.customCategories,
     );
   }
 }

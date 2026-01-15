@@ -25,11 +25,9 @@ class StepBasicSettings extends ConsumerWidget {
         const SizedBox(height: 16),
         _buildPeopleCard(context, state, controller),
         const SizedBox(height: 16),
-        _buildMealSettingsCard(context, state, controller),
+        _buildMealSettingsCard(context, state, controller, ref),
         const SizedBox(height: 16),
         _buildAllergenCard(context, state, controller),
-        const SizedBox(height: 16),
-        _buildCaloriesCard(context, state, controller),
         const SizedBox(height: 16),
         _buildVarietyCard(context, state, controller),
       ],
@@ -153,6 +151,7 @@ class StepBasicSettings extends ConsumerWidget {
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
+    WidgetRef ref,
   ) {
     return Card(
       child: Padding(
@@ -169,24 +168,24 @@ class StepBasicSettings extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '各食事の有効/無効と品数を設定します',
+              'プリセットを選択するか、カスタムで品数を細かく設定できます',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
             ),
             const SizedBox(height: 12),
-            _buildMealRow(context, state, controller, '朝食', 'breakfast', Icons.wb_sunny),
-            const SizedBox(height: 8),
-            _buildMealRow(context, state, controller, '昼食', 'lunch', Icons.light_mode),
-            const SizedBox(height: 8),
-            _buildMealRow(context, state, controller, '夕食', 'dinner', Icons.nightlight),
+            _buildMealSection(context, state, controller, '朝食', 'breakfast', Icons.wb_sunny),
+            const Divider(height: 24),
+            _buildMealSection(context, state, controller, '昼食', 'lunch', Icons.light_mode),
+            const Divider(height: 24),
+            _buildMealSection(context, state, controller, '夕食', 'dinner', Icons.nightlight),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMealRow(
+  Widget _buildMealSection(
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
@@ -195,47 +194,128 @@ class StepBasicSettings extends ConsumerWidget {
     IconData icon,
   ) {
     final setting = state.mealSettings[mealType] ?? const MealSetting();
-    return Row(
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 40,
-          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        // 食事名と有効/無効スイッチ
+        Row(
+          children: [
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(label, style: Theme.of(context).textTheme.titleSmall),
+            const Spacer(),
+            Text(
+              setting.enabled ? 'ON' : 'OFF',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: setting.enabled
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            Switch(
+              value: setting.enabled,
+              onChanged: (v) => controller.setMealEnabled(mealType, v),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Switch(
-          value: setting.enabled,
-          onChanged: (v) => controller.setMealEnabled(mealType, v),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: SegmentedButton<VolumeLevel>(
-            segments: const [
-              ButtonSegment(
-                value: VolumeLevel.small,
-                label: Text('少なめ', style: TextStyle(fontSize: 11)),
-              ),
-              ButtonSegment(
-                value: VolumeLevel.normal,
-                label: Text('普通', style: TextStyle(fontSize: 11)),
-              ),
-              ButtonSegment(
-                value: VolumeLevel.large,
-                label: Text('多め', style: TextStyle(fontSize: 11)),
-              ),
-            ],
-            selected: {setting.volume},
-            onSelectionChanged: setting.enabled
-                ? (selected) => controller.setMealVolume(mealType, selected.first)
-                : null,
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+
+        if (setting.enabled) ...[
+          const SizedBox(height: 8),
+          // プリセット選択
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: MealPreset.values
+                .where((p) => p != MealPreset.custom) // カスタムは個別ボタン
+                .map((preset) => ChoiceChip(
+                      label: Text(preset.displayName),
+                      selected: setting.preset == preset,
+                      onSelected: (_) => controller.setMealPreset(mealType, preset),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 4),
+          // プリセット説明
+          Text(
+            setting.preset.description,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                  fontStyle: FontStyle.italic,
+                ),
+          ),
+          const SizedBox(height: 8),
+          // カスタム設定ボタン
+          OutlinedButton.icon(
+            icon: Icon(
+              setting.preset == MealPreset.custom ? Icons.edit : Icons.tune,
+              size: 16,
+            ),
+            label: Text(setting.preset == MealPreset.custom ? 'カスタム設定中' : 'カスタム設定'),
+            onPressed: () => _showCustomSettingsDialog(context, controller, mealType, setting),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: setting.preset == MealPreset.custom
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
             ),
           ),
-        ),
+          // カスタムの場合は現在の設定を表示
+          if (setting.preset == MealPreset.custom) ...[
+            const SizedBox(height: 8),
+            _buildCategoryConstraintsSummary(context, setting.getCategories()),
+          ],
+        ],
       ],
+    );
+  }
+
+  Widget _buildCategoryConstraintsSummary(BuildContext context, MealCategoryConstraints categories) {
+    final items = <String>[];
+    if (categories.staple.max > 0) items.add('主食${categories.staple.min}-${categories.staple.max}');
+    if (categories.main.max > 0) items.add('主菜${categories.main.min}-${categories.main.max}');
+    if (categories.side.max > 0) items.add('副菜${categories.side.min}-${categories.side.max}');
+    if (categories.soup.max > 0) items.add('汁物${categories.soup.min}-${categories.soup.max}');
+    if (categories.dessert.max > 0) items.add('デザート${categories.dessert.min}-${categories.dessert.max}');
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        items.join(' / '),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    );
+  }
+
+  void _showCustomSettingsDialog(
+    BuildContext context,
+    GenerateModalController controller,
+    String mealType,
+    MealSetting currentSetting,
+  ) {
+    // 現在のカテゴリ設定を取得（プリセットからの初期値も含む）
+    final categories = currentSetting.customCategories ??
+        mealPresets[currentSetting.preset] ??
+        const MealCategoryConstraints();
+
+    showDialog(
+      context: context,
+      builder: (context) => _CustomSettingsDialog(
+        mealType: mealType,
+        mealLabel: mealType == 'breakfast' ? '朝食' : (mealType == 'lunch' ? '昼食' : '夕食'),
+        initialCategories: categories,
+        onSave: (newCategories) {
+          // 各カテゴリを個別に更新（全体をカスタムとして設定）
+          controller.setMealCategoryConstraint(mealType, '主食', newCategories.staple.min, newCategories.staple.max);
+          controller.setMealCategoryConstraint(mealType, '主菜', newCategories.main.min, newCategories.main.max);
+          controller.setMealCategoryConstraint(mealType, '副菜', newCategories.side.min, newCategories.side.max);
+          controller.setMealCategoryConstraint(mealType, '汁物', newCategories.soup.min, newCategories.soup.max);
+          controller.setMealCategoryConstraint(mealType, 'デザート', newCategories.dessert.min, newCategories.dessert.max);
+        },
+      ),
     );
   }
 
@@ -278,50 +358,6 @@ class StepBasicSettings extends ConsumerWidget {
                   onSelected: (_) => controller.toggleAllergen(allergen),
                 );
               }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCaloriesCard(
-    BuildContext context,
-    GenerateModalState state,
-    GenerateModalController controller,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.local_fire_department, size: 20),
-                const SizedBox(width: 8),
-                Text('カロリー目標', style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'カロリー目標を調整します',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildLevelChip(state.volumeLevel, 'small', '少なめ',
-                    () => controller.setVolumeLevel('small')),
-                _buildLevelChip(state.volumeLevel, 'normal', '普通',
-                    () => controller.setVolumeLevel('normal')),
-                _buildLevelChip(state.volumeLevel, 'large', '多め',
-                    () => controller.setVolumeLevel('large')),
-              ],
             ),
           ],
         ),
@@ -403,6 +439,141 @@ class StepBasicSettings extends ConsumerWidget {
       label: Text(label),
       selected: currentLevel == value,
       onSelected: (_) => onSelected(),
+    );
+  }
+}
+
+/// カスタム設定ダイアログ
+class _CustomSettingsDialog extends StatefulWidget {
+  final String mealType;
+  final String mealLabel;
+  final MealCategoryConstraints initialCategories;
+  final void Function(MealCategoryConstraints) onSave;
+
+  const _CustomSettingsDialog({
+    required this.mealType,
+    required this.mealLabel,
+    required this.initialCategories,
+    required this.onSave,
+  });
+
+  @override
+  State<_CustomSettingsDialog> createState() => _CustomSettingsDialogState();
+}
+
+class _CustomSettingsDialogState extends State<_CustomSettingsDialog> {
+  late int stapleMin, stapleMax;
+  late int mainMin, mainMax;
+  late int sideMin, sideMax;
+  late int soupMin, soupMax;
+  late int dessertMin, dessertMax;
+
+  @override
+  void initState() {
+    super.initState();
+    stapleMin = widget.initialCategories.staple.min;
+    stapleMax = widget.initialCategories.staple.max;
+    mainMin = widget.initialCategories.main.min;
+    mainMax = widget.initialCategories.main.max;
+    sideMin = widget.initialCategories.side.min;
+    sideMax = widget.initialCategories.side.max;
+    soupMin = widget.initialCategories.soup.min;
+    soupMax = widget.initialCategories.soup.max;
+    dessertMin = widget.initialCategories.dessert.min;
+    dessertMax = widget.initialCategories.dessert.max;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.mealLabel}のカスタム設定'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildCategoryRow('主食', stapleMin, stapleMax, (min, max) {
+              setState(() { stapleMin = min; stapleMax = max; });
+            }),
+            const Divider(),
+            _buildCategoryRow('主菜', mainMin, mainMax, (min, max) {
+              setState(() { mainMin = min; mainMax = max; });
+            }),
+            const Divider(),
+            _buildCategoryRow('副菜', sideMin, sideMax, (min, max) {
+              setState(() { sideMin = min; sideMax = max; });
+            }),
+            const Divider(),
+            _buildCategoryRow('汁物', soupMin, soupMax, (min, max) {
+              setState(() { soupMin = min; soupMax = max; });
+            }),
+            const Divider(),
+            _buildCategoryRow('デザート', dessertMin, dessertMax, (min, max) {
+              setState(() { dessertMin = min; dessertMax = max; });
+            }),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
+        FilledButton(
+          onPressed: () {
+            widget.onSave(MealCategoryConstraints(
+              staple: CategoryConstraint(min: stapleMin, max: stapleMax),
+              main: CategoryConstraint(min: mainMin, max: mainMax),
+              side: CategoryConstraint(min: sideMin, max: sideMax),
+              soup: CategoryConstraint(min: soupMin, max: soupMax),
+              dessert: CategoryConstraint(min: dessertMin, max: dessertMax),
+            ));
+            Navigator.of(context).pop();
+          },
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryRow(
+    String label,
+    int min,
+    int max,
+    void Function(int min, int max) onChanged,
+  ) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+        ),
+        const SizedBox(width: 8),
+        const Text('最小'),
+        const SizedBox(width: 4),
+        DropdownButton<int>(
+          value: min,
+          items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('$i'))),
+          onChanged: (v) {
+            if (v != null) {
+              final newMax = max < v ? v : max;
+              onChanged(v, newMax);
+            }
+          },
+        ),
+        const SizedBox(width: 16),
+        const Text('最大'),
+        const SizedBox(width: 4),
+        DropdownButton<int>(
+          value: max,
+          items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text('$i'))),
+          onChanged: (v) {
+            if (v != null) {
+              final newMin = min > v ? v : min;
+              onChanged(newMin, v);
+            }
+          },
+        ),
+      ],
     );
   }
 }

@@ -247,10 +247,106 @@ class DailyMenuPlan(BaseModel):
 
 # ========== 複数日最適化（作り置き対応） ==========
 
+class CategoryConstraint(BaseModel):
+    """カテゴリ別品数制約（min/max）"""
+    min: int = Field(default=0, ge=0, description="最小品数")
+    max: int = Field(default=2, ge=0, description="最大品数")
+
+
+class MealCategoryConstraints(BaseModel):
+    """1食分のカテゴリ別品数制約"""
+    staple: CategoryConstraint = Field(default_factory=lambda: CategoryConstraint(min=1, max=1), alias="主食", description="主食")
+    main: CategoryConstraint = Field(default_factory=lambda: CategoryConstraint(min=1, max=1), alias="主菜", description="主菜")
+    side: CategoryConstraint = Field(default_factory=lambda: CategoryConstraint(min=0, max=2), alias="副菜", description="副菜")
+    soup: CategoryConstraint = Field(default_factory=lambda: CategoryConstraint(min=0, max=1), alias="汁物", description="汁物")
+    dessert: CategoryConstraint = Field(default_factory=lambda: CategoryConstraint(min=0, max=1), alias="デザート", description="デザート")
+
+    class Config:
+        populate_by_name = True
+
+    def to_solver_dict(self) -> dict:
+        """solver用のdict形式に変換 {"主食": (min, max), ...}"""
+        return {
+            "主食": (self.staple.min, self.staple.max),
+            "主菜": (self.main.min, self.main.max),
+            "副菜": (self.side.min, self.side.max),
+            "汁物": (self.soup.min, self.soup.max),
+            "デザート": (self.dessert.min, self.dessert.max),
+        }
+
+
+class MealPresetEnum(str, Enum):
+    """食事プリセット"""
+    MINIMAL = "minimal"      # 最小限（主食のみ）
+    LIGHT = "light"          # 軽め（主食+主菜）
+    STANDARD = "standard"    # 標準（主食+主菜+副菜）
+    FULL = "full"            # 充実（主食+主菜+副菜+汁物）
+    JAPANESE = "japanese"    # 和定食（一汁三菜）
+    CUSTOM = "custom"        # カスタム（categoriesを直接指定）
+
+
+# プリセット定義（各プリセットのカテゴリ制約）
+MEAL_PRESETS: dict[str, MealCategoryConstraints] = {
+    "minimal": MealCategoryConstraints(
+        staple=CategoryConstraint(min=1, max=1),
+        main=CategoryConstraint(min=0, max=0),
+        side=CategoryConstraint(min=0, max=0),
+        soup=CategoryConstraint(min=0, max=0),
+        dessert=CategoryConstraint(min=0, max=0),
+    ),
+    "light": MealCategoryConstraints(
+        staple=CategoryConstraint(min=1, max=1),
+        main=CategoryConstraint(min=1, max=1),
+        side=CategoryConstraint(min=0, max=0),
+        soup=CategoryConstraint(min=0, max=0),
+        dessert=CategoryConstraint(min=0, max=0),
+    ),
+    "standard": MealCategoryConstraints(
+        staple=CategoryConstraint(min=1, max=1),
+        main=CategoryConstraint(min=1, max=1),
+        side=CategoryConstraint(min=1, max=1),
+        soup=CategoryConstraint(min=0, max=1),
+        dessert=CategoryConstraint(min=0, max=0),
+    ),
+    "full": MealCategoryConstraints(
+        staple=CategoryConstraint(min=1, max=1),
+        main=CategoryConstraint(min=1, max=1),
+        side=CategoryConstraint(min=1, max=2),
+        soup=CategoryConstraint(min=1, max=1),
+        dessert=CategoryConstraint(min=0, max=1),
+    ),
+    "japanese": MealCategoryConstraints(
+        staple=CategoryConstraint(min=1, max=1),
+        main=CategoryConstraint(min=1, max=1),
+        side=CategoryConstraint(min=2, max=3),
+        soup=CategoryConstraint(min=1, max=1),
+        dessert=CategoryConstraint(min=0, max=0),
+    ),
+}
+
+
 class MealSetting(BaseModel):
-    """食事タイプ別の設定"""
+    """食事タイプ別の設定（拡張版）"""
     enabled: bool = Field(default=True, description="この食事を生成するか")
-    volume: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="品数レベル")
+    preset: MealPresetEnum = Field(default=MealPresetEnum.STANDARD, description="プリセット")
+    categories: Optional[dict] = Field(default=None, description="カテゴリ制約（フロントエンドからの直接指定用、{'主食': [min, max], ...}形式）")
+
+    def get_category_constraints_dict(self) -> dict:
+        """solver用のカテゴリ制約dictを取得"""
+        # categoriesが直接指定されている場合（フロントエンドからの形式）
+        if self.categories:
+            result = {}
+            for cat, constraint in self.categories.items():
+                if isinstance(constraint, list) and len(constraint) == 2:
+                    result[cat] = (constraint[0], constraint[1])
+                elif isinstance(constraint, dict):
+                    result[cat] = (constraint.get('min', 0), constraint.get('max', 2))
+                elif isinstance(constraint, tuple):
+                    result[cat] = constraint
+            return result
+        # プリセットから取得
+        preset_constraints = MEAL_PRESETS.get(self.preset.value, MEAL_PRESETS["standard"])
+        return preset_constraints.to_solver_dict()
 
 
 class MealSettings(BaseModel):
@@ -263,11 +359,20 @@ class MealSettings(BaseModel):
         """solver用のdict形式に変換"""
         result = {}
         if self.breakfast:
-            result["breakfast"] = {"enabled": self.breakfast.enabled, "volume": self.breakfast.volume.value}
+            result["breakfast"] = {
+                "enabled": self.breakfast.enabled,
+                "categories": self.breakfast.get_category_constraints_dict(),
+            }
         if self.lunch:
-            result["lunch"] = {"enabled": self.lunch.enabled, "volume": self.lunch.volume.value}
+            result["lunch"] = {
+                "enabled": self.lunch.enabled,
+                "categories": self.lunch.get_category_constraints_dict(),
+            }
         if self.dinner:
-            result["dinner"] = {"enabled": self.dinner.enabled, "volume": self.dinner.volume.value}
+            result["dinner"] = {
+                "enabled": self.dinner.enabled,
+                "categories": self.dinner.get_category_constraints_dict(),
+            }
         return result if result else None
 
 

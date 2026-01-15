@@ -21,7 +21,6 @@ class MenuRepositoryImpl implements MenuRepository {
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
     String batchCookingLevel = 'normal',
-    String volumeLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
   }) {
@@ -32,7 +31,6 @@ class MenuRepositoryImpl implements MenuRepository {
       excludedAllergens: excludedAllergens,
       excludedDishIds: excludedDishIds,
       batchCookingLevel: batchCookingLevel,
-      volumeLevel: volumeLevel,
       varietyLevel: varietyLevel,
       mealSettings: mealSettings,
     );
@@ -47,7 +45,6 @@ class MenuRepositoryImpl implements MenuRepository {
     List<int> excludeDishIds = const [],
     List<Allergen> excludedAllergens = const [],
     String batchCookingLevel = 'normal',
-    String volumeLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
   }) {
@@ -59,7 +56,6 @@ class MenuRepositoryImpl implements MenuRepository {
       excludeDishIds: excludeDishIds,
       excludedAllergens: excludedAllergens,
       batchCookingLevel: batchCookingLevel,
-      volumeLevel: volumeLevel,
       varietyLevel: varietyLevel,
       mealSettings: mealSettings,
     );

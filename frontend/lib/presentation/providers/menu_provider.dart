@@ -148,7 +148,6 @@ class MenuNotifier extends _$MenuNotifier {
         excludedAllergens: state.excludedAllergens.toList(),
         excludedDishIds: state.excludedDishIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
-        volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
       );
       state = state.copyWith(
@@ -178,7 +177,6 @@ class MenuNotifier extends _$MenuNotifier {
         excludeDishIds: state.excludedDishIds.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
         batchCookingLevel: state.batchCookingLevel,
-        volumeLevel: state.volumeLevel,
         varietyLevel: state.varietyLevel,
       );
       state = state.copyWith(
