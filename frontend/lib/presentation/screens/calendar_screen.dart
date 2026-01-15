@@ -163,23 +163,35 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           _handleDragAutoScroll(event.position);
         }
       },
-      child: SingleChildScrollView(
-        controller: _verticalScrollController,
-        scrollDirection: Axis.vertical,
-        child: SingleChildScrollView(
-          controller: _horizontalScrollController,
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: plan.dailyPlans.map((dayPlan) {
-              return SizedBox(
-                width: columnWidth,
-                child: _buildDayColumn(context, dayPlan),
-              );
-            }).toList(),
-          ),
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            controller: _verticalScrollController,
+            scrollDirection: Axis.vertical,
+            child: SingleChildScrollView(
+              controller: _horizontalScrollController,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: ConstrainedBox(
+                // 最小サイズを画面サイズに設定（空き領域でもスクロール可能に）
+                constraints: BoxConstraints(
+                  minWidth: constraints.maxWidth - 16, // パディング分を引く
+                ),
+                child: Row(
+                  // 左詰めにする
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: plan.dailyPlans.map((dayPlan) {
+                    return SizedBox(
+                      width: columnWidth,
+                      child: _buildDayColumn(context, dayPlan),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
