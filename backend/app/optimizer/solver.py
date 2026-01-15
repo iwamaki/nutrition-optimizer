@@ -616,26 +616,44 @@ def solve_multi_day_plan(
 
     # 全料理取得
     dishes_db = db.query(DishDB).all()
-    dishes = [db_dish_to_model(d) for d in dishes_db]
 
-    # アレルゲン除外（TODO: FoodAllergenDBとの連携）
-    # 現時点では除外アレルゲンは名前ベースで簡易的にフィルタ
+    # アレルゲン除外（食材ベースでフィルタ）
     if excluded_allergens:
-        allergen_keywords = {
-            "卵": ["卵", "玉子", "たまご"],
-            "乳": ["牛乳", "チーズ", "ヨーグルト", "乳"],
-            "小麦": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ"],
+        # アレルゲンを含む食品カテゴリ（文科省食品成分表のカテゴリ）
+        allergen_food_categories = {
+            "卵": ["卵類"],
+            "乳": ["乳類"],
+        }
+        # アレルゲンを含む食品名のキーワード
+        allergen_food_keywords = {
+            "卵": ["卵", "玉子", "たまご", "マヨネーズ"],
+            "乳": ["牛乳", "チーズ", "ヨーグルト", "生クリーム", "バター", "クリーム", "ミルク"],
+            "小麦": ["小麦", "うどん", "そうめん", "パスタ", "スパゲッティ", "中華麺", "ラーメン", "パン", "食パン", "焼きそば麺", "強力粉", "薄力粉", "天ぷら粉"],
             "そば": ["そば"],
             "落花生": ["ピーナッツ", "落花生"],
             "えび": ["えび", "海老", "エビ"],
             "かに": ["かに", "蟹", "カニ"],
         }
+
+        def dish_contains_allergen(dish_db: DishDB, allergen: str) -> bool:
+            """料理の食材にアレルゲンが含まれているかチェック"""
+            categories = allergen_food_categories.get(allergen, [])
+            keywords = allergen_food_keywords.get(allergen, [])
+            for ing in dish_db.ingredients:
+                if ing.food:
+                    # カテゴリでチェック（卵類、乳類など）
+                    if ing.food.category in categories:
+                        return True
+                    # キーワードでチェック
+                    if any(kw in ing.food.name for kw in keywords):
+                        return True
+            return False
+
         for allergen in excluded_allergens:
-            keywords = allergen_keywords.get(allergen, [])
-            dishes = [
-                d for d in dishes
-                if not any(kw in d.name for kw in keywords)
-            ]
+            dishes_db = [d for d in dishes_db if not dish_contains_allergen(d, allergen)]
+
+    # DBモデルをPydanticモデルに変換
+    dishes = [db_dish_to_model(d) for d in dishes_db]
 
     # 除外料理を適用
     dishes = [d for d in dishes if d.id not in excluded_dish_ids]
