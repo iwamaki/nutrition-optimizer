@@ -460,40 +460,102 @@ class SettingsScreen extends ConsumerWidget {
   void _showOtherNutrientsDialog(BuildContext context, SettingsState settingsState) {
     final target = settingsState.nutrientTarget;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('その他栄養素目標'),
-        content: SingleChildScrollView(
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildNutrientInfoRow('脂質', '${target.fatMin.toInt()} - ${target.fatMax.toInt()} g'),
-              _buildNutrientInfoRow('炭水化物', '${target.carbohydrateMin.toInt()} - ${target.carbohydrateMax.toInt()} g'),
-              _buildNutrientInfoRow('食物繊維', '${target.fiberMin.toInt()} g以上'),
-              _buildNutrientInfoRow('ナトリウム', '${target.sodiumMax.toInt()} mg以下'),
-              _buildNutrientInfoRow('カルシウム', '${target.calciumMin.toInt()} mg以上'),
-              _buildNutrientInfoRow('鉄', '${target.ironMin} mg以上'),
-              _buildNutrientInfoRow('ビタミンA', '${target.vitaminAMin.toInt()} μgRAE以上'),
-              _buildNutrientInfoRow('ビタミンC', '${target.vitaminCMin.toInt()} mg以上'),
-              _buildNutrientInfoRow('ビタミンD', '${target.vitaminDMin} μg以上'),
-              const SizedBox(height: 16),
-              Text(
-                '※ これらの値は厚生労働省の「日本人の食事摂取基準」に基づく推奨値です。',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '栄養素目標一覧',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('閉じる'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    // 三大栄養素
+                    _buildNutrientSection(context, '三大栄養素'),
+                    _buildNutrientInfoRow('脂質', '${target.fatMin.toInt()} - ${target.fatMax.toInt()} g'),
+                    _buildNutrientInfoRow('炭水化物', '${target.carbohydrateMin.toInt()} - ${target.carbohydrateMax.toInt()} g'),
+                    _buildNutrientInfoRow('食物繊維', '${target.fiberMin.toInt()} g以上'),
+
+                    const SizedBox(height: 16),
+                    // ミネラル
+                    _buildNutrientSection(context, 'ミネラル'),
+                    _buildNutrientInfoRow('ナトリウム', '${target.sodiumMax.toInt()} mg以下'),
+                    _buildNutrientInfoRow('カリウム', '${target.potassiumMin.toInt()} mg以上'),
+                    _buildNutrientInfoRow('カルシウム', '${target.calciumMin.toInt()} mg以上'),
+                    _buildNutrientInfoRow('マグネシウム', '${target.magnesiumMin.toInt()} mg以上'),
+                    _buildNutrientInfoRow('鉄', '${target.ironMin} mg以上'),
+                    _buildNutrientInfoRow('亜鉛', '${target.zincMin.toInt()} mg以上'),
+
+                    const SizedBox(height: 16),
+                    // 脂溶性ビタミン
+                    _buildNutrientSection(context, '脂溶性ビタミン'),
+                    _buildNutrientInfoRow('ビタミンA', '${target.vitaminAMin.toInt()} μgRAE以上'),
+                    _buildNutrientInfoRow('ビタミンD', '${target.vitaminDMin} μg以上'),
+                    _buildNutrientInfoRow('ビタミンE', '${target.vitaminEMin} mg以上'),
+                    _buildNutrientInfoRow('ビタミンK', '${target.vitaminKMin.toInt()} μg以上'),
+
+                    const SizedBox(height: 16),
+                    // 水溶性ビタミン
+                    _buildNutrientSection(context, '水溶性ビタミン'),
+                    _buildNutrientInfoRow('ビタミンB1', '${target.vitaminB1Min} mg以上'),
+                    _buildNutrientInfoRow('ビタミンB2', '${target.vitaminB2Min} mg以上'),
+                    _buildNutrientInfoRow('ビタミンB6', '${target.vitaminB6Min} mg以上'),
+                    _buildNutrientInfoRow('ビタミンB12', '${target.vitaminB12Min} μg以上'),
+                    _buildNutrientInfoRow('ナイアシン', '${target.niacinMin} mgNE以上'),
+                    _buildNutrientInfoRow('パントテン酸', '${target.pantothenicAcidMin} mg以上'),
+                    _buildNutrientInfoRow('ビオチン', '${target.biotinMin.toInt()} μg以上'),
+                    _buildNutrientInfoRow('葉酸', '${target.folateMin.toInt()} μg以上'),
+                    _buildNutrientInfoRow('ビタミンC', '${target.vitaminCMin.toInt()} mg以上'),
+
+                    const SizedBox(height: 24),
+                    Text(
+                      '※ これらの値は厚生労働省の「日本人の食事摂取基準（2020年版）」に基づく推奨値です。',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('閉じる'),
-          ),
-        ],
+      ),
+    );
+  }
+
+  Widget _buildNutrientSection(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
       ),
     );
   }
@@ -512,24 +574,97 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Widget _buildAllergenSettings(BuildContext context, WidgetRef ref, SettingsState settingsState) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: Allergen.values.map((allergen) {
-          final isSelected = settingsState.excludedAllergens.contains(allergen);
-          return FilterChip(
-            label: Text(allergen.displayName),
-            selected: isSelected,
-            onSelected: (_) {
-              ref.read(settingsNotifierProvider.notifier).toggleAllergen(allergen);
-            },
-            avatar: isSelected
-                ? const Icon(Icons.block, size: 18)
-                : const Icon(Icons.check_circle_outline, size: 18),
+    final count = settingsState.excludedAllergens.length;
+    final displayText = count == 0
+        ? 'なし'
+        : settingsState.excludedAllergens.map((a) => a.displayName).join(', ');
+
+    return ListTile(
+      leading: const Icon(Icons.warning_amber),
+      title: const Text('除外するアレルゲン'),
+      subtitle: Text(
+        displayText,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (count > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count件',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
+              ),
+            ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right),
+        ],
+      ),
+      onTap: () => _showAllergenModal(context, ref),
+    );
+  }
+
+  void _showAllergenModal(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final settingsState = ref.watch(settingsNotifierProvider);
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'アレルゲン除外',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('完了'),
+                      ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    '選択したアレルゲンを含む食材が使われた料理を除外します',
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...Allergen.values.map((allergen) {
+                  final isSelected = settingsState.excludedAllergens.contains(allergen);
+                  return CheckboxListTile(
+                    title: Text(allergen.displayName),
+                    value: isSelected,
+                    activeColor: Theme.of(context).colorScheme.error,
+                    onChanged: (_) {
+                      ref.read(settingsNotifierProvider.notifier).toggleAllergen(allergen);
+                    },
+                  );
+                }),
+                const SizedBox(height: 16),
+              ],
+            ),
           );
-        }).toList(),
+        },
       ),
     );
   }
