@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'presentation/screens/main_scaffold.dart';
+import 'presentation/screens/splash_screen.dart';
 
 void main() {
   runApp(
@@ -39,7 +39,7 @@ class NutritionOptimizerApp extends StatelessWidget {
           ThemeData.dark().textTheme,
         ),
       ),
-      home: const MainScaffold(),
+      home: const SplashScreen(),
     );
   }
 }
