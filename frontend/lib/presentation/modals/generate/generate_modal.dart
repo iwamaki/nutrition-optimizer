@@ -69,17 +69,18 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
 
   Widget _buildHeader(BuildContext context, GenerateModalState state) {
     final titles = ['基本設定', 'お気に入り', '手持ち食材', '献立確認'];
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
+        color: colorScheme.primaryContainer,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.close),
-            color: Theme.of(context).colorScheme.onPrimary,
+            color: colorScheme.onPrimaryContainer,
             onPressed: () {
               // 生成結果のみクリア（設定は保持）
               ref.read(generateModalControllerProvider.notifier).resetForNextSession();
@@ -90,14 +91,14 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
             child: Text(
               '献立を生成 - ${titles[state.currentStep]}',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimary,
+                    color: colorScheme.onPrimaryContainer,
                   ),
               textAlign: TextAlign.center,
             ),
           ),
           IconButton(
             icon: const Icon(Icons.restart_alt),
-            color: Theme.of(context).colorScheme.onPrimary,
+            color: colorScheme.onPrimaryContainer,
             tooltip: 'デフォルト設定に戻す',
             onPressed: () => _showResetConfirmDialog(context),
           ),

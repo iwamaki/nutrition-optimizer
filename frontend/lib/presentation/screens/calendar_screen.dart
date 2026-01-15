@@ -84,8 +84,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('献立カレンダー'),
-        backgroundColor: const Color(0xFF2196F3),
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       body: _buildBody(context, menuState),
     );
@@ -395,10 +395,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
               border: isDropTarget
-                  ? Border.all(color: const Color(0xFF2196F3), width: 2)
+                  ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
                   : null,
               color: isDropTarget
-                  ? const Color(0xFF2196F3).withValues(alpha: 0.1)
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
                   : null,
             ),
             child: _CompactMealCard(
@@ -507,8 +507,9 @@ class _DraggingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
-      color: const Color(0xFFE3F2FD),
+      color: colorScheme.primaryContainer,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
@@ -520,19 +521,22 @@ class _DraggingCard extends StatelessWidget {
                 children: [
                   Text(
                     '${_getMealEmoji(mealType)} ${portion.dish.name}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   Text(
                     '${portion.calories.toInt()} kcal ← ドラッグ中',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF1565C0),
+                      color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.drag_handle, color: Color(0xFF2196F3)),
+            Icon(Icons.drag_handle, color: colorScheme.primary),
           ],
         ),
       ),
@@ -567,14 +571,15 @@ class _CompactMealCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: EdgeInsets.zero,
       elevation: isDropTarget ? 2 : 0,
       color: isDropTarget
-          ? const Color(0xFFE3F2FD)
+          ? colorScheme.primaryContainer
           : isDragging
               ? Colors.grey.shade200
-              : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
@@ -609,7 +614,7 @@ class _CompactMealCard extends StatelessWidget {
                       '${portion.calories.toInt()} kcal',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             fontSize: 10,
-                            color: Theme.of(context).colorScheme.outline,
+                            color: colorScheme.outline,
                           ),
                     ),
                   ],
@@ -620,8 +625,8 @@ class _CompactMealCard extends StatelessWidget {
                 Icons.drag_indicator,
                 size: 16,
                 color: isDropTarget
-                    ? const Color(0xFF2196F3)
-                    : Theme.of(context).colorScheme.outline.withValues(alpha: 0.4),
+                    ? colorScheme.primary
+                    : colorScheme.outline.withValues(alpha: 0.4),
               ),
             ],
           ),

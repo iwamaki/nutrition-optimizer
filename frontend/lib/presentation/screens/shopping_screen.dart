@@ -15,7 +15,8 @@ class ShoppingScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('買い物リスト'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
         actions: [
           if (shoppingState.items.isNotEmpty)
             Row(

@@ -21,7 +21,7 @@ class NutritionOptimizerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4CAF50),
+          seedColor: const Color(0xFFFF9800),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -31,7 +31,7 @@ class NutritionOptimizerApp extends StatelessWidget {
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4CAF50),
+          seedColor: const Color(0xFFFF9800),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,

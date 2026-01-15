@@ -15,7 +15,8 @@ class SettingsScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(
           title: const Text('設定'),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -24,7 +25,8 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('設定'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       body: ListView(
         children: [
