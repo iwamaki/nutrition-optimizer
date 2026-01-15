@@ -327,11 +327,10 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
 
     CSVフォーマット:
     name,category,meal_types,storage_days,ingredients,instructions
-    白ごはん,主食,"breakfast,lunch,dinner",0,"6:150:蒸す:01088","米を研いで炊飯器で炊く"
+    白ごはん,主食,"breakfast,lunch,dinner",0,"6:150:蒸す","米を研いで炊飯器で炊く"
 
-    - ingredients: ingredient_id:量g:調理法:mext_code を | で区切り
-      - ingredient_id: 基本食材マスタのID（買い物リスト用）
-      - mext_code: 文科省食品コード（栄養素計算用）
+    - ingredients: ingredient_id:量g:調理法 を | で区切り
+      - ingredient_id: 基本食材マスタのID（mext_codeは自動取得）
     """
     if not csv_path.exists():
         print(f"CSVファイルが見つかりません: {csv_path}")
@@ -358,7 +357,7 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
             if existing:
                 continue
 
-            # 材料をパース（新フォーマット: ingredient_id:amount:cooking_method:mext_code）
+            # 材料をパース（フォーマット: ingredient_id:amount:cooking_method）
             ingredients_str = row.get("ingredients", "").strip()
             parsed_ingredients = []
             ingredient_errors = []
@@ -366,7 +365,7 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
             if ingredients_str:
                 for ing_str in ingredients_str.split("|"):
                     parts = ing_str.strip().split(":")
-                    if len(parts) < 4:
+                    if len(parts) < 3:
                         ingredient_errors.append(f"形式エラー: {ing_str}")
                         continue
 
@@ -378,12 +377,22 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
                         continue
 
                     cooking_method = parts[2].strip()
-                    mext_code = parts[3].strip()
 
-                    # mext_code で食品を検索
+                    # ingredient_id から IngredientDB を検索して mext_code を取得
+                    ingredient = db.query(IngredientDB).filter(IngredientDB.id == ingredient_id).first()
+                    if not ingredient:
+                        ingredient_errors.append(f"食材IDが見つかりません: {ingredient_id}")
+                        continue
+
+                    mext_code = ingredient.mext_code
+                    if not mext_code:
+                        ingredient_errors.append(f"食材 '{ingredient.name}' にmext_codeがありません")
+                        continue
+
+                    # mext_code で FoodDB を検索
                     food = db.query(FoodDB).filter(FoodDB.mext_code == mext_code).first()
                     if not food:
-                        ingredient_errors.append(f"食品コードが見つかりません: '{mext_code}'")
+                        ingredient_errors.append(f"食品コードが見つかりません: '{mext_code}' (食材: {ingredient.name})")
                         continue
 
                     parsed_ingredients.append({
