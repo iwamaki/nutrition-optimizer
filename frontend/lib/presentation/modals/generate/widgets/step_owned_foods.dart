@@ -51,9 +51,6 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         const SizedBox(height: 12),
         _buildSearchBarWithCategory(context, state, controller),
         const SizedBox(height: 12),
-        if (state.ownedIngredientIds.isNotEmpty)
-          _buildSelectedCount(context, state, controller),
-        if (state.ownedIngredientIds.isNotEmpty) const SizedBox(height: 12),
         if (state.isSearching || state.isLoadingIngredients)
           const Padding(
             padding: EdgeInsets.all(32),
@@ -433,32 +430,4 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     );
   }
 
-  Widget _buildSelectedCount(
-    BuildContext context,
-    GenerateModalState state,
-    GenerateModalController controller,
-  ) {
-    return Card(
-      color: const Color(0xFFE8F5E9),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            const Icon(Icons.check, color: Color(0xFF2E7D32), size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '選択中: ${state.ownedIngredientIds.length}品目',
-                style: const TextStyle(color: Color(0xFF2E7D32)),
-              ),
-            ),
-            TextButton(
-              onPressed: controller.clearOwnedIngredients,
-              child: const Text('クリア'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

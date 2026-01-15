@@ -29,8 +29,9 @@ class SettingsState {
   int get defaultPeople => settings.defaultPeople;
   Set<Allergen> get excludedAllergens => settings.excludedAllergens;
   NutrientTarget get nutrientTarget => settings.nutrientTarget;
-  bool get preferBatchCooking => settings.preferBatchCooking;
   Set<int> get favoriteDishIds => settings.favoriteDishIds;
+  String get varietyLevel => settings.varietyLevel;
+  Map<String, MealSetting> get mealSettings => settings.mealSettings;
 
   bool isFavorite(int dishId) => settings.favoriteDishIds.contains(dishId);
 }
@@ -50,7 +51,6 @@ class SettingsNotifier extends _$SettingsNotifier {
 
       final days = prefs.getInt('defaultDays') ?? 3;
       final people = prefs.getInt('defaultPeople') ?? 2;
-      final batchCooking = prefs.getBool('preferBatchCooking') ?? false;
 
       final allergenList = prefs.getStringList('excludedAllergens') ?? [];
       final allergens = allergenList
@@ -69,12 +69,23 @@ class SettingsNotifier extends _$SettingsNotifier {
       final proteinMin = prefs.getDouble('proteinMin') ?? 60;
       final proteinMax = prefs.getDouble('proteinMax') ?? 100;
 
+      // 新しい設定項目
+      final varietyLevel = prefs.getString('varietyLevel') ?? 'normal';
+
+      // 朝昼夜のプリセット
+      final mealSettings = <String, MealSetting>{};
+      for (final mealType in ['breakfast', 'lunch', 'dinner']) {
+        final enabled = prefs.getBool('meal_${mealType}_enabled') ?? true;
+        final presetStr = prefs.getString('meal_${mealType}_preset');
+        final preset = _parseMealPreset(presetStr, mealType);
+        mealSettings[mealType] = MealSetting(enabled: enabled, preset: preset);
+      }
+
       state = SettingsState(
         settings: AppSettings(
           defaultDays: days,
           defaultPeople: people,
           excludedAllergens: allergens,
-          preferBatchCooking: batchCooking,
           favoriteDishIds: favorites,
           nutrientTarget: NutrientTarget(
             caloriesMin: caloriesMin,
@@ -82,12 +93,25 @@ class SettingsNotifier extends _$SettingsNotifier {
             proteinMin: proteinMin,
             proteinMax: proteinMax,
           ),
+          varietyLevel: varietyLevel,
+          mealSettings: mealSettings,
         ),
         isLoading: false,
       );
     } catch (e) {
       state = const SettingsState(isLoading: false);
     }
+  }
+
+  MealPreset _parseMealPreset(String? str, String mealType) {
+    if (str == null) {
+      // デフォルト値
+      return defaultMealPresets[mealType] ?? MealPreset.standard;
+    }
+    for (final preset in MealPreset.values) {
+      if (preset.apiValue == str) return preset;
+    }
+    return defaultMealPresets[mealType] ?? MealPreset.standard;
   }
 
   Future<void> _saveSettings() async {
@@ -97,7 +121,6 @@ class SettingsNotifier extends _$SettingsNotifier {
 
       await prefs.setInt('defaultDays', settings.defaultDays);
       await prefs.setInt('defaultPeople', settings.defaultPeople);
-      await prefs.setBool('preferBatchCooking', settings.preferBatchCooking);
       await prefs.setStringList(
         'excludedAllergens',
         settings.excludedAllergens.map((a) => a.displayName).toList(),
@@ -110,6 +133,15 @@ class SettingsNotifier extends _$SettingsNotifier {
       await prefs.setDouble('caloriesMax', settings.nutrientTarget.caloriesMax);
       await prefs.setDouble('proteinMin', settings.nutrientTarget.proteinMin);
       await prefs.setDouble('proteinMax', settings.nutrientTarget.proteinMax);
+
+      // 新しい設定項目
+      await prefs.setString('varietyLevel', settings.varietyLevel);
+
+      // 朝昼夜のプリセット
+      for (final entry in settings.mealSettings.entries) {
+        await prefs.setBool('meal_${entry.key}_enabled', entry.value.enabled);
+        await prefs.setString('meal_${entry.key}_preset', entry.value.preset.apiValue);
+      }
     } catch (e) {
       // 保存失敗を無視
     }
@@ -149,9 +181,38 @@ class SettingsNotifier extends _$SettingsNotifier {
     await _saveSettings();
   }
 
-  Future<void> setPreferBatchCooking(bool value) async {
+  Future<void> setVarietyLevel(String level) async {
     state = state.copyWith(
-      settings: state.settings.copyWith(preferBatchCooking: value),
+      settings: state.settings.copyWith(varietyLevel: level),
+    );
+    await _saveSettings();
+  }
+
+  Future<void> setMealSetting(String mealType, MealSetting setting) async {
+    final current = Map<String, MealSetting>.from(state.settings.mealSettings);
+    current[mealType] = setting;
+    state = state.copyWith(
+      settings: state.settings.copyWith(mealSettings: current),
+    );
+    await _saveSettings();
+  }
+
+  Future<void> setMealEnabled(String mealType, bool enabled) async {
+    final current = Map<String, MealSetting>.from(state.settings.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+    current[mealType] = currentSetting.copyWith(enabled: enabled);
+    state = state.copyWith(
+      settings: state.settings.copyWith(mealSettings: current),
+    );
+    await _saveSettings();
+  }
+
+  Future<void> setMealPreset(String mealType, MealPreset preset) async {
+    final current = Map<String, MealSetting>.from(state.settings.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+    current[mealType] = currentSetting.copyWith(preset: preset);
+    state = state.copyWith(
+      settings: state.settings.copyWith(mealSettings: current),
     );
     await _saveSettings();
   }

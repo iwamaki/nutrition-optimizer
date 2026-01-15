@@ -68,6 +68,8 @@ class StepConfirmation extends ConsumerWidget {
       controller: scrollController,
       padding: const EdgeInsets.all(16),
       children: [
+        _buildConditionsSummary(context, state),
+        const SizedBox(height: 16),
         _buildExplanationCard(context),
         const SizedBox(height: 16),
         _buildAchievementCard(context, state.generatedPlan!),
@@ -79,6 +81,98 @@ class StepConfirmation extends ConsumerWidget {
         ],
         const SizedBox(height: 16),
       ],
+    );
+  }
+
+  Widget _buildConditionsSummary(BuildContext context, GenerateModalState state) {
+    // 食事設定のサマリーを作成
+    final mealSummary = <String>[];
+    final meals = {'breakfast': '朝', 'lunch': '昼', 'dinner': '夜'};
+    for (final entry in meals.entries) {
+      final setting = state.mealSettings[entry.key];
+      if (setting != null && setting.enabled) {
+        mealSummary.add('${entry.value}:${setting.preset.displayName}');
+      }
+    }
+
+    // バリエーション設定
+    String varietyText;
+    switch (state.varietyLevel) {
+      case 'small':
+        varietyText = '繰り返す';
+        break;
+      case 'large':
+        varietyText = '繰り返さない';
+        break;
+      default:
+        varietyText = '適度に';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.settings, size: 16, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  '生成条件',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _buildConditionChip(context, '${state.days}日間'),
+                _buildConditionChip(context, '${state.people}人分'),
+                _buildConditionChip(context, mealSummary.join(' / ')),
+                _buildConditionChip(context, '繰り返し: $varietyText'),
+                if (state.excludedAllergens.isNotEmpty)
+                  _buildConditionChip(
+                    context,
+                    '除外: ${state.excludedAllergens.map((a) => a.displayName).join(',')}',
+                    isWarning: true,
+                  ),
+                if (state.ownedIngredientIds.isNotEmpty)
+                  _buildConditionChip(context, '手持ち食材: ${state.ownedIngredientIds.length}品'),
+                if (state.favoriteDishes.isNotEmpty)
+                  _buildConditionChip(
+                    context,
+                    'お気に入り: ${state.favoriteDishes.length}品${state.guaranteeFavorites ? "(確定)" : ""}',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConditionChip(BuildContext context, String label, {bool isWarning = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isWarning
+            ? Colors.orange.shade50
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: isWarning ? Border.all(color: Colors.orange.shade200) : null,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: isWarning
+              ? Colors.orange.shade800
+              : Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     );
   }
 
@@ -97,6 +191,21 @@ class StepConfirmation extends ConsumerWidget {
   }
 
   Widget _buildAchievementCard(BuildContext context, MultiDayMenuPlan plan) {
+    // 表示する栄養素の定義（キー、ラベル、色）
+    final nutrients = [
+      {'key': 'calories', 'label': 'カロリー', 'color': Colors.orange},
+      {'key': 'protein', 'label': 'タンパク質', 'color': Colors.red},
+      {'key': 'fat', 'label': '脂質', 'color': Colors.amber},
+      {'key': 'carbohydrate', 'label': '炭水化物', 'color': Colors.brown},
+      {'key': 'fiber', 'label': '食物繊維', 'color': Colors.green},
+      {'key': 'sodium', 'label': 'ナトリウム', 'color': Colors.purple},
+      {'key': 'calcium', 'label': 'カルシウム', 'color': Colors.blue},
+      {'key': 'iron', 'label': '鉄', 'color': Colors.grey},
+      {'key': 'vitamin_a', 'label': 'ビタミンA', 'color': Colors.deepOrange},
+      {'key': 'vitamin_c', 'label': 'ビタミンC', 'color': Colors.lime},
+      {'key': 'vitamin_d', 'label': 'ビタミンD', 'color': Colors.teal},
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -128,23 +237,21 @@ class StepConfirmation extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 16),
-            NutrientProgressBar(
-              label: 'カロリー',
-              value: plan.overallAchievement['calories'] ?? 0,
-              color: Colors.orange,
-            ),
-            const SizedBox(height: 8),
-            NutrientProgressBar(
-              label: 'タンパク質',
-              value: plan.overallAchievement['protein'] ?? 0,
-              color: Colors.red,
-            ),
-            const SizedBox(height: 8),
-            NutrientProgressBar(
-              label: '食物繊維',
-              value: plan.overallAchievement['fiber'] ?? 0,
-              color: Colors.green,
-            ),
+            ...nutrients.map((n) {
+              final value = plan.overallAchievement[n['key'] as String] ?? 0;
+              // 値が0の場合はスキップ（データがない栄養素）
+              if (value == 0 && !plan.overallAchievement.containsKey(n['key'])) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: NutrientProgressBar(
+                  label: n['label'] as String,
+                  value: value.toDouble(),
+                  color: n['color'] as Color,
+                ),
+              );
+            }),
           ],
         ),
       ),

@@ -28,6 +28,9 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
             defaultDays: settings.defaultDays,
             defaultPeople: settings.defaultPeople,
             excludedAllergens: settings.excludedAllergens,
+            varietyLevel: settings.varietyLevel,
+            mealSettings: settings.mealSettings,
+            nutrientTarget: settings.nutrientTarget,
           );
     });
   }
@@ -77,7 +80,11 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
           IconButton(
             icon: const Icon(Icons.close),
             color: Theme.of(context).colorScheme.onPrimary,
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              // 生成結果のみクリア（設定は保持）
+              ref.read(generateModalControllerProvider.notifier).resetForNextSession();
+              Navigator.pop(context);
+            },
           ),
           Expanded(
             child: Text(
@@ -88,7 +95,12 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 48),
+          IconButton(
+            icon: const Icon(Icons.restart_alt),
+            color: Theme.of(context).colorScheme.onPrimary,
+            tooltip: 'デフォルト設定に戻す',
+            onPressed: () => _showResetConfirmDialog(context),
+          ),
         ],
       ),
     );
@@ -190,9 +202,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
         return StepConfirmation(
           scrollController: scrollController,
           onRetry: () {
-            ref.read(generateModalControllerProvider.notifier).generatePlan(
-                  target: ref.read(settingsNotifierProvider).nutrientTarget,
-                );
+            ref.read(generateModalControllerProvider.notifier).generatePlan();
           },
         );
       default:
@@ -232,9 +242,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
               child: OutlinedButton.icon(
                 onPressed: state.isGenerating
                     ? null
-                    : () => controller.regeneratePlan(
-                          target: ref.read(settingsNotifierProvider).nutrientTarget,
-                        ),
+                    : () => controller.regeneratePlan(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('再生成'),
               ),
@@ -283,9 +291,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
         if (state.generatedPlan != null) {
           _confirmPlan(state);
         } else {
-          controller.generatePlan(
-            target: ref.read(settingsNotifierProvider).nutrientTarget,
-          );
+          controller.generatePlan();
         }
         break;
     }
@@ -297,10 +303,46 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
       ref.read(menuNotifierProvider.notifier).setPlan(state.generatedPlan!);
       // 買い物リストに反映
       ref.read(shoppingNotifierProvider.notifier).updateFromPlan(state.generatedPlan!);
+      // 生成結果のみクリア（設定は保持して次回引き継ぎ）
+      ref.read(generateModalControllerProvider.notifier).resetForNextSession();
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('献立を生成しました')),
       );
     }
+  }
+
+  void _showResetConfirmDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('設定をリセット'),
+        content: const Text('前回の設定を破棄して、設定画面で保存したデフォルト値に戻しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final settings = ref.read(settingsNotifierProvider);
+              ref.read(generateModalControllerProvider.notifier).resetToDefaults(
+                    defaultDays: settings.defaultDays,
+                    defaultPeople: settings.defaultPeople,
+                    excludedAllergens: settings.excludedAllergens,
+                    varietyLevel: settings.varietyLevel,
+                    mealSettings: settings.mealSettings,
+                    nutrientTarget: settings.nutrientTarget,
+                  );
+              Navigator.pop(dialogContext);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('デフォルト設定に戻しました')),
+              );
+            },
+            child: const Text('リセット'),
+          ),
+        ],
+      ),
+    );
   }
 }

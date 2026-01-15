@@ -22,6 +22,8 @@ class GenerateModalState {
   final String varietyLevel;
   // 朝昼夜別の設定（プリセット or カスタム）
   final Map<String, MealSetting> mealSettings;
+  // 栄養目標
+  final NutrientTarget nutrientTarget;
 
   // Step1: お気に入り料理
   final List<Dish> favoriteDishes; // お気に入り料理の実データ
@@ -54,6 +56,7 @@ class GenerateModalState {
       'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
       'dinner': MealSetting(enabled: true, preset: MealPreset.full),
     },
+    this.nutrientTarget = const NutrientTarget(),
     this.favoriteDishes = const [],
     this.isLoadingFavorites = false,
     this.guaranteeFavorites = false,
@@ -77,6 +80,7 @@ class GenerateModalState {
     String? batchCookingLevel,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
+    NutrientTarget? nutrientTarget,
     List<Dish>? favoriteDishes,
     bool? isLoadingFavorites,
     bool? guaranteeFavorites,
@@ -101,6 +105,7 @@ class GenerateModalState {
       batchCookingLevel: batchCookingLevel ?? this.batchCookingLevel,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
+      nutrientTarget: nutrientTarget ?? this.nutrientTarget,
       favoriteDishes: favoriteDishes ?? this.favoriteDishes,
       isLoadingFavorites: isLoadingFavorites ?? this.isLoadingFavorites,
       guaranteeFavorites: guaranteeFavorites ?? this.guaranteeFavorites,
@@ -133,22 +138,77 @@ const ingredientCategories = [
 ];
 
 /// 献立生成モーダルのコントローラ
-@riverpod
+/// keepAlive: true で設定をキャッシュし、次回も引き継ぐ
+@Riverpod(keepAlive: true)
 class GenerateModalController extends _$GenerateModalController {
+  /// 初回かどうか（設定画面のデフォルト値を適用するか判定用）
+  bool _isInitialized = false;
+
+  bool get isInitialized => _isInitialized;
+
   @override
   GenerateModalState build() => const GenerateModalState();
 
-  /// 初期設定を読み込み
+  /// 初期設定を読み込み（初回のみ）
   void initFromSettings({
     required int defaultDays,
     required int defaultPeople,
     required Set<Allergen> excludedAllergens,
+    required String varietyLevel,
+    required Map<String, MealSetting> mealSettings,
+    required NutrientTarget nutrientTarget,
   }) {
+    // 初回のみデフォルト設定を適用
+    if (!_isInitialized) {
+      state = state.copyWith(
+        days: defaultDays,
+        people: defaultPeople,
+        excludedAllergens: excludedAllergens,
+        varietyLevel: varietyLevel,
+        mealSettings: mealSettings,
+        nutrientTarget: nutrientTarget,
+      );
+      _isInitialized = true;
+    }
+  }
+
+  /// モーダルを閉じる時に呼ぶ（生成結果のみクリアし、設定は保持）
+  void resetForNextSession() {
     state = state.copyWith(
+      currentStep: 0,
+      generatedPlan: null,
+      clearPlan: true,
+      error: null,
+      clearError: true,
+      excludedDishIdsInStep3: {},
+      isGenerating: false,
+    );
+  }
+
+  /// キャッシュをクリアして設定画面のデフォルト値に戻す
+  void resetToDefaults({
+    required int defaultDays,
+    required int defaultPeople,
+    required Set<Allergen> excludedAllergens,
+    required String varietyLevel,
+    required Map<String, MealSetting> mealSettings,
+    required NutrientTarget nutrientTarget,
+  }) {
+    // キャッシュ状態をリセット
+    _isInitialized = false;
+
+    // デフォルト値で状態を再初期化
+    state = GenerateModalState(
       days: defaultDays,
       people: defaultPeople,
       excludedAllergens: excludedAllergens,
+      varietyLevel: varietyLevel,
+      mealSettings: mealSettings,
+      nutrientTarget: nutrientTarget,
     );
+
+    // 再度初期化済みにマーク
+    _isInitialized = true;
   }
 
   // === Step Navigation ===
@@ -235,6 +295,25 @@ class GenerateModalController extends _$GenerateModalController {
 
   void setVarietyLevel(String level) {
     state = state.copyWith(varietyLevel: level);
+  }
+
+  // === 栄養目標設定 ===
+  void setCaloriesRange(double min, double max) {
+    state = state.copyWith(
+      nutrientTarget: state.nutrientTarget.copyWith(
+        caloriesMin: min,
+        caloriesMax: max,
+      ),
+    );
+  }
+
+  void setProteinRange(double min, double max) {
+    state = state.copyWith(
+      nutrientTarget: state.nutrientTarget.copyWith(
+        proteinMin: min,
+        proteinMax: max,
+      ),
+    );
   }
 
   // === 朝昼夜別設定 ===
@@ -366,7 +445,7 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(excludedDishIdsInStep3: current);
   }
 
-  Future<void> generatePlan({NutrientTarget? target, List<int>? preferredDishIds}) async {
+  Future<void> generatePlan({List<int>? preferredDishIds}) async {
     state = state.copyWith(
       isGenerating: true,
       clearError: true,
@@ -382,7 +461,7 @@ class GenerateModalController extends _$GenerateModalController {
       final plan = await repo.generateMultiDayPlan(
         days: state.days,
         people: state.people,
-        target: target,
+        target: state.nutrientTarget,
         excludedAllergens: state.excludedAllergens.toList(),
         // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
         keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
@@ -399,7 +478,7 @@ class GenerateModalController extends _$GenerateModalController {
     }
   }
 
-  Future<void> regeneratePlan({NutrientTarget? target}) async {
+  Future<void> regeneratePlan() async {
     state = state.copyWith(isGenerating: true, clearError: true);
 
     try {
@@ -411,7 +490,7 @@ class GenerateModalController extends _$GenerateModalController {
       final plan = await repo.refineMultiDayPlan(
         days: state.days,
         people: state.people,
-        target: target,
+        target: state.nutrientTarget,
         // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
         keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
         excludeDishIds: state.excludedDishIdsInStep3.toList(),

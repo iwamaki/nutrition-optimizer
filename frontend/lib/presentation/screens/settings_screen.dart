@@ -32,7 +32,12 @@ class SettingsScreen extends ConsumerWidget {
           _buildSectionHeader(context, 'デフォルト設定'),
           _buildDaysSetting(context, ref, settingsState),
           _buildPeopleSetting(context, ref, settingsState),
-          _buildBatchCookingSetting(context, ref, settingsState),
+          _buildVarietySetting(context, ref, settingsState),
+          const Divider(),
+
+          // 食事プリセットセクション
+          _buildSectionHeader(context, '食事プリセット'),
+          _buildMealPresetSettings(context, ref, settingsState),
           const Divider(),
 
           // 栄養目標セクション
@@ -130,15 +135,161 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBatchCookingSetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
-    return SwitchListTile(
-      secondary: const Icon(Icons.kitchen),
-      title: const Text('作り置き優先'),
-      subtitle: const Text('調理回数を減らして効率化'),
-      value: settingsState.preferBatchCooking,
-      onChanged: (value) {
-        ref.read(settingsNotifierProvider.notifier).setPreferBatchCooking(value);
-      },
+  Widget _buildVarietySetting(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    String getLabel(String level) {
+      switch (level) {
+        case 'small':
+          return '繰り返す（作り置き向き）';
+        case 'large':
+          return '繰り返さない（バリエーション重視）';
+        default:
+          return '適度に';
+      }
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.refresh),
+      title: const Text('料理の繰り返し'),
+      subtitle: Text(getLabel(settingsState.varietyLevel)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showVarietyDialog(context, ref, settingsState),
+    );
+  }
+
+  void _showVarietyDialog(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('料理の繰り返し', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            ListTile(
+              leading: settingsState.varietyLevel == 'small'
+                  ? const Icon(Icons.check, color: Colors.green)
+                  : const SizedBox(width: 24),
+              title: const Text('繰り返す'),
+              subtitle: const Text('同じ料理を複数日で使用（作り置き向き）'),
+              onTap: () {
+                ref.read(settingsNotifierProvider.notifier).setVarietyLevel('small');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: settingsState.varietyLevel == 'normal'
+                  ? const Icon(Icons.check, color: Colors.green)
+                  : const SizedBox(width: 24),
+              title: const Text('適度に'),
+              subtitle: const Text('バランス良く繰り返し'),
+              onTap: () {
+                ref.read(settingsNotifierProvider.notifier).setVarietyLevel('normal');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: settingsState.varietyLevel == 'large'
+                  ? const Icon(Icons.check, color: Colors.green)
+                  : const SizedBox(width: 24),
+              title: const Text('繰り返さない'),
+              subtitle: const Text('毎日違う料理（バリエーション重視）'),
+              onTap: () {
+                ref.read(settingsNotifierProvider.notifier).setVarietyLevel('large');
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMealPresetSettings(BuildContext context, WidgetRef ref, SettingsState settingsState) {
+    final meals = [
+      {'key': 'breakfast', 'label': '朝食', 'icon': Icons.wb_sunny},
+      {'key': 'lunch', 'label': '昼食', 'icon': Icons.wb_cloudy},
+      {'key': 'dinner', 'label': '夕食', 'icon': Icons.nights_stay},
+    ];
+
+    return Column(
+      children: meals.map((meal) {
+        final setting = settingsState.mealSettings[meal['key'] as String] ?? const MealSetting();
+        return ListTile(
+          leading: Icon(meal['icon'] as IconData),
+          title: Text(meal['label'] as String),
+          subtitle: Text(setting.enabled ? setting.preset.displayName : 'スキップ'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _showMealPresetDialog(
+            context,
+            ref,
+            meal['key'] as String,
+            meal['label'] as String,
+            settingsState,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  void _showMealPresetDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String mealType,
+    String mealLabel,
+    SettingsState settingsState,
+  ) {
+    final currentSetting = settingsState.mealSettings[mealType] ?? const MealSetting();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('$mealLabel のプリセット', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Row(
+                    children: [
+                      Text(currentSetting.enabled ? '有効' : 'スキップ'),
+                      Switch(
+                        value: currentSetting.enabled,
+                        onChanged: (value) {
+                          ref.read(settingsNotifierProvider.notifier).setMealEnabled(mealType, value);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            ...MealPreset.values.where((p) => p != MealPreset.custom).map((preset) {
+              return ListTile(
+                leading: currentSetting.preset == preset
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : const SizedBox(width: 24),
+                title: Text(preset.displayName),
+                subtitle: Text(preset.description),
+                enabled: currentSetting.enabled,
+                onTap: currentSetting.enabled
+                    ? () {
+                        ref.read(settingsNotifierProvider.notifier).setMealPreset(mealType, preset);
+                        Navigator.pop(context);
+                      }
+                    : null,
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 

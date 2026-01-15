@@ -326,16 +326,23 @@ class AppSettings {
   final int defaultPeople;
   final Set<Allergen> excludedAllergens;
   final NutrientTarget nutrientTarget;
-  final bool preferBatchCooking;
   final Set<int> favoriteDishIds;
+  // 献立生成のデフォルト設定
+  final String varietyLevel; // small/normal/large
+  final Map<String, MealSetting> mealSettings; // 朝昼夜のプリセット
 
   const AppSettings({
     this.defaultDays = 3,
     this.defaultPeople = 2,
     this.excludedAllergens = const {},
     this.nutrientTarget = const NutrientTarget(),
-    this.preferBatchCooking = false,
     this.favoriteDishIds = const {},
+    this.varietyLevel = 'normal',
+    this.mealSettings = const {
+      'breakfast': MealSetting(enabled: true, preset: MealPreset.light),
+      'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
+      'dinner': MealSetting(enabled: true, preset: MealPreset.full),
+    },
   });
 
   AppSettings copyWith({
@@ -343,16 +350,18 @@ class AppSettings {
     int? defaultPeople,
     Set<Allergen>? excludedAllergens,
     NutrientTarget? nutrientTarget,
-    bool? preferBatchCooking,
     Set<int>? favoriteDishIds,
+    String? varietyLevel,
+    Map<String, MealSetting>? mealSettings,
   }) {
     return AppSettings(
       defaultDays: defaultDays ?? this.defaultDays,
       defaultPeople: defaultPeople ?? this.defaultPeople,
       excludedAllergens: excludedAllergens ?? this.excludedAllergens,
       nutrientTarget: nutrientTarget ?? this.nutrientTarget,
-      preferBatchCooking: preferBatchCooking ?? this.preferBatchCooking,
       favoriteDishIds: favoriteDishIds ?? this.favoriteDishIds,
+      varietyLevel: varietyLevel ?? this.varietyLevel,
+      mealSettings: mealSettings ?? this.mealSettings,
     );
   }
 }
