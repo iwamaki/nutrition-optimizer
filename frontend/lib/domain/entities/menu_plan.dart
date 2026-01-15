@@ -255,12 +255,16 @@ class CookingTask {
 class ShoppingItem {
   final String foodName;
   final double totalAmount;
+  final String displayAmount;  // 表示用の量（例: "2", "1/2"）
+  final String unit;           // 単位（例: "本", "個", "g"）
   final String category;
   bool isChecked;
 
   ShoppingItem({
     required this.foodName,
     required this.totalAmount,
+    this.displayAmount = '',
+    this.unit = 'g',
     required this.category,
     this.isChecked = false,
   });
@@ -269,15 +273,26 @@ class ShoppingItem {
     return ShoppingItem(
       foodName: json['food_name'],
       totalAmount: (json['total_amount'] ?? 0).toDouble(),
-      category: json['category'],
+      displayAmount: json['display_amount'] ?? '',
+      unit: json['unit'] ?? 'g',
+      category: json['category'] ?? '',
     );
   }
 
+  /// 表示用の量（単位付き + グラム表示）
   String get amountDisplay {
-    if (totalAmount >= 1000) {
-      return '${(totalAmount / 1000).toStringAsFixed(1)}kg';
+    // 単位がgやkg、mlの場合は重量のみ
+    if (unit == 'g' || unit == 'kg' || unit == 'ml' || unit == 'L') {
+      if (totalAmount >= 1000) {
+        return '${(totalAmount / 1000).toStringAsFixed(1)}kg';
+      }
+      return '${totalAmount.toStringAsFixed(0)}$unit';
     }
-    return '${totalAmount.toStringAsFixed(0)}g';
+    // それ以外は「2本 (150g)」のような形式
+    final gramDisplay = totalAmount >= 1000
+        ? '${(totalAmount / 1000).toStringAsFixed(1)}kg'
+        : '${totalAmount.toStringAsFixed(0)}g';
+    return '$displayAmount$unit ($gramDisplay)';
   }
 }
 

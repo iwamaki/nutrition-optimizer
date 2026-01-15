@@ -401,6 +401,8 @@ class ShoppingItem(BaseModel):
     """買い物リストアイテム"""
     food_name: str
     total_amount: float = Field(description="合計量(g)")
+    display_amount: str = Field(default="", description="表示用の量（例: 2本, 1/2束）")
+    unit: str = Field(default="g", description="単位（個, 本, 束, 枚, パック, g）")
     category: str
 
 

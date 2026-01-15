@@ -4,6 +4,7 @@
 最適化の対象を「素材」から「料理」に変更。
 1食あたり「主食1 + 主菜1 + 副菜1-2 + 汁物0-1」の構成で最適化。
 """
+import re
 import uuid
 from pulp import LpProblem, LpMinimize, LpVariable, lpSum, LpStatus, value, PULP_CBC_CMD
 from sqlalchemy.orm import Session
@@ -710,7 +711,7 @@ def solve_multi_day_plan(
             prob += s[(d.id, t)] <= d.max_servings * x[(d.id, t)]
             prob += s[(d.id, t)] >= 1 * x[(d.id, t)]
 
-    # C2: 消費量は調理量以下（各調理に対して）
+    # C2: 消費量は調理量と一致（無駄な調理を避ける）
     for d in dishes:
         for t in range(1, days + 1):
             consumptions = []
@@ -720,7 +721,7 @@ def solve_multi_day_plan(
                     if key in q:
                         consumptions.append(q[key])
             if consumptions:
-                prob += lpSum(consumptions) <= s[(d.id, t)]
+                prob += lpSum(consumptions) == s[(d.id, t)]
 
     # C3: 消費変数と消費量のリンク
     # c=1（消費する）なら q>=1（最低1人前）、c=0なら q=0
@@ -960,21 +961,252 @@ def _calc_achievement(nutrients: dict, target: NutrientTarget) -> dict:
     return achievement
 
 
+# ========== 単位変換マッピング ==========
+# 食材名 -> (1単位あたりのグラム数, 単位名)
+UNIT_MAPPINGS: dict[str, tuple[float, str]] = {
+    # 野菜類
+    'にんじん': (150, '本'),
+    '玉ねぎ': (200, '個'),
+    'じゃがいも': (150, '個'),
+    'さつまいも': (200, '本'),
+    'キャベツ': (1000, '玉'),  # 1玉=1000g, 表示は分数で
+    'なす': (80, '本'),
+    'トマト': (150, '個'),
+    'ピーマン': (35, '個'),
+    '小松菜': (200, '束'),
+    'ほうれん草': (200, '束'),
+    'ニラ': (100, '束'),
+    'もやし': (200, '袋'),
+    'ねぎ': (100, '本'),
+    '青ねぎ': (100, '束'),
+    '大根': (900, '本'),  # 1本=900g
+    'ブロッコリー': (250, '株'),
+    'かぼちゃ': (800, '個'),  # 1個=800g
+    'オクラ': (10, '本'),
+    'レタス': (600, '玉'),  # 1玉=600g
+    'きゅうり': (100, '本'),
+    'ごぼう': (150, '本'),
+    'れんこん': (150, '節'),
+    '白菜': (1200, '株'),  # 1株=1200g
+    'セロリ': (100, '本'),
+    # 薬味
+    '生姜': (15, 'かけ'),
+    'にんにく': (5, '片'),
+    # 卵・豆腐
+    '卵': (50, '個'),
+    '木綿豆腐': (350, '丁'),
+    '絹ごし豆腐': (350, '丁'),
+    '油揚げ': (30, '枚'),
+    '厚揚げ': (150, '枚'),
+    # 肉類（塊・切り身）
+    '鶏肉': (250, '枚'),  # もも肉1枚目安
+    'もも肉': (250, '枚'),
+    '豚肉': (100, 'g'),  # gのまま
+    '牛肉': (100, 'g'),  # gのまま
+    'ベーコン': (18, '枚'),  # 薄切り1枚
+    'ウインナー': (20, '本'),
+    # 魚介類
+    '鮭': (80, '切れ'),
+    'さば': (100, '切れ'),
+    'あじ': (150, '尾'),
+    'えび': (15, '尾'),
+    # 主食
+    '白米': (150, '合'),
+    'パスタ': (100, 'g'),  # gのまま
+    'うどん': (200, '玉'),
+    'そば': (130, '束'),
+    '食パン': (60, '枚'),  # 6枚切り
+    # その他
+    '牛乳': (200, 'ml'),  # 比重≒1
+    'コーン': (190, '缶'),  # 小缶
+    '海苔': (3, '枚'),  # 焼き海苔1枚
+    '焼き海苔': (3, '枚'),
+    'わかめ': (5, 'g'),  # 乾燥わかめはgのまま
+}
+
+
+def _convert_to_display_unit(food_name: str, amount_g: float) -> tuple[str, str]:
+    """
+    グラム数を実用的な単位に変換
+
+    Returns:
+        (display_amount, unit): 例 ("2", "本") または ("約1.5", "束")
+    """
+    if food_name not in UNIT_MAPPINGS:
+        # マッピングがない場合はgのまま
+        if amount_g >= 1000:
+            return (f"{amount_g / 1000:.1f}".rstrip('0').rstrip('.'), "kg")
+        return (str(round(amount_g)), "g")
+
+    grams_per_unit, unit = UNIT_MAPPINGS[food_name]
+
+    # 特殊ケース: 単位がgやmlの場合はそのまま
+    if unit in ('g', 'ml'):
+        if amount_g >= 1000:
+            return (f"{amount_g / 1000:.1f}".rstrip('0').rstrip('.'), "kg" if unit == 'g' else 'L')
+        return (str(round(amount_g)), unit)
+
+    # 単位数を計算
+    unit_count = amount_g / grams_per_unit
+
+    # 大きい野菜（玉・株・個で1個が大きいもの）は分数表示
+    if grams_per_unit >= 500:
+        if unit_count < 0.2:
+            return (str(round(amount_g)), "g")
+        elif unit_count < 0.4:
+            display = "1/4"
+        elif unit_count < 0.6:
+            display = "1/2"
+        elif unit_count < 0.9:
+            display = "3/4"
+        elif unit_count < 1.3:
+            display = "1"
+        else:
+            # 1以上は「約○個」
+            display = f"約{round(unit_count * 2) / 2}"  # 0.5刻み
+        return (display, unit)
+
+    # 通常の食材の端数処理（0.5単位で丸める）
+    if unit_count < 0.3:
+        # 少量の場合はgで表示
+        return (str(round(amount_g)), "g")
+    elif unit_count < 0.7:
+        display = "1/2"
+    elif unit_count < 1.3:
+        display = "1"
+    elif unit_count < 1.7:
+        display = "1.5"
+    elif unit_count < 2.3:
+        display = "2"
+    elif unit_count < 2.7:
+        display = "2.5"
+    elif unit_count < 3.3:
+        display = "3"
+    elif unit_count < 4:
+        display = "3.5"
+    elif unit_count < 5:
+        display = "4"
+    else:
+        # 5以上は整数で
+        display = f"約{round(unit_count)}"
+
+    return (display, unit)
+
+
+def _normalize_food_name(raw_name: str) -> str:
+    """食品成分表の名称を購入リスト用の簡潔な名前に変換"""
+    name = raw_name
+
+    # 1. カテゴリ接頭辞を除去: ＜xxx＞, （xxx類）, ［xxx］
+    name = re.sub(r'＜[^＞]+＞', '', name)
+    name = re.sub(r'（[^）]+類）', '', name)
+    name = re.sub(r'［[^］]+］', '', name)
+
+    # 2. 部位・状態を除去
+    remove_words = [
+        '全卵', 'りん茎', '塊茎', '塊根', '結球葉', '根茎',
+        '果実', '根', '葉', '茎', '皮つき', '皮なし', '皮むき',
+        '未熟種子', 'カーネル', '養殖', '主品目',
+    ]
+    for word in remove_words:
+        name = name.replace(word, '')
+
+    # 3. 調理法を除去（購入時点では関係ない）
+    cooking_methods = [
+        '生', 'ゆで', '茹で', '焼き', '油いため', '蒸し',
+        'フライ', '天ぷら', 'いり', '炒り', '素干し', '水戻し',
+        '冷凍', '乾燥',
+    ]
+    for method in cooking_methods:
+        # 末尾または空白前の調理法を除去
+        name = re.sub(rf'\s*{method}\s*$', '', name)
+        name = re.sub(rf'\s+{method}(?=\s|$)', '', name)
+
+    # 4. 特定食材の読みやすい名前へのマッピング（順序重要: 具体的なものを先に）
+    mappings = {
+        '木綿豆腐': '木綿豆腐',
+        '絹ごし豆腐': '絹ごし豆腐',
+        '油揚げ': '油揚げ',
+        '厚揚げ': '厚揚げ',
+        '納豆': '納豆',
+        'こめ': '白米',
+        'こむぎ': '小麦',
+        'こまつな': '小松菜',
+        'だいず': '大豆',
+        'あまのり': '海苔',
+        'わかめ': 'わかめ',
+        'たまねぎ': '玉ねぎ',
+        'にんじん': 'にんじん',
+        'キャベツ': 'キャベツ',
+        'ピーマン': 'ピーマン',
+        'トマト': 'トマト',
+        'オクラ': 'オクラ',
+        'なす': 'なす',
+        'ねぎ': 'ねぎ',
+        'しょうが': '生姜',
+        'にんにく': 'にんにく',
+        'もやし': 'もやし',
+        'じゃがいも': 'じゃがいも',
+        'さつまいも': 'さつまいも',
+        '鶏卵': '卵',
+        'にわとり': '鶏肉',
+        'ぶた': '豚肉',
+        'うし': '牛肉',
+        'まあじ': 'あじ',
+        'まさば': 'さば',
+        'しろさけ': '鮭',
+        'バナメイえび': 'えび',
+        '普通牛乳': '牛乳',
+        '木綿豆腐': '木綿豆腐',
+        '油揚げ': '油揚げ',
+        'ばらベーコン': 'ベーコン',
+        'スイートコーン': 'コーン',
+        'りょくとうもやし': 'もやし',
+        '葉ねぎ': '青ねぎ',
+        '赤色トマト': 'トマト',
+        '青ピーマン': 'ピーマン',
+        '焼きのり': '焼き海苔',
+        'もも': 'もも肉',
+    }
+
+    # 空白を正規化してからマッピング適用
+    name = re.sub(r'\s+', ' ', name).strip()
+
+    for key, value in mappings.items():
+        if key in name:
+            name = value
+            break
+
+    # 5. 残った空白を除去して整形
+    name = re.sub(r'\s+', '', name).strip()
+
+    return name if name else raw_name
+
+
 def _generate_shopping_list(cooking_tasks: list[CookingTask]) -> list[ShoppingItem]:
-    """調理タスクから買い物リストを生成"""
-    shopping = {}  # {(food_name, category): total_amount}
+    """調理タスクから買い物リストを生成（同一食材を統合、実用的な単位に変換）"""
+    shopping = {}  # {normalized_name: total_amount}
 
     for task in cooking_tasks:
         for ing in task.dish.ingredients:
-            key = (ing.food_name or f"食品ID:{ing.food_id}", "")
-            if key not in shopping:
-                shopping[key] = 0
-            shopping[key] += ing.amount * task.servings
+            raw_name = ing.food_name or f"食品ID:{ing.food_id}"
+            normalized = _normalize_food_name(raw_name)
+            if normalized not in shopping:
+                shopping[normalized] = 0
+            shopping[normalized] += ing.amount * task.servings
 
-    return [
-        ShoppingItem(food_name=name, total_amount=round(amount, 1), category=cat)
-        for (name, cat), amount in sorted(shopping.items())
-    ]
+    result = []
+    for name, amount in sorted(shopping.items()):
+        display_amount, unit = _convert_to_display_unit(name, amount)
+        result.append(ShoppingItem(
+            food_name=name,
+            total_amount=round(amount, 1),
+            display_amount=display_amount,
+            unit=unit,
+            category="",
+        ))
+
+    return result
 
 
 def _fallback_multi_day_plan(
