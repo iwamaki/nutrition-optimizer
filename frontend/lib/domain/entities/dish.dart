@@ -89,17 +89,33 @@ class Dish {
   final int storageDays;
   final int minServings;
   final int maxServings;
+  // 基本栄養素
   final double calories;
   final double protein;
   final double fat;
   final double carbohydrate;
   final double fiber;
+  // ミネラル
   final double sodium;
+  final double potassium;
   final double calcium;
+  final double magnesium;
   final double iron;
+  final double zinc;
+  // ビタミン
   final double vitaminA;
-  final double vitaminC;
   final double vitaminD;
+  final double vitaminE;
+  final double vitaminK;
+  final double vitaminB1;
+  final double vitaminB2;
+  final double vitaminB6;
+  final double vitaminB12;
+  final double niacin;
+  final double pantothenicAcid;
+  final double biotin;
+  final double folate;
+  final double vitaminC;
   final RecipeDetails? recipeDetails;
 
   Dish({
@@ -120,11 +136,24 @@ class Dish {
     this.carbohydrate = 0,
     this.fiber = 0,
     this.sodium = 0,
+    this.potassium = 0,
     this.calcium = 0,
+    this.magnesium = 0,
     this.iron = 0,
+    this.zinc = 0,
     this.vitaminA = 0,
-    this.vitaminC = 0,
     this.vitaminD = 0,
+    this.vitaminE = 0,
+    this.vitaminK = 0,
+    this.vitaminB1 = 0,
+    this.vitaminB2 = 0,
+    this.vitaminB6 = 0,
+    this.vitaminB12 = 0,
+    this.niacin = 0,
+    this.pantothenicAcid = 0,
+    this.biotin = 0,
+    this.folate = 0,
+    this.vitaminC = 0,
     this.recipeDetails,
   });
 
@@ -153,11 +182,24 @@ class Dish {
       carbohydrate: (json['carbohydrate'] ?? 0).toDouble(),
       fiber: (json['fiber'] ?? 0).toDouble(),
       sodium: (json['sodium'] ?? 0).toDouble(),
+      potassium: (json['potassium'] ?? 0).toDouble(),
       calcium: (json['calcium'] ?? 0).toDouble(),
+      magnesium: (json['magnesium'] ?? 0).toDouble(),
       iron: (json['iron'] ?? 0).toDouble(),
+      zinc: (json['zinc'] ?? 0).toDouble(),
       vitaminA: (json['vitamin_a'] ?? 0).toDouble(),
-      vitaminC: (json['vitamin_c'] ?? 0).toDouble(),
       vitaminD: (json['vitamin_d'] ?? 0).toDouble(),
+      vitaminE: (json['vitamin_e'] ?? 0).toDouble(),
+      vitaminK: (json['vitamin_k'] ?? 0).toDouble(),
+      vitaminB1: (json['vitamin_b1'] ?? 0).toDouble(),
+      vitaminB2: (json['vitamin_b2'] ?? 0).toDouble(),
+      vitaminB6: (json['vitamin_b6'] ?? 0).toDouble(),
+      vitaminB12: (json['vitamin_b12'] ?? 0).toDouble(),
+      niacin: (json['niacin'] ?? 0).toDouble(),
+      pantothenicAcid: (json['pantothenic_acid'] ?? 0).toDouble(),
+      biotin: (json['biotin'] ?? 0).toDouble(),
+      folate: (json['folate'] ?? 0).toDouble(),
+      vitaminC: (json['vitamin_c'] ?? 0).toDouble(),
       recipeDetails: json['recipe_details'] != null
           ? RecipeDetails.fromJson(json['recipe_details'])
           : null,

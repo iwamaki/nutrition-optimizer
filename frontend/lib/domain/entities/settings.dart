@@ -186,7 +186,9 @@ enum Allergen {
 
 /// 栄養素目標 - 日本人の食事摂取基準(2020年版)厚生労働省 準拠
 /// デフォルト値は成人男女(18-64歳)の平均値を使用
+/// ※バックエンド(schemas.py)と完全一致させること
 class NutrientTarget {
+  // 基本栄養素
   final double caloriesMin;
   final double caloriesMax;
   final double proteinMin;    // 男65/女50の平均
@@ -196,35 +198,57 @@ class NutrientTarget {
   final double carbohydrateMin;
   final double carbohydrateMax;
   final double fiberMin;      // 男21/女18の平均
-  final double sodiumMax;
-  final double calciumMin;    // 男775/女650の平均
-  final double ironMin;       // 男7.5/女10.5の平均
-  final double vitaminAMin;   // 男875/女675の平均
-  final double vitaminCMin;
-  final double vitaminDMin;
-  final double niacinMin;           // ナイアシン
-  final double pantothenicAcidMin;  // パントテン酸
-  final double biotinMin;           // ビオチン
+  // ミネラル
+  final double sodiumMax;     // mg - 食塩7.5g未満相当
+  final double potassiumMin;  // mg - 目安量
+  final double calciumMin;    // mg - 男775/女650の平均
+  final double magnesiumMin;  // mg - 男355/女280の平均
+  final double ironMin;       // mg - 男7.5/女10.5の平均
+  final double zincMin;       // mg - 男11/女8の平均
+  // ビタミン
+  final double vitaminAMin;   // μg (RAE) - 男875/女675の平均
+  final double vitaminDMin;   // μg - 目安量
+  final double vitaminEMin;   // mg (α-トコフェロール) - 目安量
+  final double vitaminKMin;   // μg - 目安量
+  final double vitaminB1Min;  // mg - 男1.35/女1.1の平均
+  final double vitaminB2Min;  // mg - 男1.55/女1.2の平均
+  final double vitaminB6Min;  // mg - 男1.4/女1.1の平均
+  final double vitaminB12Min; // μg - 推奨量
+  final double niacinMin;     // mg NE - 男15/女12の平均
+  final double pantothenicAcidMin;  // mg - 男6/女5の平均
+  final double biotinMin;     // μg - 目安量
+  final double folateMin;     // μg - 推奨量
+  final double vitaminCMin;   // mg - 推奨量
 
   const NutrientTarget({
     this.caloriesMin = 1800,
     this.caloriesMax = 2200,
-    this.proteinMin = 58,     // 男65/女50の平均
+    this.proteinMin = 58,
     this.proteinMax = 100,
     this.fatMin = 50,
     this.fatMax = 80,
     this.carbohydrateMin = 250,
     this.carbohydrateMax = 350,
-    this.fiberMin = 20,       // 男21/女18の平均
+    this.fiberMin = 20,
     this.sodiumMax = 2500,
-    this.calciumMin = 700,    // 男775/女650の平均
-    this.ironMin = 9.0,       // 男7.5/女10.5の平均
-    this.vitaminAMin = 775,   // 男875/女675の平均
-    this.vitaminCMin = 100,
+    this.potassiumMin = 2500,    // バックエンドと一致
+    this.calciumMin = 700,
+    this.magnesiumMin = 320,     // バックエンドと一致
+    this.ironMin = 9.0,
+    this.zincMin = 10,           // バックエンドと一致
+    this.vitaminAMin = 775,
     this.vitaminDMin = 8.5,
-    this.niacinMin = 13.5,    // 男15/女12の平均
-    this.pantothenicAcidMin = 5.5,  // 男6/女5の平均
-    this.biotinMin = 50,      // 目安量
+    this.vitaminEMin = 6.0,      // バックエンドと一致
+    this.vitaminKMin = 150,
+    this.vitaminB1Min = 1.2,     // バックエンドと一致
+    this.vitaminB2Min = 1.4,
+    this.vitaminB6Min = 1.3,     // バックエンドと一致
+    this.vitaminB12Min = 2.4,
+    this.niacinMin = 13.5,
+    this.pantothenicAcidMin = 5.5,
+    this.biotinMin = 50,
+    this.folateMin = 240,
+    this.vitaminCMin = 100,
   });
 
   Map<String, dynamic> toJson() {
@@ -239,14 +263,24 @@ class NutrientTarget {
       'carbohydrate_max': carbohydrateMax,
       'fiber_min': fiberMin,
       'sodium_max': sodiumMax,
+      'potassium_min': potassiumMin,
       'calcium_min': calciumMin,
+      'magnesium_min': magnesiumMin,
       'iron_min': ironMin,
+      'zinc_min': zincMin,
       'vitamin_a_min': vitaminAMin,
-      'vitamin_c_min': vitaminCMin,
       'vitamin_d_min': vitaminDMin,
+      'vitamin_e_min': vitaminEMin,
+      'vitamin_k_min': vitaminKMin,
+      'vitamin_b1_min': vitaminB1Min,
+      'vitamin_b2_min': vitaminB2Min,
+      'vitamin_b6_min': vitaminB6Min,
+      'vitamin_b12_min': vitaminB12Min,
       'niacin_min': niacinMin,
       'pantothenic_acid_min': pantothenicAcidMin,
       'biotin_min': biotinMin,
+      'folate_min': folateMin,
+      'vitamin_c_min': vitaminCMin,
     };
   }
 
@@ -262,14 +296,24 @@ class NutrientTarget {
       carbohydrateMax: (json['carbohydrate_max'] ?? 350).toDouble(),
       fiberMin: (json['fiber_min'] ?? 20).toDouble(),
       sodiumMax: (json['sodium_max'] ?? 2500).toDouble(),
+      potassiumMin: (json['potassium_min'] ?? 2250).toDouble(),
       calciumMin: (json['calcium_min'] ?? 700).toDouble(),
+      magnesiumMin: (json['magnesium_min'] ?? 305).toDouble(),
       ironMin: (json['iron_min'] ?? 9.0).toDouble(),
+      zincMin: (json['zinc_min'] ?? 9.5).toDouble(),
       vitaminAMin: (json['vitamin_a_min'] ?? 775).toDouble(),
-      vitaminCMin: (json['vitamin_c_min'] ?? 100).toDouble(),
       vitaminDMin: (json['vitamin_d_min'] ?? 8.5).toDouble(),
+      vitaminEMin: (json['vitamin_e_min'] ?? 6.25).toDouble(),
+      vitaminKMin: (json['vitamin_k_min'] ?? 150).toDouble(),
+      vitaminB1Min: (json['vitamin_b1_min'] ?? 1.25).toDouble(),
+      vitaminB2Min: (json['vitamin_b2_min'] ?? 1.4).toDouble(),
+      vitaminB6Min: (json['vitamin_b6_min'] ?? 1.25).toDouble(),
+      vitaminB12Min: (json['vitamin_b12_min'] ?? 2.4).toDouble(),
       niacinMin: (json['niacin_min'] ?? 13.5).toDouble(),
       pantothenicAcidMin: (json['pantothenic_acid_min'] ?? 5.5).toDouble(),
       biotinMin: (json['biotin_min'] ?? 50).toDouble(),
+      folateMin: (json['folate_min'] ?? 240).toDouble(),
+      vitaminCMin: (json['vitamin_c_min'] ?? 100).toDouble(),
     );
   }
 
@@ -284,17 +328,6 @@ class NutrientTarget {
       caloriesMax: caloriesMax ?? this.caloriesMax,
       proteinMin: proteinMin ?? this.proteinMin,
       proteinMax: proteinMax ?? this.proteinMax,
-      fatMin: fatMin,
-      fatMax: fatMax,
-      carbohydrateMin: carbohydrateMin,
-      carbohydrateMax: carbohydrateMax,
-      fiberMin: fiberMin,
-      sodiumMax: sodiumMax,
-      calciumMin: calciumMin,
-      ironMin: ironMin,
-      vitaminAMin: vitaminAMin,
-      vitaminCMin: vitaminCMin,
-      vitaminDMin: vitaminDMin,
     );
   }
 }

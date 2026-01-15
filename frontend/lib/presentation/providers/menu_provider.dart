@@ -268,9 +268,20 @@ class MenuNotifier extends _$MenuNotifier {
       dailyPlans[toDayIndex] = _updateMealList(toDayPlan, toMeal, toMealList);
     }
 
-    // 各日の栄養素を再計算
+    // 移動した日の栄養素を再計算
     final recalculatedPlans = dailyPlans.map((dayPlan) {
-      return _recalculateDayNutrients(dayPlan);
+      if (fromDay == toDay) {
+        // 同じ日の中での移動: その日のみ再計算
+        if (dayPlan.day == fromDay) {
+          return _recalculateDayNutrients(dayPlan);
+        }
+      } else {
+        // 異なる日への移動: 両日を再計算
+        if (dayPlan.day == fromDay || dayPlan.day == toDay) {
+          return _recalculateDayNutrients(dayPlan);
+        }
+      }
+      return dayPlan;
     }).toList();
 
     // 全体の栄養素を再計算
@@ -303,110 +314,202 @@ class MenuNotifier extends _$MenuNotifier {
       ...dayPlan.dinner,
     ];
 
+    // 人数を取得（バックエンドと同じく1人あたりに換算するため）
+    final people = state.currentPlan?.people ?? 1;
+
     final totalNutrients = <String, double>{
+      // 基本栄養素
       'calories': 0,
       'protein': 0,
       'fat': 0,
       'carbohydrate': 0,
       'fiber': 0,
+      // ミネラル
       'sodium': 0,
+      'potassium': 0,
       'calcium': 0,
+      'magnesium': 0,
       'iron': 0,
+      'zinc': 0,
+      // ビタミン
       'vitamin_a': 0,
-      'vitamin_c': 0,
       'vitamin_d': 0,
+      'vitamin_e': 0,
+      'vitamin_k': 0,
+      'vitamin_b1': 0,
+      'vitamin_b2': 0,
+      'vitamin_b6': 0,
+      'vitamin_b12': 0,
+      'niacin': 0,
+      'pantothenic_acid': 0,
+      'biotin': 0,
+      'folate': 0,
+      'vitamin_c': 0,
     };
 
     for (final portion in allDishes) {
       final dish = portion.dish;
       final servings = portion.servings;
+      // 基本栄養素
       totalNutrients['calories'] = totalNutrients['calories']! + dish.calories * servings;
       totalNutrients['protein'] = totalNutrients['protein']! + dish.protein * servings;
       totalNutrients['fat'] = totalNutrients['fat']! + dish.fat * servings;
       totalNutrients['carbohydrate'] = totalNutrients['carbohydrate']! + dish.carbohydrate * servings;
       totalNutrients['fiber'] = totalNutrients['fiber']! + dish.fiber * servings;
+      // ミネラル
       totalNutrients['sodium'] = totalNutrients['sodium']! + dish.sodium * servings;
+      totalNutrients['potassium'] = totalNutrients['potassium']! + dish.potassium * servings;
       totalNutrients['calcium'] = totalNutrients['calcium']! + dish.calcium * servings;
+      totalNutrients['magnesium'] = totalNutrients['magnesium']! + dish.magnesium * servings;
       totalNutrients['iron'] = totalNutrients['iron']! + dish.iron * servings;
+      totalNutrients['zinc'] = totalNutrients['zinc']! + dish.zinc * servings;
+      // ビタミン
       totalNutrients['vitamin_a'] = totalNutrients['vitamin_a']! + dish.vitaminA * servings;
-      totalNutrients['vitamin_c'] = totalNutrients['vitamin_c']! + dish.vitaminC * servings;
       totalNutrients['vitamin_d'] = totalNutrients['vitamin_d']! + dish.vitaminD * servings;
+      totalNutrients['vitamin_e'] = totalNutrients['vitamin_e']! + dish.vitaminE * servings;
+      totalNutrients['vitamin_k'] = totalNutrients['vitamin_k']! + dish.vitaminK * servings;
+      totalNutrients['vitamin_b1'] = totalNutrients['vitamin_b1']! + dish.vitaminB1 * servings;
+      totalNutrients['vitamin_b2'] = totalNutrients['vitamin_b2']! + dish.vitaminB2 * servings;
+      totalNutrients['vitamin_b6'] = totalNutrients['vitamin_b6']! + dish.vitaminB6 * servings;
+      totalNutrients['vitamin_b12'] = totalNutrients['vitamin_b12']! + dish.vitaminB12 * servings;
+      totalNutrients['niacin'] = totalNutrients['niacin']! + dish.niacin * servings;
+      totalNutrients['pantothenic_acid'] = totalNutrients['pantothenic_acid']! + dish.pantothenicAcid * servings;
+      totalNutrients['biotin'] = totalNutrients['biotin']! + dish.biotin * servings;
+      totalNutrients['folate'] = totalNutrients['folate']! + dish.folate * servings;
+      totalNutrients['vitamin_c'] = totalNutrients['vitamin_c']! + dish.vitaminC * servings;
+    }
+
+    // 1人あたりに換算（バックエンドと同じ処理）
+    final nutrientsPerPerson = <String, double>{};
+    for (final entry in totalNutrients.entries) {
+      nutrientsPerPerson[entry.key] = entry.value / people;
     }
 
     // 達成率を再計算（バックエンドと同じロジック）
-    final achievementRate = _calcAchievement(totalNutrients);
+    final achievementRate = _calcAchievement(nutrientsPerPerson);
 
     return dayPlan.copyWith(
-      totalNutrients: totalNutrients,
+      totalNutrients: nutrientsPerPerson,
       achievementRate: achievementRate,
     );
   }
 
-  /// 達成率を計算（バックエンド _calc_achievement と同じロジック）
+  /// 達成率を計算（バックエンド _calc_achievement と完全一致）
   Map<String, double> _calcAchievement(Map<String, double> nutrients) {
     // デフォルトの目標値を使用
     const target = NutrientTarget();
     final achievement = <String, double>{};
 
-    // calories: (min + max) / 2 を目標に
+    // バックエンドと同じロジック:
+    // - min/maxがある栄養素: (min + max) / 2 を目標に
+    // - minのみの栄養素: (min + min * 1.5) / 2 = min * 1.25 を目標に
+    // - sodium: 目標上限 / 実績 * 100（100でclamp）
+
+    // 基本栄養素（min/maxの平均を目標に）
     final caloriesTarget = (target.caloriesMin + target.caloriesMax) / 2;
     achievement['calories'] = caloriesTarget > 0
-        ? (nutrients['calories'] ?? 0) / caloriesTarget * 100
-        : 100;
+        ? (nutrients['calories'] ?? 0) / caloriesTarget * 100 : 100;
 
-    // protein: (min + max) / 2 を目標に
     final proteinTarget = (target.proteinMin + target.proteinMax) / 2;
     achievement['protein'] = proteinTarget > 0
-        ? (nutrients['protein'] ?? 0) / proteinTarget * 100
-        : 100;
+        ? (nutrients['protein'] ?? 0) / proteinTarget * 100 : 100;
 
-    // fat: (min + max) / 2 を目標に
     final fatTarget = (target.fatMin + target.fatMax) / 2;
     achievement['fat'] = fatTarget > 0
-        ? (nutrients['fat'] ?? 0) / fatTarget * 100
-        : 100;
+        ? (nutrients['fat'] ?? 0) / fatTarget * 100 : 100;
 
-    // carbohydrate: (min + max) / 2 を目標に
     final carbTarget = (target.carbohydrateMin + target.carbohydrateMax) / 2;
     achievement['carbohydrate'] = carbTarget > 0
-        ? (nutrients['carbohydrate'] ?? 0) / carbTarget * 100
-        : 100;
+        ? (nutrients['carbohydrate'] ?? 0) / carbTarget * 100 : 100;
 
-    // fiber: min を目標に
-    achievement['fiber'] = target.fiberMin > 0
-        ? (nutrients['fiber'] ?? 0) / target.fiberMin * 100
-        : 100;
+    // fiber: minのみなので (min + min*1.5) / 2 = min * 1.25
+    final fiberTarget = target.fiberMin * 1.25;
+    achievement['fiber'] = fiberTarget > 0
+        ? (nutrients['fiber'] ?? 0) / fiberTarget * 100 : 100;
 
-    // sodium: max を上限として、少ないほど良い（100%が最大）
+    // ミネラル
+    // sodium: 少ないほど良い（バックエンドと同じ: min(100, target / max(val, 1) * 100)）
     final sodiumVal = nutrients['sodium'] ?? 0;
-    achievement['sodium'] = sodiumVal > 0
-        ? (target.sodiumMax / sodiumVal * 100).clamp(0, 100)
-        : 100;
+    if (sodiumVal > 0) {
+      final sodiumAchievement = target.sodiumMax / sodiumVal * 100;
+      achievement['sodium'] = sodiumAchievement < 100 ? sodiumAchievement : 100;
+    } else {
+      achievement['sodium'] = 100;
+    }
 
-    // calcium: min を目標に
-    achievement['calcium'] = target.calciumMin > 0
-        ? (nutrients['calcium'] ?? 0) / target.calciumMin * 100
-        : 100;
+    // その他のミネラル: minのみなので min * 1.25 を目標に
+    final potassiumTarget = target.potassiumMin * 1.25;
+    achievement['potassium'] = potassiumTarget > 0
+        ? (nutrients['potassium'] ?? 0) / potassiumTarget * 100 : 100;
 
-    // iron: min を目標に
-    achievement['iron'] = target.ironMin > 0
-        ? (nutrients['iron'] ?? 0) / target.ironMin * 100
-        : 100;
+    final calciumTarget = target.calciumMin * 1.25;
+    achievement['calcium'] = calciumTarget > 0
+        ? (nutrients['calcium'] ?? 0) / calciumTarget * 100 : 100;
 
-    // vitamin_a: min を目標に
-    achievement['vitamin_a'] = target.vitaminAMin > 0
-        ? (nutrients['vitamin_a'] ?? 0) / target.vitaminAMin * 100
-        : 100;
+    final magnesiumTarget = target.magnesiumMin * 1.25;
+    achievement['magnesium'] = magnesiumTarget > 0
+        ? (nutrients['magnesium'] ?? 0) / magnesiumTarget * 100 : 100;
 
-    // vitamin_c: min を目標に
-    achievement['vitamin_c'] = target.vitaminCMin > 0
-        ? (nutrients['vitamin_c'] ?? 0) / target.vitaminCMin * 100
-        : 100;
+    final ironTarget = target.ironMin * 1.25;
+    achievement['iron'] = ironTarget > 0
+        ? (nutrients['iron'] ?? 0) / ironTarget * 100 : 100;
 
-    // vitamin_d: min を目標に
-    achievement['vitamin_d'] = target.vitaminDMin > 0
-        ? (nutrients['vitamin_d'] ?? 0) / target.vitaminDMin * 100
-        : 100;
+    final zincTarget = target.zincMin * 1.25;
+    achievement['zinc'] = zincTarget > 0
+        ? (nutrients['zinc'] ?? 0) / zincTarget * 100 : 100;
+
+    // ビタミン: minのみなので min * 1.25 を目標に
+    final vitaminATarget = target.vitaminAMin * 1.25;
+    achievement['vitamin_a'] = vitaminATarget > 0
+        ? (nutrients['vitamin_a'] ?? 0) / vitaminATarget * 100 : 100;
+
+    final vitaminDTarget = target.vitaminDMin * 1.25;
+    achievement['vitamin_d'] = vitaminDTarget > 0
+        ? (nutrients['vitamin_d'] ?? 0) / vitaminDTarget * 100 : 100;
+
+    final vitaminETarget = target.vitaminEMin * 1.25;
+    achievement['vitamin_e'] = vitaminETarget > 0
+        ? (nutrients['vitamin_e'] ?? 0) / vitaminETarget * 100 : 100;
+
+    final vitaminKTarget = target.vitaminKMin * 1.25;
+    achievement['vitamin_k'] = vitaminKTarget > 0
+        ? (nutrients['vitamin_k'] ?? 0) / vitaminKTarget * 100 : 100;
+
+    final vitaminB1Target = target.vitaminB1Min * 1.25;
+    achievement['vitamin_b1'] = vitaminB1Target > 0
+        ? (nutrients['vitamin_b1'] ?? 0) / vitaminB1Target * 100 : 100;
+
+    final vitaminB2Target = target.vitaminB2Min * 1.25;
+    achievement['vitamin_b2'] = vitaminB2Target > 0
+        ? (nutrients['vitamin_b2'] ?? 0) / vitaminB2Target * 100 : 100;
+
+    final vitaminB6Target = target.vitaminB6Min * 1.25;
+    achievement['vitamin_b6'] = vitaminB6Target > 0
+        ? (nutrients['vitamin_b6'] ?? 0) / vitaminB6Target * 100 : 100;
+
+    final vitaminB12Target = target.vitaminB12Min * 1.25;
+    achievement['vitamin_b12'] = vitaminB12Target > 0
+        ? (nutrients['vitamin_b12'] ?? 0) / vitaminB12Target * 100 : 100;
+
+    final niacinTarget = target.niacinMin * 1.25;
+    achievement['niacin'] = niacinTarget > 0
+        ? (nutrients['niacin'] ?? 0) / niacinTarget * 100 : 100;
+
+    final pantothenicAcidTarget = target.pantothenicAcidMin * 1.25;
+    achievement['pantothenic_acid'] = pantothenicAcidTarget > 0
+        ? (nutrients['pantothenic_acid'] ?? 0) / pantothenicAcidTarget * 100 : 100;
+
+    final biotinTarget = target.biotinMin * 1.25;
+    achievement['biotin'] = biotinTarget > 0
+        ? (nutrients['biotin'] ?? 0) / biotinTarget * 100 : 100;
+
+    final folateTarget = target.folateMin * 1.25;
+    achievement['folate'] = folateTarget > 0
+        ? (nutrients['folate'] ?? 0) / folateTarget * 100 : 100;
+
+    final vitaminCTarget = target.vitaminCMin * 1.25;
+    achievement['vitamin_c'] = vitaminCTarget > 0
+        ? (nutrients['vitamin_c'] ?? 0) / vitaminCTarget * 100 : 100;
 
     return achievement;
   }
@@ -414,17 +517,33 @@ class MenuNotifier extends _$MenuNotifier {
   /// 全体の栄養素を計算
   Map<String, double> _calculateOverallNutrients(List<DailyMealAssignment> dailyPlans) {
     final overall = <String, double>{
+      // 基本栄養素
       'calories': 0,
       'protein': 0,
       'fat': 0,
       'carbohydrate': 0,
       'fiber': 0,
+      // ミネラル
       'sodium': 0,
+      'potassium': 0,
       'calcium': 0,
+      'magnesium': 0,
       'iron': 0,
+      'zinc': 0,
+      // ビタミン
       'vitamin_a': 0,
-      'vitamin_c': 0,
       'vitamin_d': 0,
+      'vitamin_e': 0,
+      'vitamin_k': 0,
+      'vitamin_b1': 0,
+      'vitamin_b2': 0,
+      'vitamin_b6': 0,
+      'vitamin_b12': 0,
+      'niacin': 0,
+      'pantothenic_acid': 0,
+      'biotin': 0,
+      'folate': 0,
+      'vitamin_c': 0,
     };
 
     for (final day in dailyPlans) {
