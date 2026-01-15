@@ -152,6 +152,7 @@ class ApiService {
     NutrientTarget? target,
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
+    List<int> preferredFoodIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
@@ -161,6 +162,7 @@ class ApiService {
       'people': people,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
       'excluded_dish_ids': excludedDishIds,
+      'preferred_food_ids': preferredFoodIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };
@@ -197,6 +199,7 @@ class ApiService {
     List<int> keepDishIds = const [],
     List<int> excludeDishIds = const [],
     List<Allergen> excludedAllergens = const [],
+    List<int> preferredFoodIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
@@ -207,6 +210,7 @@ class ApiService {
       'keep_dish_ids': keepDishIds,
       'exclude_dish_ids': excludeDishIds,
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
+      'preferred_food_ids': preferredFoodIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };

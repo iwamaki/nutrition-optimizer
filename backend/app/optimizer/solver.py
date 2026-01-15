@@ -514,6 +514,7 @@ def solve_multi_day_plan(
     excluded_allergens: list[str] = None,
     excluded_dish_ids: list[int] = None,
     keep_dish_ids: list[int] = None,
+    preferred_food_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -529,6 +530,7 @@ def solve_multi_day_plan(
         excluded_allergens: 除外アレルゲン
         excluded_dish_ids: 除外料理ID
         keep_dish_ids: 必ず含める料理ID（調整時に使用）
+        preferred_food_ids: 優先食材ID（手持ち食材）- これを使う料理を優先
         batch_cooking_level: 作り置き優先度（small/normal/large）
         volume_level: 献立ボリューム（small/normal/large）- 後方互換用
         variety_level: 料理の繰り返し（small/normal/large）
@@ -546,6 +548,7 @@ def solve_multi_day_plan(
     excluded_allergens = excluded_allergens or []
     excluded_dish_ids = set(excluded_dish_ids or [])
     keep_dish_ids = set(keep_dish_ids or [])
+    preferred_food_ids = set(preferred_food_ids or [])
 
     # meal_settingsの初期化
     # 新形式: {"breakfast": {"enabled": True, "categories": {"主食": (1, 1), ...}}, ...}
@@ -710,7 +713,31 @@ def solve_multi_day_plan(
     # large: 調理回数を最小化（重み大きい）
     batch_cooking_weights = {"small": 0.01, "normal": 0.05, "large": 0.2}
     cooking_weight = batch_cooking_weights.get(batch_cooking_level, 0.05)
-    prob += nutrient_deviation + cooking_weight * cooking_count
+
+    # 手持ち食材を使う料理へのボーナス（優先）
+    # 各料理が手持ち食材をどれだけ含むかスコア化
+    preferred_scores = {}
+    if preferred_food_ids:
+        for d in dishes:
+            # この料理に含まれる手持ち食材の数をカウント
+            matching_count = sum(
+                1 for ing in d.ingredients
+                if ing.food_id in preferred_food_ids
+            )
+            if matching_count > 0:
+                # スコア: 手持ち食材を1つ含むごとに0.5ポイント
+                # 複数含む場合はより高いスコア
+                preferred_scores[d.id] = matching_count * 0.5
+
+    # 手持ち食材ボーナス（スコアが高いほどコストが下がり選ばれやすくなる）
+    preferred_bonus = lpSum(
+        preferred_scores.get(d.id, 0) * lpSum(x[(d.id, t)] for t in range(1, days + 1))
+        for d in dishes
+        if d.id in preferred_scores
+    )
+
+    # 目的関数: 栄養素偏差 + 調理回数ペナルティ - 手持ち食材ボーナス
+    prob += nutrient_deviation + cooking_weight * cooking_count - preferred_bonus
 
     # ========== 制約条件 ==========
 
@@ -1296,6 +1323,7 @@ def refine_multi_day_plan(
     keep_dish_ids: list[int] = None,
     exclude_dish_ids: list[int] = None,
     excluded_allergens: list[str] = None,
+    preferred_food_ids: list[int] = None,
     batch_cooking_level: str = "normal",
     volume_level: str = "normal",
     variety_level: str = "normal",
@@ -1314,6 +1342,7 @@ def refine_multi_day_plan(
         keep_dish_ids: 残したい料理ID
         exclude_dish_ids: 外したい料理ID
         excluded_allergens: 除外アレルゲン
+        preferred_food_ids: 優先食材ID（手持ち食材）
         batch_cooking_level: 作り置き優先度
         volume_level: 献立ボリューム
         variety_level: 料理の繰り返し
@@ -1330,6 +1359,7 @@ def refine_multi_day_plan(
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=exclude_dish_ids,
         keep_dish_ids=keep_dish_ids,
+        preferred_food_ids=preferred_food_ids,
         batch_cooking_level=batch_cooking_level,
         volume_level=volume_level,
         variety_level=variety_level,

@@ -17,6 +17,8 @@ class StepOwnedFoods extends ConsumerStatefulWidget {
 
 class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
   final TextEditingController _searchController = TextEditingController();
+  String? _selectedCategory;
+  bool _hasSearched = false;
 
   @override
   void dispose() {
@@ -29,26 +31,29 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     final state = ref.watch(generateModalControllerProvider);
     final controller = ref.read(generateModalControllerProvider.notifier);
 
+    // 検索中かどうか（クエリがあるか、カテゴリが選択されているか）
+    final isFiltering = state.searchQuery.isNotEmpty || _selectedCategory != null;
+
     return ListView(
       controller: widget.scrollController,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       children: [
         _buildExplanationCard(context),
-        const SizedBox(height: 16),
-        _buildSearchBar(context, state, controller),
-        const SizedBox(height: 16),
-        if (state.isSearching)
-          const Center(child: CircularProgressIndicator())
-        else if (state.searchResults.isNotEmpty) ...[
-          _buildSearchResults(context, state, controller),
-          const SizedBox(height: 16),
-        ],
-        _buildFrequentFoods(context, state, controller),
-        const SizedBox(height: 16),
-        _buildCategoryButtons(context, controller),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        _buildSearchBarWithCategory(context, state, controller),
+        const SizedBox(height: 12),
         if (state.ownedFoodIds.isNotEmpty)
           _buildSelectedCount(context, state, controller),
+        if (state.ownedFoodIds.isNotEmpty) const SizedBox(height: 12),
+        if (state.isSearching)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (isFiltering && _hasSearched)
+          _buildSearchResults(context, state, controller)
+        else
+          _buildFrequentFoodsGrid(context, state, controller),
       ],
     );
   }
@@ -87,35 +92,120 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     );
   }
 
-  Widget _buildSearchBar(
+  Widget _buildSearchBarWithCategory(
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
   ) {
-    return TextField(
-      controller: _searchController,
-      decoration: InputDecoration(
-        hintText: '🔍 食材を検索...',
-        filled: true,
-        fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-          borderSide: BorderSide.none,
+    return Row(
+      children: [
+        // カテゴリドロップダウン
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: PopupMenuButton<String?>(
+            initialValue: _selectedCategory,
+            onSelected: (category) {
+              setState(() {
+                _selectedCategory = category;
+                _hasSearched = true;
+              });
+              if (category != null) {
+                controller.searchFoodsByCategory(category);
+              } else {
+                controller.clearSearch();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String?>(
+                value: null,
+                child: Text('全て'),
+              ),
+              ...foodCategories.map((cat) => PopupMenuItem<String>(
+                value: cat['name'] as String,
+                child: Text(cat['name'] as String),
+              )),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.filter_list,
+                    size: 20,
+                    color: _selectedCategory != null
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _selectedCategory ?? '分類',
+                    style: TextStyle(
+                      color: _selectedCategory != null
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: _selectedCategory != null
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        suffixIcon: state.searchQuery.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
-                  controller.clearSearch();
-                },
-              )
-            : null,
-      ),
-      onChanged: (value) {
-        controller.searchFoods(value);
-      },
+        const SizedBox(width: 8),
+        // 検索バー
+        Expanded(
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: '食材を検索...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              isDense: true,
+              suffixIcon: (state.searchQuery.isNotEmpty || _selectedCategory != null)
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _selectedCategory = null;
+                          _hasSearched = false;
+                        });
+                        controller.clearSearch();
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (value) {
+              setState(() {
+                _hasSearched = true;
+              });
+              controller.searchFoods(value);
+            },
+            onSubmitted: (value) {
+              setState(() {
+                _hasSearched = true;
+              });
+              controller.searchFoods(value);
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -124,32 +214,105 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     GenerateModalState state,
     GenerateModalController controller,
   ) {
+    if (state.searchResults.isEmpty) {
+      // 検索結果なし
+      return Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 48,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '該当する食材が見つかりません',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '別のキーワードで検索してください',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 重複排除: 同じnameの食材は最初の1つだけ表示
+    // （文科省データには同じ素材の調理後バリエーションが複数存在するため）
+    final uniqueFoods = <String, Map<String, dynamic>>{};
+    for (final food in state.searchResults) {
+      final name = food['name'] as String? ?? '';
+      if (name.isNotEmpty && !uniqueFoods.containsKey(name)) {
+        uniqueFoods[name] = {
+          'id': food['id'],
+          'name': name,
+          'emoji': _getEmojiForFood(name),
+        };
+      }
+    }
+    final foodsList = uniqueFoods.values.toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '検索結果',
-          style: Theme.of(context).textTheme.titleSmall,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            '検索結果（${foodsList.length}件）',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+          ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: state.searchResults.map((food) {
-            final isSelected = state.ownedFoodIds.contains(food['id']);
-            return FilterChip(
-              label: Text(food['name'] ?? ''),
-              selected: isSelected,
-              selectedColor: const Color(0xFFE8F5E9),
-              onSelected: (_) => controller.toggleFood(food['id'] as int),
-            );
-          }).toList(),
+        _buildFoodGrid(
+          context,
+          foodsList,
+          state,
+          controller,
         ),
       ],
     );
   }
 
-  Widget _buildFrequentFoods(
+  String _getEmojiForFood(String name) {
+    // 食品名から絵文字を推測
+    if (name.contains('卵')) return '🥚';
+    if (name.contains('玉ねぎ') || name.contains('たまねぎ')) return '🧅';
+    if (name.contains('にんじん') || name.contains('人参')) return '🥕';
+    if (name.contains('豚')) return '🐷';
+    if (name.contains('鶏') || name.contains('とり')) return '🐔';
+    if (name.contains('牛')) return '🐄';
+    if (name.contains('牛乳') || name.contains('ミルク')) return '🥛';
+    if (name.contains('キャベツ')) return '🥬';
+    if (name.contains('豆腐')) return '🧈';
+    if (name.contains('魚') || name.contains('さば') || name.contains('さけ') || name.contains('鮭')) return '🐟';
+    if (name.contains('えび') || name.contains('海老')) return '🦐';
+    if (name.contains('いか') || name.contains('たこ')) return '🦑';
+    if (name.contains('トマト')) return '🍅';
+    if (name.contains('じゃがいも') || name.contains('ポテト')) return '🥔';
+    if (name.contains('きゅうり')) return '🥒';
+    if (name.contains('なす')) return '🍆';
+    if (name.contains('ピーマン') || name.contains('パプリカ')) return '🫑';
+    if (name.contains('大根')) return '🥬';
+    if (name.contains('ほうれん草') || name.contains('小松菜')) return '🥬';
+    if (name.contains('ねぎ') || name.contains('葱')) return '🧅';
+    if (name.contains('にんにく') || name.contains('ニンニク')) return '🧄';
+    if (name.contains('きのこ') || name.contains('しめじ') || name.contains('しいたけ')) return '🍄';
+    if (name.contains('米') || name.contains('ごはん')) return '🍚';
+    if (name.contains('パン')) return '🍞';
+    if (name.contains('パスタ') || name.contains('麺')) return '🍝';
+    return '🍽️';
+  }
+
+  Widget _buildFrequentFoodsGrid(
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
@@ -157,56 +320,107 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '⭐ よく使う',
-          style: Theme.of(context).textTheme.titleSmall,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'よく使う食材',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+          ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: frequentFoods.map((food) {
-            final isSelected = state.ownedFoodIds.contains(food['id']);
-            return FilterChip(
-              label: Text('${food['emoji']}${food['name']}'),
-              selected: isSelected,
-              selectedColor: const Color(0xFFE8F5E9),
-              onSelected: (_) => controller.toggleFood(food['id'] as int),
-            );
-          }).toList(),
-        ),
+        _buildFoodGrid(context, frequentFoods, state, controller),
       ],
     );
   }
 
-  Widget _buildCategoryButtons(
+  Widget _buildFoodGrid(
     BuildContext context,
+    List<Map<String, dynamic>> foods,
+    GenerateModalState state,
     GenerateModalController controller,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '📁 カテゴリから探す',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: foodCategories.map((cat) {
-            return ActionChip(
-              label: Text(cat['name'] as String),
-              backgroundColor: Color(cat['colorValue'] as int),
-              labelStyle: TextStyle(color: Color(cat['textColorValue'] as int)),
-              onPressed: () {
-                controller.searchFoodsByCategory(cat['name'] as String);
-                _searchController.text = cat['name'] as String;
-              },
-            );
-          }).toList(),
-        ),
-      ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: foods.length,
+      itemBuilder: (context, index) {
+        final food = foods[index];
+        final isSelected = state.ownedFoodIds.contains(food['id']);
+        final emoji = food['emoji'] ?? _getEmojiForFood(food['name'] ?? '');
+        final name = food['name'] ?? '';
+
+        return GestureDetector(
+          onTap: () => controller.toggleFood(food['id'] as int),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? const Color(0xFFE8F5E9)
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+              border: isSelected
+                  ? Border.all(color: const Color(0xFF4CAF50), width: 2)
+                  : null,
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                      const SizedBox(height: 2),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected
+                                ? const Color(0xFF2E7D32)
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF4CAF50),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

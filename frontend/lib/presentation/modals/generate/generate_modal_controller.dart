@@ -254,8 +254,8 @@ class GenerateModalController extends _$GenerateModalController {
   }
 
   Future<void> searchFoods(String query) async {
-    if (query.length < 2) {
-      state = state.copyWith(searchResults: [], searchQuery: query);
+    if (query.isEmpty) {
+      state = state.copyWith(searchResults: [], searchQuery: '');
       return;
     }
 
@@ -311,6 +311,7 @@ class GenerateModalController extends _$GenerateModalController {
         people: state.people,
         target: target,
         excludedAllergens: state.excludedAllergens.toList(),
+        preferredFoodIds: state.ownedFoodIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
@@ -332,6 +333,7 @@ class GenerateModalController extends _$GenerateModalController {
         target: target,
         excludeDishIds: state.excludedDishIdsInStep3.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
+        preferredFoodIds: state.ownedFoodIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,

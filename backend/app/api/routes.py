@@ -9,7 +9,8 @@ from app.models.schemas import (
 )
 from app.optimizer.solver import (
     optimize_daily_menu, db_food_to_model, db_dish_to_model,
-    solve_multi_day_plan, refine_multi_day_plan
+    solve_multi_day_plan, refine_multi_day_plan,
+    _normalize_food_name as normalize_food_name
 )
 from app.services.recipe_generator import generate_recipe_detail, get_or_generate_recipe_detail
 from app.models.schemas import RecipeDetails
@@ -70,8 +71,10 @@ def search_foods(
     foods_db = query.limit(limit).all()
     return [
         {
+            "id": f.id,
             "mext_code": f.mext_code,
-            "name": f.name,
+            "name": normalize_food_name(f.name),  # 正規化された表示名
+            "raw_name": f.name,  # 生データ（デバッグ用）
             "category": f.category,
             "calories": f.calories,
         }
@@ -318,6 +321,7 @@ def optimize_multi_day_menu(
         target=target,
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=request.excluded_dish_ids,
+        preferred_food_ids=request.preferred_food_ids,
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
@@ -385,6 +389,7 @@ def refine_multi_day_menu(
         keep_dish_ids=request.keep_dish_ids,
         exclude_dish_ids=request.exclude_dish_ids,
         excluded_allergens=excluded_allergens,
+        preferred_food_ids=request.preferred_food_ids,
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,

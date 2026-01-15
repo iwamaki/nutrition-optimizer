@@ -385,6 +385,7 @@ class MultiDayOptimizeRequest(BaseModel):
     target: Optional[NutrientTarget] = None
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
+    preferred_food_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
@@ -448,6 +449,7 @@ class RefineOptimizeRequest(BaseModel):
     keep_dish_ids: list[int] = Field(default_factory=list, description="残したい料理ID")
     exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
+    preferred_food_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
