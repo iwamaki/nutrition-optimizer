@@ -184,38 +184,39 @@ enum Allergen {
   }
 }
 
-/// 栄養素目標
+/// 栄養素目標 - 日本人の食事摂取基準(2020年版)厚生労働省 準拠
+/// デフォルト値は成人男女(18-64歳)の平均値を使用
 class NutrientTarget {
   final double caloriesMin;
   final double caloriesMax;
-  final double proteinMin;
+  final double proteinMin;    // 男65/女50の平均
   final double proteinMax;
   final double fatMin;
   final double fatMax;
   final double carbohydrateMin;
   final double carbohydrateMax;
-  final double fiberMin;
+  final double fiberMin;      // 男21/女18の平均
   final double sodiumMax;
-  final double calciumMin;
-  final double ironMin;
-  final double vitaminAMin;
+  final double calciumMin;    // 男775/女650の平均
+  final double ironMin;       // 男7.5/女10.5の平均
+  final double vitaminAMin;   // 男875/女675の平均
   final double vitaminCMin;
   final double vitaminDMin;
 
   const NutrientTarget({
     this.caloriesMin = 1800,
     this.caloriesMax = 2200,
-    this.proteinMin = 60,
+    this.proteinMin = 58,     // 男65/女50の平均
     this.proteinMax = 100,
     this.fatMin = 50,
     this.fatMax = 80,
     this.carbohydrateMin = 250,
     this.carbohydrateMax = 350,
-    this.fiberMin = 20,
+    this.fiberMin = 20,       // 男21/女18の平均
     this.sodiumMax = 2500,
-    this.calciumMin = 650,
-    this.ironMin = 7.5,
-    this.vitaminAMin = 850,
+    this.calciumMin = 700,    // 男775/女650の平均
+    this.ironMin = 9.0,       // 男7.5/女10.5の平均
+    this.vitaminAMin = 775,   // 男875/女675の平均
     this.vitaminCMin = 100,
     this.vitaminDMin = 8.5,
   });
@@ -244,7 +245,7 @@ class NutrientTarget {
     return NutrientTarget(
       caloriesMin: (json['calories_min'] ?? 1800).toDouble(),
       caloriesMax: (json['calories_max'] ?? 2200).toDouble(),
-      proteinMin: (json['protein_min'] ?? 60).toDouble(),
+      proteinMin: (json['protein_min'] ?? 58).toDouble(),
       proteinMax: (json['protein_max'] ?? 100).toDouble(),
       fatMin: (json['fat_min'] ?? 50).toDouble(),
       fatMax: (json['fat_max'] ?? 80).toDouble(),
@@ -252,9 +253,9 @@ class NutrientTarget {
       carbohydrateMax: (json['carbohydrate_max'] ?? 350).toDouble(),
       fiberMin: (json['fiber_min'] ?? 20).toDouble(),
       sodiumMax: (json['sodium_max'] ?? 2500).toDouble(),
-      calciumMin: (json['calcium_min'] ?? 650).toDouble(),
-      ironMin: (json['iron_min'] ?? 7.5).toDouble(),
-      vitaminAMin: (json['vitamin_a_min'] ?? 850).toDouble(),
+      calciumMin: (json['calcium_min'] ?? 700).toDouble(),
+      ironMin: (json['iron_min'] ?? 9.0).toDouble(),
+      vitaminAMin: (json['vitamin_a_min'] ?? 775).toDouble(),
       vitaminCMin: (json['vitamin_c_min'] ?? 100).toDouble(),
       vitaminDMin: (json['vitamin_d_min'] ?? 8.5).toDouble(),
     );

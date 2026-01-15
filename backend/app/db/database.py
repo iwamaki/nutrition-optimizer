@@ -27,12 +27,24 @@ class FoodDB(Base):
     fat = Column(Float, default=0)          # g/100g
     carbohydrate = Column(Float, default=0) # g/100g
     fiber = Column(Float, default=0)        # g/100g
+    # ミネラル
     sodium = Column(Float, default=0)       # mg/100g
+    potassium = Column(Float, default=0)    # mg/100g (カリウム)
     calcium = Column(Float, default=0)      # mg/100g
+    magnesium = Column(Float, default=0)    # mg/100g
     iron = Column(Float, default=0)         # mg/100g
-    vitamin_a = Column(Float, default=0)    # μg/100g
-    vitamin_c = Column(Float, default=0)    # mg/100g
+    zinc = Column(Float, default=0)         # mg/100g (亜鉛)
+    # ビタミン
+    vitamin_a = Column(Float, default=0)    # μg/100g (レチノール活性当量)
     vitamin_d = Column(Float, default=0)    # μg/100g
+    vitamin_e = Column(Float, default=0)    # mg/100g (α-トコフェロール)
+    vitamin_k = Column(Float, default=0)    # μg/100g
+    vitamin_b1 = Column(Float, default=0)   # mg/100g (チアミン)
+    vitamin_b2 = Column(Float, default=0)   # mg/100g (リボフラビン)
+    vitamin_b6 = Column(Float, default=0)   # mg/100g
+    vitamin_b12 = Column(Float, default=0)  # μg/100g
+    folate = Column(Float, default=0)       # μg/100g (葉酸)
+    vitamin_c = Column(Float, default=0)    # mg/100g
     max_portion = Column(Float, default=300)
 
     # リレーション
@@ -103,12 +115,24 @@ class DishDB(Base):
     fat = Column(Float, default=0)
     carbohydrate = Column(Float, default=0)
     fiber = Column(Float, default=0)
+    # ミネラル
     sodium = Column(Float, default=0)
+    potassium = Column(Float, default=0)
     calcium = Column(Float, default=0)
+    magnesium = Column(Float, default=0)
     iron = Column(Float, default=0)
+    zinc = Column(Float, default=0)
+    # ビタミン
     vitamin_a = Column(Float, default=0)
-    vitamin_c = Column(Float, default=0)
     vitamin_d = Column(Float, default=0)
+    vitamin_e = Column(Float, default=0)
+    vitamin_k = Column(Float, default=0)
+    vitamin_b1 = Column(Float, default=0)
+    vitamin_b2 = Column(Float, default=0)
+    vitamin_b6 = Column(Float, default=0)
+    vitamin_b12 = Column(Float, default=0)
+    folate = Column(Float, default=0)
+    vitamin_c = Column(Float, default=0)
 
     # リレーション
     ingredients = relationship("DishIngredientDB", back_populates="dish", cascade="all, delete-orphan")

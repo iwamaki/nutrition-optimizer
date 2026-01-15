@@ -72,12 +72,24 @@ def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) 
         "fat": 12,           # 脂質(g)
         "carb": 20,          # 炭水化物(g) - CHOCDF-
         "fiber": 18,         # 食物繊維(g)
-        "calcium": 25,       # カルシウム(mg)
-        "iron": 28,          # 鉄(mg)
+        # ミネラル
+        "potassium": 24,     # カリウム(mg) - K
+        "calcium": 25,       # カルシウム(mg) - CA
+        "magnesium": 26,     # マグネシウム(mg) - MG
+        "iron": 28,          # 鉄(mg) - FE
+        "zinc": 29,          # 亜鉛(mg) - ZN
+        "nacl": 60,          # 食塩相当量(g) → ナトリウム換算
+        # ビタミン
         "vita": 42,          # ビタミンA(μg) - VITA_RAE
-        "vitc": 58,          # ビタミンC(mg)
         "vitd": 43,          # ビタミンD(μg)
-        "nacl": 60,          # 食塩相当量(g)
+        "vite": 44,          # ビタミンE(mg) - TOCPHA (α-トコフェロール)
+        "vitk": 48,          # ビタミンK(μg)
+        "vitb1": 49,         # ビタミンB1(mg) - THIA (チアミン)
+        "vitb2": 50,         # ビタミンB2(mg) - RIBF (リボフラビン)
+        "vitb6": 53,         # ビタミンB6(mg) - VITB6A
+        "vitb12": 54,        # ビタミンB12(μg)
+        "folate": 55,        # 葉酸(μg) - FOL
+        "vitc": 58,          # ビタミンC(mg)
     }
 
     def parse_value(val, default=0.0) -> float:
@@ -160,12 +172,24 @@ def load_excel_data(file_path: Path, db: Session, clear_existing: bool = False) 
             fat=parse_value(row[COL["fat"]]),
             carbohydrate=parse_value(row[COL["carb"]]),
             fiber=parse_value(row[COL["fiber"]]),
+            # ミネラル
             sodium=nacl_to_sodium(parse_value(row[COL["nacl"]])),
+            potassium=parse_value(row[COL["potassium"]]),
             calcium=parse_value(row[COL["calcium"]]),
+            magnesium=parse_value(row[COL["magnesium"]]),
             iron=parse_value(row[COL["iron"]]),
+            zinc=parse_value(row[COL["zinc"]]),
+            # ビタミン
             vitamin_a=parse_value(row[COL["vita"]]),
-            vitamin_c=parse_value(row[COL["vitc"]]),
             vitamin_d=parse_value(row[COL["vitd"]]),
+            vitamin_e=parse_value(row[COL["vite"]]),
+            vitamin_k=parse_value(row[COL["vitk"]]),
+            vitamin_b1=parse_value(row[COL["vitb1"]]),
+            vitamin_b2=parse_value(row[COL["vitb2"]]),
+            vitamin_b6=parse_value(row[COL["vitb6"]]),
+            vitamin_b12=parse_value(row[COL["vitb12"]]),
+            folate=parse_value(row[COL["folate"]]),
+            vitamin_c=parse_value(row[COL["vitc"]]),
             max_portion=get_max_portion(category, name),
         )
         db.add(food)
@@ -215,9 +239,13 @@ DEFAULT_COOKING_FACTORS = [
 def calculate_dish_nutrients(db: Session, dish: DishDB) -> dict:
     """料理の栄養素を材料から計算"""
     nutrients = {
-        "calories": 0, "protein": 0, "fat": 0, "carbohydrate": 0,
-        "fiber": 0, "sodium": 0, "calcium": 0, "iron": 0,
-        "vitamin_a": 0, "vitamin_c": 0, "vitamin_d": 0,
+        "calories": 0, "protein": 0, "fat": 0, "carbohydrate": 0, "fiber": 0,
+        # ミネラル
+        "sodium": 0, "potassium": 0, "calcium": 0, "magnesium": 0, "iron": 0, "zinc": 0,
+        # ビタミン
+        "vitamin_a": 0, "vitamin_d": 0, "vitamin_e": 0, "vitamin_k": 0,
+        "vitamin_b1": 0, "vitamin_b2": 0, "vitamin_b6": 0, "vitamin_b12": 0,
+        "folate": 0, "vitamin_c": 0,
     }
 
     for ing in dish.ingredients:

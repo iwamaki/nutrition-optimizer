@@ -83,12 +83,24 @@ class Food(BaseModel):
     fat: float = Field(ge=0, description="g/100g")
     carbohydrate: float = Field(ge=0, description="g/100g")
     fiber: float = Field(ge=0, description="g/100g")
+    # ミネラル
     sodium: float = Field(ge=0, description="mg/100g")
+    potassium: float = Field(default=0, ge=0, description="mg/100g (カリウム)")
     calcium: float = Field(ge=0, description="mg/100g")
+    magnesium: float = Field(default=0, ge=0, description="mg/100g")
     iron: float = Field(ge=0, description="mg/100g")
-    vitamin_a: float = Field(ge=0, description="μg/100g")
-    vitamin_c: float = Field(ge=0, description="mg/100g")
+    zinc: float = Field(default=0, ge=0, description="mg/100g (亜鉛)")
+    # ビタミン
+    vitamin_a: float = Field(ge=0, description="μg/100g (レチノール活性当量)")
     vitamin_d: float = Field(ge=0, description="μg/100g")
+    vitamin_e: float = Field(default=0, ge=0, description="mg/100g (α-トコフェロール)")
+    vitamin_k: float = Field(default=0, ge=0, description="μg/100g")
+    vitamin_b1: float = Field(default=0, ge=0, description="mg/100g (チアミン)")
+    vitamin_b2: float = Field(default=0, ge=0, description="mg/100g (リボフラビン)")
+    vitamin_b6: float = Field(default=0, ge=0, description="mg/100g")
+    vitamin_b12: float = Field(default=0, ge=0, description="μg/100g")
+    folate: float = Field(default=0, ge=0, description="μg/100g (葉酸)")
+    vitamin_c: float = Field(ge=0, description="mg/100g")
     max_portion: float = Field(default=300, ge=0, description="1食あたり最大量(g)")
 
 
@@ -99,22 +111,37 @@ class FoodPortion(BaseModel):
 
 
 class NutrientTarget(BaseModel):
-    """栄養素目標値（1日）"""
+    """栄養素目標値（1日）- 日本人の食事摂取基準(2020年版)厚生労働省 準拠
+
+    デフォルト値は成人男女(18-64歳)の平均値を使用
+    """
     calories_min: float = Field(default=1800, ge=0)
     calories_max: float = Field(default=2200, ge=0)
-    protein_min: float = Field(default=60, ge=0)
+    protein_min: float = Field(default=58, ge=0, description="男65/女50の平均")
     protein_max: float = Field(default=100, ge=0)
     fat_min: float = Field(default=50, ge=0)
     fat_max: float = Field(default=80, ge=0)
     carbohydrate_min: float = Field(default=250, ge=0)
     carbohydrate_max: float = Field(default=350, ge=0)
-    fiber_min: float = Field(default=20, ge=0)
-    sodium_max: float = Field(default=2500, ge=0, description="mg")
-    calcium_min: float = Field(default=650, ge=0, description="mg")
-    iron_min: float = Field(default=7.5, ge=0, description="mg")
-    vitamin_a_min: float = Field(default=850, ge=0, description="μg")
-    vitamin_c_min: float = Field(default=100, ge=0, description="mg")
-    vitamin_d_min: float = Field(default=8.5, ge=0, description="μg")
+    fiber_min: float = Field(default=20, ge=0, description="男21/女18の平均")
+    # ミネラル
+    sodium_max: float = Field(default=2500, ge=0, description="mg - 食塩7.5g未満相当")
+    potassium_min: float = Field(default=2500, ge=0, description="mg (カリウム) - 目安量")
+    calcium_min: float = Field(default=700, ge=0, description="mg - 男775/女650の平均")
+    magnesium_min: float = Field(default=320, ge=0, description="mg - 男355/女280の平均")
+    iron_min: float = Field(default=9.0, ge=0, description="mg - 男7.5/女10.5の平均")
+    zinc_min: float = Field(default=10, ge=0, description="mg (亜鉛) - 男11/女8の平均")
+    # ビタミン
+    vitamin_a_min: float = Field(default=775, ge=0, description="μg (RAE) - 男875/女675の平均")
+    vitamin_d_min: float = Field(default=8.5, ge=0, description="μg - 目安量")
+    vitamin_e_min: float = Field(default=6.0, ge=0, description="mg (α-トコフェロール) - 目安量")
+    vitamin_k_min: float = Field(default=150, ge=0, description="μg - 目安量")
+    vitamin_b1_min: float = Field(default=1.2, ge=0, description="mg - 男1.35/女1.1の平均")
+    vitamin_b2_min: float = Field(default=1.4, ge=0, description="mg - 男1.55/女1.2の平均")
+    vitamin_b6_min: float = Field(default=1.3, ge=0, description="mg - 男1.4/女1.1の平均")
+    vitamin_b12_min: float = Field(default=2.4, ge=0, description="μg - 推奨量")
+    folate_min: float = Field(default=240, ge=0, description="μg (葉酸) - 推奨量")
+    vitamin_c_min: float = Field(default=100, ge=0, description="mg - 推奨量")
 
 
 class Meal(BaseModel):
@@ -203,12 +230,24 @@ class Dish(DishBase):
     fat: float = 0
     carbohydrate: float = 0
     fiber: float = 0
+    # ミネラル
     sodium: float = 0
+    potassium: float = 0
     calcium: float = 0
+    magnesium: float = 0
     iron: float = 0
+    zinc: float = 0
+    # ビタミン
     vitamin_a: float = 0
-    vitamin_c: float = 0
     vitamin_d: float = 0
+    vitamin_e: float = 0
+    vitamin_k: float = 0
+    vitamin_b1: float = 0
+    vitamin_b2: float = 0
+    vitamin_b6: float = 0
+    vitamin_b12: float = 0
+    folate: float = 0
+    vitamin_c: float = 0
     # レシピ詳細（JSONから読み込み）
     recipe_details: Optional[RecipeDetails] = Field(default=None, description="詳細レシピ")
 
@@ -241,12 +280,24 @@ class MealPlan(BaseModel):
     total_fat: float
     total_carbohydrate: float
     total_fiber: float
+    # ミネラル
     total_sodium: float
+    total_potassium: float = 0
     total_calcium: float
+    total_magnesium: float = 0
     total_iron: float
+    total_zinc: float = 0
+    # ビタミン
     total_vitamin_a: float
-    total_vitamin_c: float
     total_vitamin_d: float
+    total_vitamin_e: float = 0
+    total_vitamin_k: float = 0
+    total_vitamin_b1: float = 0
+    total_vitamin_b2: float = 0
+    total_vitamin_b6: float = 0
+    total_vitamin_b12: float = 0
+    total_folate: float = 0
+    total_vitamin_c: float
 
 
 class DailyMenuPlan(BaseModel):

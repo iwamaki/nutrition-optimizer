@@ -9,12 +9,24 @@ class MealPlan {
   final double totalFat;
   final double totalCarbohydrate;
   final double totalFiber;
+  // ミネラル
   final double totalSodium;
+  final double totalPotassium;
   final double totalCalcium;
+  final double totalMagnesium;
   final double totalIron;
+  final double totalZinc;
+  // ビタミン
   final double totalVitaminA;
-  final double totalVitaminC;
   final double totalVitaminD;
+  final double totalVitaminE;
+  final double totalVitaminK;
+  final double totalVitaminB1;
+  final double totalVitaminB2;
+  final double totalVitaminB6;
+  final double totalVitaminB12;
+  final double totalFolate;
+  final double totalVitaminC;
 
   MealPlan({
     required this.name,
@@ -25,11 +37,21 @@ class MealPlan {
     this.totalCarbohydrate = 0,
     this.totalFiber = 0,
     this.totalSodium = 0,
+    this.totalPotassium = 0,
     this.totalCalcium = 0,
+    this.totalMagnesium = 0,
     this.totalIron = 0,
+    this.totalZinc = 0,
     this.totalVitaminA = 0,
-    this.totalVitaminC = 0,
     this.totalVitaminD = 0,
+    this.totalVitaminE = 0,
+    this.totalVitaminK = 0,
+    this.totalVitaminB1 = 0,
+    this.totalVitaminB2 = 0,
+    this.totalVitaminB6 = 0,
+    this.totalVitaminB12 = 0,
+    this.totalFolate = 0,
+    this.totalVitaminC = 0,
   });
 
   factory MealPlan.fromJson(Map<String, dynamic> json) {
@@ -44,12 +66,24 @@ class MealPlan {
       totalFat: (json['total_fat'] ?? 0).toDouble(),
       totalCarbohydrate: (json['total_carbohydrate'] ?? 0).toDouble(),
       totalFiber: (json['total_fiber'] ?? 0).toDouble(),
+      // ミネラル
       totalSodium: (json['total_sodium'] ?? 0).toDouble(),
+      totalPotassium: (json['total_potassium'] ?? 0).toDouble(),
       totalCalcium: (json['total_calcium'] ?? 0).toDouble(),
+      totalMagnesium: (json['total_magnesium'] ?? 0).toDouble(),
       totalIron: (json['total_iron'] ?? 0).toDouble(),
+      totalZinc: (json['total_zinc'] ?? 0).toDouble(),
+      // ビタミン
       totalVitaminA: (json['total_vitamin_a'] ?? 0).toDouble(),
-      totalVitaminC: (json['total_vitamin_c'] ?? 0).toDouble(),
       totalVitaminD: (json['total_vitamin_d'] ?? 0).toDouble(),
+      totalVitaminE: (json['total_vitamin_e'] ?? 0).toDouble(),
+      totalVitaminK: (json['total_vitamin_k'] ?? 0).toDouble(),
+      totalVitaminB1: (json['total_vitamin_b1'] ?? 0).toDouble(),
+      totalVitaminB2: (json['total_vitamin_b2'] ?? 0).toDouble(),
+      totalVitaminB6: (json['total_vitamin_b6'] ?? 0).toDouble(),
+      totalVitaminB12: (json['total_vitamin_b12'] ?? 0).toDouble(),
+      totalFolate: (json['total_folate'] ?? 0).toDouble(),
+      totalVitaminC: (json['total_vitamin_c'] ?? 0).toDouble(),
     );
   }
 

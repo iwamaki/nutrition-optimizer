@@ -165,15 +165,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 期間切替 & 栄養達成率
-            _buildPeriodToggle(),
-            const SizedBox(height: 16),
-
-            // 栄養達成率バー
-            _buildNutrientProgress(plan, todayPlan),
-            const SizedBox(height: 24),
-
-            // 今日の献立
+            // 今日の献立（上部に配置）
             if (todayPlan != null) ...[
               _buildMealSection(
                 context,
@@ -195,7 +187,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 Icons.nightlight_round,
                 todayPlan.dinner,
               ),
+              const SizedBox(height: 24),
             ],
+
+            // 期間切替 & 栄養達成率（下部に配置、スクロールで表示）
+            _buildPeriodToggle(),
+            const SizedBox(height: 16),
+            _buildNutrientProgress(plan, todayPlan),
             const SizedBox(height: 80), // FAB用のスペース
           ],
         ),
@@ -253,6 +251,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // 基本栄養素（エネルギー・三大栄養素）
+            _buildNutrientSectionHeader('エネルギー・三大栄養素'),
+            const SizedBox(height: 8),
             NutrientProgressBar(
               label: 'カロリー',
               value: achievement['calories'] ?? 0,
@@ -282,9 +284,143 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               value: achievement['fiber'] ?? 0,
               color: Colors.green,
             ),
+            const SizedBox(height: 16),
+
+            // ミネラル
+            _buildNutrientSectionHeader('ミネラル'),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ナトリウム',
+              value: achievement['sodium'] ?? 0,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'カリウム',
+              value: achievement['potassium'] ?? 0,
+              color: Colors.purple.shade300,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'カルシウム',
+              value: achievement['calcium'] ?? 0,
+              color: Colors.blueGrey,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'マグネシウム',
+              value: achievement['magnesium'] ?? 0,
+              color: Colors.cyan,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: '鉄',
+              value: achievement['iron'] ?? 0,
+              color: Colors.brown,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: '亜鉛',
+              value: achievement['zinc'] ?? 0,
+              color: Colors.indigo.shade300,
+            ),
+            const SizedBox(height: 16),
+
+            // ビタミン
+            _buildNutrientSectionHeader('ビタミン'),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンA',
+              value: achievement['vitamin_a'] ?? 0,
+              color: Colors.deepOrange,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンD',
+              value: achievement['vitamin_d'] ?? 0,
+              color: Colors.teal,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンE',
+              value: achievement['vitamin_e'] ?? 0,
+              color: Colors.lime.shade700,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンK',
+              value: achievement['vitamin_k'] ?? 0,
+              color: Colors.green.shade700,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンB1',
+              value: achievement['vitamin_b1'] ?? 0,
+              color: Colors.pink.shade300,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンB2',
+              value: achievement['vitamin_b2'] ?? 0,
+              color: Colors.pink.shade500,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンB6',
+              value: achievement['vitamin_b6'] ?? 0,
+              color: Colors.pink.shade700,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンB12',
+              value: achievement['vitamin_b12'] ?? 0,
+              color: Colors.red.shade700,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: '葉酸',
+              value: achievement['folate'] ?? 0,
+              color: Colors.lightGreen,
+            ),
+            const SizedBox(height: 8),
+            NutrientProgressBar(
+              label: 'ビタミンC',
+              value: achievement['vitamin_c'] ?? 0,
+              color: Colors.yellow.shade700,
+            ),
+            const SizedBox(height: 16),
+
+            // 出典表示
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              '栄養素データ: 日本食品標準成分表（八訂）増補2023年',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                    fontSize: 10,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '栄養摂取基準: 日本人の食事摂取基準（2020年版）厚生労働省',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                    fontSize: 10,
+                  ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildNutrientSectionHeader(String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
     );
   }
 

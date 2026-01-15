@@ -7,12 +7,24 @@ class Food {
   final double fat;
   final double carbohydrate;
   final double fiber;
+  // ミネラル
   final double sodium;
+  final double potassium;
   final double calcium;
+  final double magnesium;
   final double iron;
+  final double zinc;
+  // ビタミン
   final double vitaminA;
-  final double vitaminC;
   final double vitaminD;
+  final double vitaminE;
+  final double vitaminK;
+  final double vitaminB1;
+  final double vitaminB2;
+  final double vitaminB6;
+  final double vitaminB12;
+  final double folate;
+  final double vitaminC;
   final double maxPortion;
 
   Food({
@@ -25,11 +37,21 @@ class Food {
     required this.carbohydrate,
     required this.fiber,
     required this.sodium,
+    required this.potassium,
     required this.calcium,
+    required this.magnesium,
     required this.iron,
+    required this.zinc,
     required this.vitaminA,
-    required this.vitaminC,
     required this.vitaminD,
+    required this.vitaminE,
+    required this.vitaminK,
+    required this.vitaminB1,
+    required this.vitaminB2,
+    required this.vitaminB6,
+    required this.vitaminB12,
+    required this.folate,
+    required this.vitaminC,
     required this.maxPortion,
   });
 
@@ -43,12 +65,24 @@ class Food {
       fat: (json['fat'] ?? 0).toDouble(),
       carbohydrate: (json['carbohydrate'] ?? 0).toDouble(),
       fiber: (json['fiber'] ?? 0).toDouble(),
+      // ミネラル
       sodium: (json['sodium'] ?? 0).toDouble(),
+      potassium: (json['potassium'] ?? 0).toDouble(),
       calcium: (json['calcium'] ?? 0).toDouble(),
+      magnesium: (json['magnesium'] ?? 0).toDouble(),
       iron: (json['iron'] ?? 0).toDouble(),
+      zinc: (json['zinc'] ?? 0).toDouble(),
+      // ビタミン
       vitaminA: (json['vitamin_a'] ?? 0).toDouble(),
-      vitaminC: (json['vitamin_c'] ?? 0).toDouble(),
       vitaminD: (json['vitamin_d'] ?? 0).toDouble(),
+      vitaminE: (json['vitamin_e'] ?? 0).toDouble(),
+      vitaminK: (json['vitamin_k'] ?? 0).toDouble(),
+      vitaminB1: (json['vitamin_b1'] ?? 0).toDouble(),
+      vitaminB2: (json['vitamin_b2'] ?? 0).toDouble(),
+      vitaminB6: (json['vitamin_b6'] ?? 0).toDouble(),
+      vitaminB12: (json['vitamin_b12'] ?? 0).toDouble(),
+      folate: (json['folate'] ?? 0).toDouble(),
+      vitaminC: (json['vitamin_c'] ?? 0).toDouble(),
       maxPortion: (json['max_portion'] ?? 300).toDouble(),
     );
   }

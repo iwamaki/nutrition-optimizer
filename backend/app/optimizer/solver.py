@@ -22,7 +22,12 @@ SOLVER = PULP_CBC_CMD(msg=0, timeLimit=10)
 # 全栄養素リスト
 ALL_NUTRIENTS = [
     "calories", "protein", "fat", "carbohydrate", "fiber",
-    "sodium", "calcium", "iron", "vitamin_a", "vitamin_c", "vitamin_d"
+    # ミネラル
+    "sodium", "potassium", "calcium", "magnesium", "iron", "zinc",
+    # ビタミン
+    "vitamin_a", "vitamin_d", "vitamin_e", "vitamin_k",
+    "vitamin_b1", "vitamin_b2", "vitamin_b6", "vitamin_b12",
+    "folate", "vitamin_c"
 ]
 
 # 栄養素の重み（最適化時の優先度）
@@ -32,12 +37,24 @@ NUTRIENT_WEIGHTS = {
     "fat": 1.0,
     "carbohydrate": 1.0,
     "fiber": 1.2,
+    # ミネラル
     "sodium": 0.8,  # 過剰摂取を避ける
+    "potassium": 1.0,
     "calcium": 1.2,
+    "magnesium": 1.0,
     "iron": 1.3,
+    "zinc": 1.0,
+    # ビタミン
     "vitamin_a": 1.0,
-    "vitamin_c": 1.0,
     "vitamin_d": 1.5,
+    "vitamin_e": 0.8,
+    "vitamin_k": 0.8,
+    "vitamin_b1": 1.2,
+    "vitamin_b2": 1.2,
+    "vitamin_b6": 1.0,
+    "vitamin_b12": 1.3,
+    "folate": 1.2,
+    "vitamin_c": 1.0,
 }
 
 # 食事ごとのカロリー比率
@@ -191,12 +208,24 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
         fat=dish_db.fat,
         carbohydrate=dish_db.carbohydrate,
         fiber=dish_db.fiber,
+        # ミネラル
         sodium=dish_db.sodium,
+        potassium=dish_db.potassium,
         calcium=dish_db.calcium,
+        magnesium=dish_db.magnesium,
         iron=dish_db.iron,
+        zinc=dish_db.zinc,
+        # ビタミン
         vitamin_a=dish_db.vitamin_a,
-        vitamin_c=dish_db.vitamin_c,
         vitamin_d=dish_db.vitamin_d,
+        vitamin_e=dish_db.vitamin_e,
+        vitamin_k=dish_db.vitamin_k,
+        vitamin_b1=dish_db.vitamin_b1,
+        vitamin_b2=dish_db.vitamin_b2,
+        vitamin_b6=dish_db.vitamin_b6,
+        vitamin_b12=dish_db.vitamin_b12,
+        folate=dish_db.folate,
+        vitamin_c=dish_db.vitamin_c,
         # レシピ詳細
         recipe_details=recipe_details,
     )
@@ -264,12 +293,24 @@ def optimize_meal(
         "fat": ((target.fat_min + target.fat_max) / 2) * ratio,
         "carbohydrate": ((target.carbohydrate_min + target.carbohydrate_max) / 2) * ratio,
         "fiber": target.fiber_min * ratio,
+        # ミネラル
         "sodium": target.sodium_max * ratio,
+        "potassium": target.potassium_min * ratio,
         "calcium": target.calcium_min * ratio,
+        "magnesium": target.magnesium_min * ratio,
         "iron": target.iron_min * ratio,
+        "zinc": target.zinc_min * ratio,
+        # ビタミン
         "vitamin_a": target.vitamin_a_min * ratio,
-        "vitamin_c": target.vitamin_c_min * ratio,
         "vitamin_d": target.vitamin_d_min * ratio,
+        "vitamin_e": target.vitamin_e_min * ratio,
+        "vitamin_k": target.vitamin_k_min * ratio,
+        "vitamin_b1": target.vitamin_b1_min * ratio,
+        "vitamin_b2": target.vitamin_b2_min * ratio,
+        "vitamin_b6": target.vitamin_b6_min * ratio,
+        "vitamin_b12": target.vitamin_b12_min * ratio,
+        "folate": target.folate_min * ratio,
+        "vitamin_c": target.vitamin_c_min * ratio,
     }
 
     # 偏差変数
@@ -333,12 +374,24 @@ def optimize_meal(
         total_fat=round(totals["fat"], 1),
         total_carbohydrate=round(totals["carbohydrate"], 1),
         total_fiber=round(totals["fiber"], 1),
+        # ミネラル
         total_sodium=round(totals["sodium"], 1),
+        total_potassium=round(totals["potassium"], 1),
         total_calcium=round(totals["calcium"], 1),
+        total_magnesium=round(totals["magnesium"], 1),
         total_iron=round(totals["iron"], 1),
+        total_zinc=round(totals["zinc"], 1),
+        # ビタミン
         total_vitamin_a=round(totals["vitamin_a"], 1),
-        total_vitamin_c=round(totals["vitamin_c"], 1),
         total_vitamin_d=round(totals["vitamin_d"], 1),
+        total_vitamin_e=round(totals["vitamin_e"], 1),
+        total_vitamin_k=round(totals["vitamin_k"], 1),
+        total_vitamin_b1=round(totals["vitamin_b1"], 1),
+        total_vitamin_b2=round(totals["vitamin_b2"], 1),
+        total_vitamin_b6=round(totals["vitamin_b6"], 1),
+        total_vitamin_b12=round(totals["vitamin_b12"], 1),
+        total_folate=round(totals["folate"], 1),
+        total_vitamin_c=round(totals["vitamin_c"], 1),
     )
 
 
@@ -391,20 +444,8 @@ def optimize_daily_menu(
         for nutrient in ALL_NUTRIENTS:
             total_nutrients[nutrient] += getattr(meal, f"total_{nutrient}")
 
-    # 達成率計算（全11種類）
-    achievement = {
-        "calories": total_nutrients["calories"] / ((target.calories_min + target.calories_max) / 2) * 100,
-        "protein": total_nutrients["protein"] / ((target.protein_min + target.protein_max) / 2) * 100,
-        "fat": total_nutrients["fat"] / ((target.fat_min + target.fat_max) / 2) * 100,
-        "carbohydrate": total_nutrients["carbohydrate"] / ((target.carbohydrate_min + target.carbohydrate_max) / 2) * 100,
-        "fiber": total_nutrients["fiber"] / target.fiber_min * 100 if target.fiber_min else 0,
-        "sodium": min(100, target.sodium_max / max(total_nutrients["sodium"], 1) * 100),  # 上限基準
-        "calcium": total_nutrients["calcium"] / target.calcium_min * 100 if target.calcium_min else 0,
-        "iron": total_nutrients["iron"] / target.iron_min * 100 if target.iron_min else 0,
-        "vitamin_a": total_nutrients["vitamin_a"] / target.vitamin_a_min * 100 if target.vitamin_a_min else 0,
-        "vitamin_c": total_nutrients["vitamin_c"] / target.vitamin_c_min * 100 if target.vitamin_c_min else 0,
-        "vitamin_d": total_nutrients["vitamin_d"] / target.vitamin_d_min * 100 if target.vitamin_d_min else 0,
-    }
+    # 達成率計算（全栄養素）
+    achievement = _calc_achievement(total_nutrients, target)
 
     return DailyMenuPlan(
         breakfast=breakfast,
@@ -431,12 +472,24 @@ def db_food_to_model(food_db: FoodDB) -> Food:
         fat=food_db.fat,
         carbohydrate=food_db.carbohydrate,
         fiber=food_db.fiber,
+        # ミネラル
         sodium=food_db.sodium,
+        potassium=food_db.potassium,
         calcium=food_db.calcium,
+        magnesium=food_db.magnesium,
         iron=food_db.iron,
+        zinc=food_db.zinc,
+        # ビタミン
         vitamin_a=food_db.vitamin_a,
-        vitamin_c=food_db.vitamin_c,
         vitamin_d=food_db.vitamin_d,
+        vitamin_e=food_db.vitamin_e,
+        vitamin_k=food_db.vitamin_k,
+        vitamin_b1=food_db.vitamin_b1,
+        vitamin_b2=food_db.vitamin_b2,
+        vitamin_b6=food_db.vitamin_b6,
+        vitamin_b12=food_db.vitamin_b12,
+        folate=food_db.folate,
+        vitamin_c=food_db.vitamin_c,
         max_portion=food_db.max_portion,
     )
 
@@ -456,12 +509,24 @@ NUTRIENT_NAMES = {
     "fat": "脂質",
     "carbohydrate": "炭水化物",
     "fiber": "食物繊維",
+    # ミネラル
     "sodium": "ナトリウム",
+    "potassium": "カリウム",
     "calcium": "カルシウム",
-    "iron": "鉄分",
+    "magnesium": "マグネシウム",
+    "iron": "鉄",
+    "zinc": "亜鉛",
+    # ビタミン
     "vitamin_a": "ビタミンA",
-    "vitamin_c": "ビタミンC",
     "vitamin_d": "ビタミンD",
+    "vitamin_e": "ビタミンE",
+    "vitamin_k": "ビタミンK",
+    "vitamin_b1": "ビタミンB1",
+    "vitamin_b2": "ビタミンB2",
+    "vitamin_b6": "ビタミンB6",
+    "vitamin_b12": "ビタミンB12",
+    "folate": "葉酸",
+    "vitamin_c": "ビタミンC",
 }
 
 
@@ -607,11 +672,22 @@ def solve_multi_day_plan(
             carbohydrate_max=target.carbohydrate_max * volume_mult,
             fiber_min=target.fiber_min * volume_mult,
             sodium_max=target.sodium_max * volume_mult,
-            calcium_min=target.calcium_min,  # ミネラル・ビタミンは変えない
+            # ミネラル・ビタミンは変えない
+            potassium_min=target.potassium_min,
+            calcium_min=target.calcium_min,
+            magnesium_min=target.magnesium_min,
             iron_min=target.iron_min,
+            zinc_min=target.zinc_min,
             vitamin_a_min=target.vitamin_a_min,
-            vitamin_c_min=target.vitamin_c_min,
             vitamin_d_min=target.vitamin_d_min,
+            vitamin_e_min=target.vitamin_e_min,
+            vitamin_k_min=target.vitamin_k_min,
+            vitamin_b1_min=target.vitamin_b1_min,
+            vitamin_b2_min=target.vitamin_b2_min,
+            vitamin_b6_min=target.vitamin_b6_min,
+            vitamin_b12_min=target.vitamin_b12_min,
+            folate_min=target.folate_min,
+            vitamin_c_min=target.vitamin_c_min,
         )
 
     # 全料理取得
