@@ -1,18 +1,20 @@
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../domain/entities/dish.dart';
 import '../../../domain/entities/menu_plan.dart';
 import '../../../domain/entities/settings.dart';
 import '../../../data/repositories/menu_repository_impl.dart';
 import '../../../data/repositories/food_repository_impl.dart';
+import '../../../data/datasources/api_service.dart';
 
 part 'generate_modal_controller.g.dart';
 
 /// 献立生成モーダルの状態
 class GenerateModalState {
-  // 現在のステップ
+  // 現在のステップ（0:基本設定, 1:お気に入り, 2:手持ち食材, 3:確認）
   final int currentStep;
 
-  // Step1: 基本設定
+  // Step0: 基本設定
   final int days;
   final int people;
   final Set<Allergen> excludedAllergens;
@@ -20,6 +22,11 @@ class GenerateModalState {
   final String varietyLevel;
   // 朝昼夜別の設定（プリセット or カスタム）
   final Map<String, MealSetting> mealSettings;
+
+  // Step1: お気に入り料理
+  final List<Dish> favoriteDishes; // お気に入り料理の実データ
+  final bool isLoadingFavorites;
+  final bool guaranteeFavorites; // 確実に献立に入れる
 
   // Step2: 手持ち食材
   final Set<int> ownedIngredientIds;
@@ -47,6 +54,9 @@ class GenerateModalState {
       'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
       'dinner': MealSetting(enabled: true, preset: MealPreset.full),
     },
+    this.favoriteDishes = const [],
+    this.isLoadingFavorites = false,
+    this.guaranteeFavorites = false,
     this.ownedIngredientIds = const {},
     this.ingredients = const [],
     this.isLoadingIngredients = false,
@@ -67,6 +77,9 @@ class GenerateModalState {
     String? batchCookingLevel,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
+    List<Dish>? favoriteDishes,
+    bool? isLoadingFavorites,
+    bool? guaranteeFavorites,
     Set<int>? ownedIngredientIds,
     List<Map<String, dynamic>>? ingredients,
     bool? isLoadingIngredients,
@@ -88,6 +101,9 @@ class GenerateModalState {
       batchCookingLevel: batchCookingLevel ?? this.batchCookingLevel,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
+      favoriteDishes: favoriteDishes ?? this.favoriteDishes,
+      isLoadingFavorites: isLoadingFavorites ?? this.isLoadingFavorites,
+      guaranteeFavorites: guaranteeFavorites ?? this.guaranteeFavorites,
       ownedIngredientIds: ownedIngredientIds ?? this.ownedIngredientIds,
       ingredients: ingredients ?? this.ingredients,
       isLoadingIngredients: isLoadingIngredients ?? this.isLoadingIngredients,
@@ -137,9 +153,9 @@ class GenerateModalController extends _$GenerateModalController {
 
   // === Step Navigation ===
   void nextStep() {
-    if (state.currentStep < 2) {
+    if (state.currentStep < 3) {
       state = state.copyWith(currentStep: state.currentStep + 1);
-      if (state.currentStep == 2) {
+      if (state.currentStep == 3) {
         generatePlan();
       }
     }
@@ -152,7 +168,46 @@ class GenerateModalController extends _$GenerateModalController {
   }
 
   void goToStep(int step) {
-    state = state.copyWith(currentStep: step.clamp(0, 2));
+    state = state.copyWith(currentStep: step.clamp(0, 3));
+  }
+
+  // === Step1: お気に入り料理 ===
+
+  /// お気に入り料理を読み込み
+  Future<void> loadFavoriteDishes(Set<int> favoriteIds) async {
+    if (favoriteIds.isEmpty) {
+      state = state.copyWith(favoriteDishes: [], isLoadingFavorites: false);
+      return;
+    }
+
+    state = state.copyWith(isLoadingFavorites: true);
+
+    try {
+      final apiService = ApiService();
+      final dishes = <Dish>[];
+
+      for (final id in favoriteIds) {
+        try {
+          final dish = await apiService.getDish(id);
+          dishes.add(dish);
+        } catch (e) {
+          debugPrint('料理 $id の読み込み失敗: $e');
+        }
+      }
+
+      state = state.copyWith(
+        favoriteDishes: dishes,
+        isLoadingFavorites: false,
+      );
+    } catch (e) {
+      debugPrint('お気に入り料理の読み込みに失敗: $e');
+      state = state.copyWith(isLoadingFavorites: false);
+    }
+  }
+
+  /// 確実に献立に入れるオプションを切り替え
+  void setGuaranteeFavorites(bool value) {
+    state = state.copyWith(guaranteeFavorites: value);
   }
 
   // === Step1: Basic Settings ===
@@ -311,7 +366,7 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(excludedDishIdsInStep3: current);
   }
 
-  Future<void> generatePlan({NutrientTarget? target}) async {
+  Future<void> generatePlan({NutrientTarget? target, List<int>? preferredDishIds}) async {
     state = state.copyWith(
       isGenerating: true,
       clearError: true,
@@ -320,12 +375,20 @@ class GenerateModalController extends _$GenerateModalController {
 
     try {
       final repo = ref.read(menuRepositoryProvider);
+
+      // お気に入り料理のID
+      final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
+
       final plan = await repo.generateMultiDayPlan(
         days: state.days,
         people: state.people,
         target: target,
         excludedAllergens: state.excludedAllergens.toList(),
+        // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
+        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
         preferredIngredientIds: state.ownedIngredientIds.toList(),
+        // お気に入り料理は常に優先（確実に入れるオプションがOFFでも）
+        preferredDishIds: preferredDishIds ?? favoriteIds,
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
@@ -341,13 +404,20 @@ class GenerateModalController extends _$GenerateModalController {
 
     try {
       final repo = ref.read(menuRepositoryProvider);
+
+      // お気に入り料理のID
+      final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
+
       final plan = await repo.refineMultiDayPlan(
         days: state.days,
         people: state.people,
         target: target,
+        // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
+        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
         excludeDishIds: state.excludedDishIdsInStep3.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
         preferredIngredientIds: state.ownedIngredientIds.toList(),
+        preferredDishIds: favoriteIds,
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,

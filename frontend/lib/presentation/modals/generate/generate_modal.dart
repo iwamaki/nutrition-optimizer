@@ -5,10 +5,11 @@ import '../../providers/settings_provider.dart';
 import '../../providers/shopping_provider.dart';
 import 'generate_modal_controller.dart';
 import 'widgets/step_basic_settings.dart';
+import 'widgets/step_favorites.dart';
 import 'widgets/step_owned_foods.dart';
 import 'widgets/step_confirmation.dart';
 
-/// 献立生成モーダル（3ステップウィザード）- リファクタリング版
+/// 献立生成モーダル（4ステップウィザード）
 class GenerateModalNew extends ConsumerStatefulWidget {
   const GenerateModalNew({super.key});
 
@@ -64,7 +65,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
   }
 
   Widget _buildHeader(BuildContext context, GenerateModalState state) {
-    final titles = ['基本設定', '手持ち食材', '献立確認'];
+    final titles = ['基本設定', 'お気に入り', '手持ち食材', '献立確認'];
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -99,11 +100,13 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildStepDot(context, state, 0, '基本設定'),
+          _buildStepDot(context, state, 0, '基本'),
           _buildStepLine(context, state, 0),
-          _buildStepDot(context, state, 1, '食材'),
+          _buildStepDot(context, state, 1, 'お気に入り'),
           _buildStepLine(context, state, 1),
-          _buildStepDot(context, state, 2, '確認'),
+          _buildStepDot(context, state, 2, '食材'),
+          _buildStepLine(context, state, 2),
+          _buildStepDot(context, state, 3, '確認'),
         ],
       ),
     );
@@ -180,8 +183,10 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
       case 0:
         return StepBasicSettings(scrollController: scrollController);
       case 1:
-        return StepOwnedFoods(scrollController: scrollController);
+        return StepFavorites(scrollController: scrollController);
       case 2:
+        return StepOwnedFoods(scrollController: scrollController);
+      case 3:
         return StepConfirmation(
           scrollController: scrollController,
           onRetry: () {
@@ -222,7 +227,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
               ),
             ),
           if (state.currentStep > 0) const SizedBox(width: 16),
-          if (state.currentStep == 2 && state.generatedPlan != null) ...[
+          if (state.currentStep == 3 && state.generatedPlan != null) ...[
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: state.isGenerating
@@ -237,7 +242,7 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
             const SizedBox(width: 16),
           ],
           Expanded(
-            flex: state.currentStep == 2 && state.generatedPlan != null ? 1 : 2,
+            flex: state.currentStep == 3 && state.generatedPlan != null ? 1 : 2,
             child: FilledButton(
               onPressed: state.isGenerating ? null : () => _handleNext(state, controller),
               child: Text(_getNextButtonLabel(state)),
@@ -253,8 +258,10 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
       case 0:
         return '次へ →';
       case 1:
-        return '生成 →';
+        return '次へ →';
       case 2:
+        return '生成 →';
+      case 3:
         return state.generatedPlan != null ? '✓ 確定' : '生成';
       default:
         return '次へ →';
@@ -270,6 +277,9 @@ class _GenerateModalNewState extends ConsumerState<GenerateModalNew> {
         controller.nextStep();
         break;
       case 2:
+        controller.nextStep();
+        break;
+      case 3:
         if (state.generatedPlan != null) {
           _confirmPlan(state);
         } else {

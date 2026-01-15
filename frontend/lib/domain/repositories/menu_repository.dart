@@ -11,6 +11,7 @@ abstract class MenuRepository {
     NutrientTarget? target,
     List<Allergen> excludedAllergens = const [],
     List<int> excludedDishIds = const [],
+    List<int> keepDishIds = const [],
     List<int> preferredIngredientIds = const [],
     List<int> preferredDishIds = const [],
     String batchCookingLevel = 'normal',

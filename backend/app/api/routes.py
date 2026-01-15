@@ -288,6 +288,7 @@ def optimize_multi_day_menu(
         target=target,
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=request.excluded_dish_ids,
+        keep_dish_ids=request.keep_dish_ids,
         preferred_ingredient_ids=request.preferred_ingredient_ids,
         preferred_dish_ids=request.preferred_dish_ids,
         batch_cooking_level=request.batch_cooking_level.value,

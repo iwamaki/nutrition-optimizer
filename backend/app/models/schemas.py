@@ -396,6 +396,7 @@ class MultiDayOptimizeRequest(BaseModel):
     target: Optional[NutrientTarget] = None
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
+    keep_dish_ids: list[int] = Field(default_factory=list, description="必ず含める料理ID（お気に入り確定）")
     preferred_ingredient_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     preferred_dish_ids: list[int] = Field(default_factory=list, description="優先料理ID（お気に入り）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
