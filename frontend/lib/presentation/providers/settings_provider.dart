@@ -30,10 +30,12 @@ class SettingsState {
   Set<Allergen> get excludedAllergens => settings.excludedAllergens;
   NutrientTarget get nutrientTarget => settings.nutrientTarget;
   Set<int> get favoriteDishIds => settings.favoriteDishIds;
+  Set<int> get favoriteIngredientIds => settings.favoriteIngredientIds;
   String get varietyLevel => settings.varietyLevel;
   Map<String, MealSetting> get mealSettings => settings.mealSettings;
 
   bool isFavorite(int dishId) => settings.favoriteDishIds.contains(dishId);
+  bool isIngredientFavorite(int ingredientId) => settings.favoriteIngredientIds.contains(ingredientId);
 }
 
 /// 設定管理Notifier
@@ -64,6 +66,12 @@ class SettingsNotifier extends _$SettingsNotifier {
           .whereType<int>()
           .toSet();
 
+      final favoriteIngredientList = prefs.getStringList('favoriteIngredientIds') ?? [];
+      final favoriteIngredients = favoriteIngredientList
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .toSet();
+
       final caloriesMin = prefs.getDouble('caloriesMin') ?? 1800;
       final caloriesMax = prefs.getDouble('caloriesMax') ?? 2200;
       final proteinMin = prefs.getDouble('proteinMin') ?? 60;
@@ -87,6 +95,7 @@ class SettingsNotifier extends _$SettingsNotifier {
           defaultPeople: people,
           excludedAllergens: allergens,
           favoriteDishIds: favorites,
+          favoriteIngredientIds: favoriteIngredients,
           nutrientTarget: NutrientTarget(
             caloriesMin: caloriesMin,
             caloriesMax: caloriesMax,
@@ -128,6 +137,10 @@ class SettingsNotifier extends _$SettingsNotifier {
       await prefs.setStringList(
         'favoriteDishIds',
         settings.favoriteDishIds.map((id) => id.toString()).toList(),
+      );
+      await prefs.setStringList(
+        'favoriteIngredientIds',
+        settings.favoriteIngredientIds.map((id) => id.toString()).toList(),
       );
       await prefs.setDouble('caloriesMin', settings.nutrientTarget.caloriesMin);
       await prefs.setDouble('caloriesMax', settings.nutrientTarget.caloriesMax);
@@ -255,6 +268,19 @@ class SettingsNotifier extends _$SettingsNotifier {
     }
     state = state.copyWith(
       settings: state.settings.copyWith(favoriteDishIds: current),
+    );
+    await _saveSettings();
+  }
+
+  Future<void> toggleFavoriteIngredient(int ingredientId) async {
+    final current = Set<int>.from(state.settings.favoriteIngredientIds);
+    if (current.contains(ingredientId)) {
+      current.remove(ingredientId);
+    } else {
+      current.add(ingredientId);
+    }
+    state = state.copyWith(
+      settings: state.settings.copyWith(favoriteIngredientIds: current),
     );
     await _saveSettings();
   }

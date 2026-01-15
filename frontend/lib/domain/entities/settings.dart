@@ -327,6 +327,7 @@ class AppSettings {
   final Set<Allergen> excludedAllergens;
   final NutrientTarget nutrientTarget;
   final Set<int> favoriteDishIds;
+  final Set<int> favoriteIngredientIds; // お気に入り食材
   // 献立生成のデフォルト設定
   final String varietyLevel; // small/normal/large
   final Map<String, MealSetting> mealSettings; // 朝昼夜のプリセット
@@ -337,6 +338,7 @@ class AppSettings {
     this.excludedAllergens = const {},
     this.nutrientTarget = const NutrientTarget(),
     this.favoriteDishIds = const {},
+    this.favoriteIngredientIds = const {},
     this.varietyLevel = 'normal',
     this.mealSettings = const {
       'breakfast': MealSetting(enabled: true, preset: MealPreset.light),
@@ -351,6 +353,7 @@ class AppSettings {
     Set<Allergen>? excludedAllergens,
     NutrientTarget? nutrientTarget,
     Set<int>? favoriteDishIds,
+    Set<int>? favoriteIngredientIds,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
   }) {
@@ -360,6 +363,7 @@ class AppSettings {
       excludedAllergens: excludedAllergens ?? this.excludedAllergens,
       nutrientTarget: nutrientTarget ?? this.nutrientTarget,
       favoriteDishIds: favoriteDishIds ?? this.favoriteDishIds,
+      favoriteIngredientIds: favoriteIngredientIds ?? this.favoriteIngredientIds,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
     );

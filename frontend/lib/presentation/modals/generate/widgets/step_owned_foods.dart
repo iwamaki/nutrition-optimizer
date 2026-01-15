@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../providers/settings_provider.dart';
 import '../generate_modal_controller.dart';
 
 /// Step2: 手持ち食材
@@ -59,7 +61,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         else if (isTextSearching)
           _buildSearchResults(context, state, controller)
         else
-          _buildIngredientsGrid(context, state, controller),
+          _buildCategorizedIngredients(context, state, controller),
       ],
     );
   }
@@ -87,6 +89,14 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                     '→ 買い物リストから除外されます',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '長押しでお気に入り登録',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                          fontStyle: FontStyle.italic,
                         ),
                   ),
                 ],
@@ -256,10 +266,13 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
           'id': food['id'],
           'name': name,
           'emoji': _getEmojiForFood(name),
+          'category': food['category'] ?? '',
         };
       }
     }
-    final foodsList = uniqueFoods.values.toList();
+    // 五十音順でソート
+    final foodsList = uniqueFoods.values.toList()
+      ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,29 +326,136 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     return '🍽️';
   }
 
-  Widget _buildIngredientsGrid(
+  /// カテゴリ別にセクション分けして表示（お気に入りが一番上）
+  Widget _buildCategorizedIngredients(
     BuildContext context,
     GenerateModalState state,
     GenerateModalController controller,
   ) {
+    final settingsState = ref.watch(settingsNotifierProvider);
+    final favoriteIds = settingsState.favoriteIngredientIds;
+
     // カテゴリでフィルタリング
     final filteredIngredients = _selectedCategory != null
         ? state.ingredients.where((i) => i['category'] == _selectedCategory).toList()
         : state.ingredients;
 
+    // お気に入り食材を抽出
+    final favoriteIngredients = filteredIngredients
+        .where((i) => favoriteIds.contains(i['id']))
+        .toList()
+      ..sort((a, b) => (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''));
+
+    // カテゴリ別にグループ化（お気に入りも含める＝コピー表示）
+    final ingredientsByCategory = <String, List<Map<String, dynamic>>>{};
+    for (final ingredient in filteredIngredients) {
+      final category = ingredient['category'] as String? ?? 'その他';
+      ingredientsByCategory.putIfAbsent(category, () => []);
+      ingredientsByCategory[category]!.add(ingredient);
+    }
+
+    // 各カテゴリ内で五十音順ソート
+    for (final list in ingredientsByCategory.values) {
+      list.sort((a, b) => (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''));
+    }
+
+    // カテゴリの表示順序（ingredientCategoriesの順序に従う）
+    final categoryOrder = ingredientCategories.map((c) => c['name'] as String).toList();
+    final sortedCategories = ingredientsByCategory.keys.toList()
+      ..sort((a, b) {
+        final indexA = categoryOrder.indexOf(a);
+        final indexB = categoryOrder.indexOf(b);
+        if (indexA == -1 && indexB == -1) return a.compareTo(b);
+        if (indexA == -1) return 1;
+        if (indexB == -1) return -1;
+        return indexA.compareTo(indexB);
+      });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            _selectedCategory != null ? '$_selectedCategory（${filteredIngredients.length}件）' : '基本食材（${state.ingredients.length}件）',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+        // お気に入りセクション（一番上）
+        if (favoriteIngredients.isNotEmpty) ...[
+          _buildCategorySection(
+            context,
+            'お気に入り',
+            favoriteIngredients,
+            state,
+            controller,
+            color: const Color(0xFFFFF3E0),
+            textColor: const Color(0xFFFF9800),
+            icon: Icons.star,
+          ),
+          const SizedBox(height: 16),
+        ],
+        // カテゴリ別セクション
+        ...sortedCategories.expand((category) {
+          final ingredients = ingredientsByCategory[category]!;
+          if (ingredients.isEmpty) return <Widget>[];
+
+          final categoryData = ingredientCategories.firstWhere(
+            (c) => c['name'] == category,
+            orElse: () => {'name': category, 'colorValue': 0xFFECEFF1, 'textColorValue': 0xFF455A64},
+          );
+          final color = Color(categoryData['colorValue'] as int);
+          final textColor = Color(categoryData['textColorValue'] as int);
+
+          return [
+            _buildCategorySection(
+              context,
+              category,
+              ingredients,
+              state,
+              controller,
+              color: color,
+              textColor: textColor,
+            ),
+            const SizedBox(height: 16),
+          ];
+        }),
+      ],
+    );
+  }
+
+  /// カテゴリセクションを構築
+  Widget _buildCategorySection(
+    BuildContext context,
+    String categoryName,
+    List<Map<String, dynamic>> ingredients,
+    GenerateModalState state,
+    GenerateModalController controller, {
+    required Color color,
+    required Color textColor,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: textColor),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                '$categoryName（${ingredients.length}件）',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ],
           ),
         ),
-        _buildIngredientGrid(context, filteredIngredients, state, controller),
+        const SizedBox(height: 8),
+        _buildIngredientGrid(context, ingredients, state, controller),
       ],
     );
   }
@@ -346,6 +466,9 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     GenerateModalState state,
     GenerateModalController controller,
   ) {
+    final settingsState = ref.watch(settingsNotifierProvider);
+    final favoriteIds = settingsState.favoriteIngredientIds;
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -358,12 +481,28 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
       itemCount: ingredients.length,
       itemBuilder: (context, index) {
         final ingredient = ingredients[index];
-        final isSelected = state.ownedIngredientIds.contains(ingredient['id']);
+        final ingredientId = ingredient['id'] as int;
+        final isSelected = state.ownedIngredientIds.contains(ingredientId);
+        final isFavorite = favoriteIds.contains(ingredientId);
         final emoji = ingredient['emoji'] ?? _getEmojiForFood(ingredient['name'] ?? '');
         final name = ingredient['name'] ?? '';
 
         return GestureDetector(
-          onTap: () => controller.toggleIngredient(ingredient['id'] as int),
+          onTap: () => controller.toggleIngredient(ingredientId),
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            ref.read(settingsNotifierProvider.notifier).toggleFavoriteIngredient(ingredientId);
+            final willBeFavorite = !isFavorite;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  willBeFavorite ? '$name をお気に入りに追加しました' : '$name をお気に入りから削除しました',
+                ),
+                duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
           child: Container(
             decoration: BoxDecoration(
               color: isSelected
@@ -404,6 +543,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                     ],
                   ),
                 ),
+                // 選択中チェックマーク（右上）
                 if (isSelected)
                   Positioned(
                     top: 4,
@@ -422,6 +562,17 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                       ),
                     ),
                   ),
+                // お気に入りスター（左上）
+                if (isFavorite)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Icon(
+                      Icons.star,
+                      size: 16,
+                      color: Colors.orange.shade600,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -429,5 +580,4 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
       },
     );
   }
-
 }
