@@ -145,10 +145,19 @@ def db_dish_to_model(dish_db: DishDB) -> Dish:
     """DBモデルをPydanticモデルに変換"""
     ingredients = []
     for ing in dish_db.ingredients:
+        # 食材名を正規化
+        raw_name = ing.food.name if ing.food else ""
+        normalized_name = _normalize_food_name(raw_name) if raw_name else None
+
+        # 単位変換
+        display_amount, unit = _convert_to_display_unit(normalized_name or "", ing.amount)
+
         ingredients.append(DishIngredient(
             food_id=ing.food_id,
-            food_name=ing.food.name if ing.food else None,
+            food_name=normalized_name,
             amount=ing.amount,
+            display_amount=display_amount,
+            unit=unit,
             cooking_method=CookingMethodEnum(ing.cooking_method) if ing.cooking_method else CookingMethodEnum.RAW,
         ))
 

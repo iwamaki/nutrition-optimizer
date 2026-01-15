@@ -35,12 +35,16 @@ class DishIngredient {
   final int foodId;
   final String? foodName;
   final double amount;
+  final String displayAmount;  // 表示用の量（例: "1", "1/2"）
+  final String unit;           // 単位（例: "本", "個", "g"）
   final String cookingMethod;
 
   DishIngredient({
     required this.foodId,
     this.foodName,
     required this.amount,
+    this.displayAmount = '',
+    this.unit = 'g',
     this.cookingMethod = '生',
   });
 
@@ -49,8 +53,26 @@ class DishIngredient {
       foodId: json['food_id'],
       foodName: json['food_name'],
       amount: (json['amount'] ?? 0).toDouble(),
+      displayAmount: json['display_amount'] ?? '',
+      unit: json['unit'] ?? 'g',
       cookingMethod: json['cooking_method'] ?? '生',
     );
+  }
+
+  /// 表示用の量（単位付き + グラム表示）
+  String get amountDisplay {
+    // 単位がgやkg、mlの場合は重量のみ
+    if (unit == 'g' || unit == 'kg' || unit == 'ml' || unit == 'L') {
+      if (amount >= 1000) {
+        return '${(amount / 1000).toStringAsFixed(1)}kg';
+      }
+      return '${amount.toStringAsFixed(0)}$unit';
+    }
+    // それ以外は「1本 (150g)」のような形式
+    final gramDisplay = amount >= 1000
+        ? '${(amount / 1000).toStringAsFixed(1)}kg'
+        : '${amount.toStringAsFixed(0)}g';
+    return '$displayAmount$unit ($gramDisplay)';
   }
 }
 

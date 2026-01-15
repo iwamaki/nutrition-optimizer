@@ -158,6 +158,8 @@ class DishIngredient(BaseModel):
     food_id: int
     food_name: Optional[str] = None
     amount: float = Field(ge=0, description="g")
+    display_amount: str = Field(default="", description="表示用の量（例: 1本, 1/2個）")
+    unit: str = Field(default="g", description="単位（個, 本, 束, 枚, g）")
     cooking_method: CookingMethodEnum = CookingMethodEnum.RAW
 
 

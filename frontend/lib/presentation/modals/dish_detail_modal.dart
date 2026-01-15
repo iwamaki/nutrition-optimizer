@@ -306,7 +306,7 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                         const SizedBox(width: 8),
                         Expanded(child: Text(ing.foodName ?? '食材')),
                         Text(
-                          '${ing.amount.toStringAsFixed(0)}g',
+                          ing.amountDisplay,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
