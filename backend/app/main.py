@@ -1,11 +1,17 @@
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from app.api.routes import router
+from fastapi.responses import FileResponse, JSONResponse
+from app.presentation.api.v1 import router
 from app.db.database import init_db
 from app.data.loader import SessionLocal, load_dishes_from_csv, load_ingredients_from_csv, load_recipe_details
+from app.core.exceptions import (
+    AppException,
+    EntityNotFoundError,
+    OptimizationFailedError,
+    ExternalServiceError,
+)
 
 # Flutter Webビルドディレクトリ
 FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "build" / "web"
@@ -33,6 +39,32 @@ app.add_middleware(
 
 # APIルート登録
 app.include_router(router, prefix="/api/v1")
+
+
+# ========== 例外ハンドラ ==========
+
+@app.exception_handler(EntityNotFoundError)
+async def entity_not_found_handler(request: Request, exc: EntityNotFoundError):
+    """エンティティが見つからない場合のハンドラ"""
+    return JSONResponse(status_code=404, content=exc.to_dict())
+
+
+@app.exception_handler(OptimizationFailedError)
+async def optimization_failed_handler(request: Request, exc: OptimizationFailedError):
+    """最適化失敗のハンドラ"""
+    return JSONResponse(status_code=500, content=exc.to_dict())
+
+
+@app.exception_handler(ExternalServiceError)
+async def external_service_error_handler(request: Request, exc: ExternalServiceError):
+    """外部サービスエラーのハンドラ"""
+    return JSONResponse(status_code=503, content=exc.to_dict())
+
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    """アプリケーション例外の汎用ハンドラ"""
+    return JSONResponse(status_code=500, content=exc.to_dict())
 
 
 @app.on_event("startup")

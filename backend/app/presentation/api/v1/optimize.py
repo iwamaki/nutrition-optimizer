@@ -4,16 +4,21 @@
 クリーンアーキテクチャ: presentation層
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
-from app.infrastructure.database import get_db
 from app.domain.entities import NutrientTarget, DailyMenuPlan, MultiDayMenuPlan
 from app.models.schemas import OptimizeRequest, MultiDayOptimizeRequest, RefineOptimizeRequest
-from app.optimizer.solver import (
-    optimize_daily_menu,
-    solve_multi_day_plan,
-    refine_multi_day_plan,
+from app.application.use_cases import (
+    OptimizeMultiDayMenuUseCase,
+    RefineMenuPlanUseCase,
 )
+from app.presentation.dependencies import (
+    get_optimize_multi_day_use_case,
+    get_refine_menu_plan_use_case,
+    get_solver,
+    get_dish_repository,
+)
+from app.infrastructure.optimizer import PuLPSolver
+from app.domain.interfaces import DishRepositoryInterface
 
 router = APIRouter(prefix="/optimize", tags=["optimize"])
 
@@ -21,7 +26,8 @@ router = APIRouter(prefix="/optimize", tags=["optimize"])
 @router.post("", response_model=DailyMenuPlan)
 def optimize_menu(
     request: OptimizeRequest = None,
-    db: Session = Depends(get_db)
+    dish_repo: DishRepositoryInterface = Depends(get_dish_repository),
+    solver: PuLPSolver = Depends(get_solver),
 ):
     """1日分のメニューを最適化（料理ベース）
 
@@ -32,12 +38,21 @@ def optimize_menu(
     target = request.target or NutrientTarget()
 
     # 除外料理ID
-    excluded = set(request.excluded_food_ids)
+    excluded = list(set(request.excluded_food_ids))
 
-    result = optimize_daily_menu(
-        db=db,
+    # 料理を取得
+    dishes = dish_repo.find_all(limit=1000)
+    if not dishes:
+        raise HTTPException(
+            status_code=500,
+            detail="料理データが見つかりません。"
+        )
+
+    # 1日分として最適化
+    result = solver.optimize_daily_menu(
+        dishes=dishes,
         target=target,
-        excluded_dish_ids=list(excluded),
+        excluded_dish_ids=excluded,
     )
 
     if not result:
@@ -52,7 +67,7 @@ def optimize_menu(
 @router.post("/multi-day", response_model=MultiDayMenuPlan)
 def optimize_multi_day_menu(
     request: MultiDayOptimizeRequest = None,
-    db: Session = Depends(get_db)
+    use_case: OptimizeMultiDayMenuUseCase = Depends(get_optimize_multi_day_use_case),
 ):
     """複数日・複数人のメニューを最適化（作り置き対応）
 
@@ -84,8 +99,7 @@ def optimize_multi_day_menu(
     # 朝昼夜別設定
     meal_settings = request.meal_settings.to_dict() if request.meal_settings else None
 
-    result = solve_multi_day_plan(
-        db=db,
+    result = use_case.execute(
         days=request.days,
         people=request.people,
         target=target,
@@ -112,7 +126,7 @@ def optimize_multi_day_menu(
 @router.post("/multi-day/refine", response_model=MultiDayMenuPlan)
 def refine_multi_day_menu(
     request: RefineOptimizeRequest,
-    db: Session = Depends(get_db)
+    use_case: RefineMenuPlanUseCase = Depends(get_refine_menu_plan_use_case),
 ):
     """献立を調整して再最適化（イテレーション用）
 
@@ -153,8 +167,7 @@ def refine_multi_day_menu(
     # 朝昼夜別設定
     meal_settings = request.meal_settings.to_dict() if request.meal_settings else None
 
-    result = refine_multi_day_plan(
-        db=db,
+    result = use_case.execute(
         days=request.days,
         people=request.people,
         target=target,
