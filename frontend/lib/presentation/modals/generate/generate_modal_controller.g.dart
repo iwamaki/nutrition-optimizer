@@ -7,7 +7,7 @@ part of 'generate_modal_controller.dart';
 // **************************************************************************
 
 String _$generateModalControllerHash() =>
-    r'aec5a1fc8ad1e9b6243964b6ca04024e2bd41d59';
+    r'5c80f39ed28d7f49431afdbe71a589505e931f9f';
 
 /// 献立生成モーダルのコントローラ
 /// keepAlive: true で設定をキャッシュし、次回も引き継ぐ

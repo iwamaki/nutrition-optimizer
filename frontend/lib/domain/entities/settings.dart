@@ -406,9 +406,12 @@ class AppSettings {
   final NutrientTarget nutrientTarget;
   final Set<int> favoriteDishIds;
   final Set<int> favoriteIngredientIds; // お気に入り食材
+  final Set<int> excludedIngredientIds; // 除外食材（嫌いな食材）
   // 献立生成のデフォルト設定
   final String varietyLevel; // small/normal/large
   final Map<String, MealSetting> mealSettings; // 朝昼夜のプリセット
+  // 最適化パフォーマンス設定
+  final Set<String>? enabledOptionalNutrients; // null = 全て有効
 
   const AppSettings({
     this.defaultDays = 3,
@@ -417,12 +420,14 @@ class AppSettings {
     this.nutrientTarget = const NutrientTarget(),
     this.favoriteDishIds = const {},
     this.favoriteIngredientIds = const {},
+    this.excludedIngredientIds = const {},
     this.varietyLevel = 'normal',
     this.mealSettings = const {
       'breakfast': MealSetting(enabled: true, preset: MealPreset.light),
       'lunch': MealSetting(enabled: true, preset: MealPreset.standard),
       'dinner': MealSetting(enabled: true, preset: MealPreset.full),
     },
+    this.enabledOptionalNutrients, // null = 全て有効（後方互換）
   });
 
   AppSettings copyWith({
@@ -432,8 +437,11 @@ class AppSettings {
     NutrientTarget? nutrientTarget,
     Set<int>? favoriteDishIds,
     Set<int>? favoriteIngredientIds,
+    Set<int>? excludedIngredientIds,
     String? varietyLevel,
     Map<String, MealSetting>? mealSettings,
+    Set<String>? enabledOptionalNutrients,
+    bool clearEnabledOptionalNutrients = false, // nullに戻す場合
   }) {
     return AppSettings(
       defaultDays: defaultDays ?? this.defaultDays,
@@ -442,8 +450,12 @@ class AppSettings {
       nutrientTarget: nutrientTarget ?? this.nutrientTarget,
       favoriteDishIds: favoriteDishIds ?? this.favoriteDishIds,
       favoriteIngredientIds: favoriteIngredientIds ?? this.favoriteIngredientIds,
+      excludedIngredientIds: excludedIngredientIds ?? this.excludedIngredientIds,
       varietyLevel: varietyLevel ?? this.varietyLevel,
       mealSettings: mealSettings ?? this.mealSettings,
+      enabledOptionalNutrients: clearEnabledOptionalNutrients
+          ? null
+          : (enabledOptionalNutrients ?? this.enabledOptionalNutrients),
     );
   }
 }

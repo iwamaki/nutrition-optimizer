@@ -307,10 +307,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         return Column(
           children: [
             if (idx > 0) const SizedBox(height: 8),
-            NutrientProgressBar(
-              label: nutrient.label,
+            NutrientProgressBar.fromDefinition(
+              definition: nutrient,
               value: achievement[nutrient.key] ?? 0,
-              color: nutrient.color,
             ),
           ],
         );

@@ -31,11 +31,20 @@ class SettingsState {
   NutrientTarget get nutrientTarget => settings.nutrientTarget;
   Set<int> get favoriteDishIds => settings.favoriteDishIds;
   Set<int> get favoriteIngredientIds => settings.favoriteIngredientIds;
+  Set<int> get excludedIngredientIds => settings.excludedIngredientIds;
   String get varietyLevel => settings.varietyLevel;
   Map<String, MealSetting> get mealSettings => settings.mealSettings;
+  Set<String>? get enabledOptionalNutrients => settings.enabledOptionalNutrients;
 
   bool isFavorite(int dishId) => settings.favoriteDishIds.contains(dishId);
   bool isIngredientFavorite(int ingredientId) => settings.favoriteIngredientIds.contains(ingredientId);
+  bool isIngredientExcluded(int ingredientId) => settings.excludedIngredientIds.contains(ingredientId);
+
+  /// オプション栄養素が有効かどうか（nullの場合は全て有効）
+  bool isOptionalNutrientEnabled(String key) {
+    final enabled = settings.enabledOptionalNutrients;
+    return enabled == null || enabled.contains(key);
+  }
 }
 
 /// 設定管理Notifier
@@ -72,6 +81,12 @@ class SettingsNotifier extends _$SettingsNotifier {
           .whereType<int>()
           .toSet();
 
+      final excludedIngredientList = prefs.getStringList('excludedIngredientIds') ?? [];
+      final excludedIngredients = excludedIngredientList
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .toSet();
+
       final caloriesMin = prefs.getDouble('caloriesMin') ?? 1800;
       final caloriesMax = prefs.getDouble('caloriesMax') ?? 2200;
       final proteinMin = prefs.getDouble('proteinMin') ?? 60;
@@ -89,6 +104,10 @@ class SettingsNotifier extends _$SettingsNotifier {
         mealSettings[mealType] = MealSetting(enabled: enabled, preset: preset);
       }
 
+      // オプション栄養素の有効/無効設定（nullの場合は全て有効）
+      final enabledOptionalNutrientsStr = prefs.getStringList('enabledOptionalNutrients');
+      final enabledOptionalNutrients = enabledOptionalNutrientsStr?.toSet();
+
       state = SettingsState(
         settings: AppSettings(
           defaultDays: days,
@@ -96,6 +115,7 @@ class SettingsNotifier extends _$SettingsNotifier {
           excludedAllergens: allergens,
           favoriteDishIds: favorites,
           favoriteIngredientIds: favoriteIngredients,
+          excludedIngredientIds: excludedIngredients,
           nutrientTarget: NutrientTarget(
             caloriesMin: caloriesMin,
             caloriesMax: caloriesMax,
@@ -104,6 +124,7 @@ class SettingsNotifier extends _$SettingsNotifier {
           ),
           varietyLevel: varietyLevel,
           mealSettings: mealSettings,
+          enabledOptionalNutrients: enabledOptionalNutrients,
         ),
         isLoading: false,
       );
@@ -142,6 +163,10 @@ class SettingsNotifier extends _$SettingsNotifier {
         'favoriteIngredientIds',
         settings.favoriteIngredientIds.map((id) => id.toString()).toList(),
       );
+      await prefs.setStringList(
+        'excludedIngredientIds',
+        settings.excludedIngredientIds.map((id) => id.toString()).toList(),
+      );
       await prefs.setDouble('caloriesMin', settings.nutrientTarget.caloriesMin);
       await prefs.setDouble('caloriesMax', settings.nutrientTarget.caloriesMax);
       await prefs.setDouble('proteinMin', settings.nutrientTarget.proteinMin);
@@ -154,6 +179,16 @@ class SettingsNotifier extends _$SettingsNotifier {
       for (final entry in settings.mealSettings.entries) {
         await prefs.setBool('meal_${entry.key}_enabled', entry.value.enabled);
         await prefs.setString('meal_${entry.key}_preset', entry.value.preset.apiValue);
+      }
+
+      // オプション栄養素の有効/無効設定
+      if (settings.enabledOptionalNutrients != null) {
+        await prefs.setStringList(
+          'enabledOptionalNutrients',
+          settings.enabledOptionalNutrients!.toList(),
+        );
+      } else {
+        await prefs.remove('enabledOptionalNutrients');
       }
     } catch (e) {
       // 保存失敗を無視
@@ -273,14 +308,85 @@ class SettingsNotifier extends _$SettingsNotifier {
   }
 
   Future<void> toggleFavoriteIngredient(int ingredientId) async {
-    final current = Set<int>.from(state.settings.favoriteIngredientIds);
-    if (current.contains(ingredientId)) {
-      current.remove(ingredientId);
+    final currentFavorites = Set<int>.from(state.settings.favoriteIngredientIds);
+    final currentExcluded = Set<int>.from(state.settings.excludedIngredientIds);
+
+    if (currentFavorites.contains(ingredientId)) {
+      currentFavorites.remove(ingredientId);
     } else {
-      current.add(ingredientId);
+      currentFavorites.add(ingredientId);
+      // お気に入りにしたら除外から削除
+      currentExcluded.remove(ingredientId);
     }
     state = state.copyWith(
-      settings: state.settings.copyWith(favoriteIngredientIds: current),
+      settings: state.settings.copyWith(
+        favoriteIngredientIds: currentFavorites,
+        excludedIngredientIds: currentExcluded,
+      ),
+    );
+    await _saveSettings();
+  }
+
+  Future<void> toggleExcludedIngredient(int ingredientId) async {
+    final currentFavorites = Set<int>.from(state.settings.favoriteIngredientIds);
+    final currentExcluded = Set<int>.from(state.settings.excludedIngredientIds);
+
+    if (currentExcluded.contains(ingredientId)) {
+      currentExcluded.remove(ingredientId);
+    } else {
+      currentExcluded.add(ingredientId);
+      // 除外したらお気に入りから削除
+      currentFavorites.remove(ingredientId);
+    }
+    state = state.copyWith(
+      settings: state.settings.copyWith(
+        favoriteIngredientIds: currentFavorites,
+        excludedIngredientIds: currentExcluded,
+      ),
+    );
+    await _saveSettings();
+  }
+
+  /// オプション栄養素の有効/無効を切り替え
+  Future<void> toggleOptionalNutrient(String nutrientKey) async {
+    final current = state.settings.enabledOptionalNutrients;
+
+    Set<String> newEnabled;
+    if (current == null) {
+      // 初回: 全て有効から1つ除外
+      newEnabled = {
+        'sodium', 'potassium', 'magnesium', 'zinc',
+        'vitamin_a', 'vitamin_e', 'vitamin_k',
+        'vitamin_b1', 'vitamin_b2', 'vitamin_b6', 'vitamin_b12',
+        'niacin', 'pantothenic_acid', 'biotin', 'folate', 'vitamin_c',
+      };
+      newEnabled.remove(nutrientKey);
+    } else if (current.contains(nutrientKey)) {
+      // 有効→無効
+      newEnabled = Set<String>.from(current)..remove(nutrientKey);
+    } else {
+      // 無効→有効
+      newEnabled = Set<String>.from(current)..add(nutrientKey);
+    }
+
+    state = state.copyWith(
+      settings: state.settings.copyWith(enabledOptionalNutrients: newEnabled),
+    );
+    await _saveSettings();
+  }
+
+  /// 全オプション栄養素を有効化（nullに戻す）
+  Future<void> enableAllOptionalNutrients() async {
+    state = state.copyWith(
+      settings: state.settings.copyWith(clearEnabledOptionalNutrients: true),
+    );
+    await _saveSettings();
+  }
+
+  /// コア栄養素のみ有効化（全オプションを無効化）
+  Future<void> enableCoreNutrientsOnly() async {
+    state = state.copyWith(
+      settings: state.settings.copyWith(enabledOptionalNutrients: {}),
     );
     await _saveSettings();
   }

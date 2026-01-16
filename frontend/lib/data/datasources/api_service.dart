@@ -125,9 +125,11 @@ class ApiService {
     List<int> keepDishIds = const [],
     List<int> preferredIngredientIds = const [],
     List<int> preferredDishIds = const [],
+    List<int> excludedIngredientIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
+    List<String>? enabledNutrients,
   }) async {
     final body = {
       'days': days,
@@ -137,6 +139,7 @@ class ApiService {
       'keep_dish_ids': keepDishIds,
       'preferred_ingredient_ids': preferredIngredientIds,
       'preferred_dish_ids': preferredDishIds,
+      'excluded_ingredient_ids': excludedIngredientIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };
@@ -150,6 +153,10 @@ class ApiService {
         for (final entry in mealSettings.entries)
           entry.key: entry.value.toJson(),
       };
+    }
+
+    if (enabledNutrients != null) {
+      body['enabled_nutrients'] = enabledNutrients;
     }
 
     final response = await http.post(
@@ -175,9 +182,11 @@ class ApiService {
     List<Allergen> excludedAllergens = const [],
     List<int> preferredIngredientIds = const [],
     List<int> preferredDishIds = const [],
+    List<int> excludedIngredientIds = const [],
     String batchCookingLevel = 'normal',
     String varietyLevel = 'normal',
     Map<String, MealSetting>? mealSettings,
+    List<String>? enabledNutrients,
   }) async {
     final body = {
       'days': days,
@@ -187,6 +196,7 @@ class ApiService {
       'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
       'preferred_ingredient_ids': preferredIngredientIds,
       'preferred_dish_ids': preferredDishIds,
+      'excluded_ingredient_ids': excludedIngredientIds,
       'batch_cooking_level': batchCookingLevel,
       'variety_level': varietyLevel,
     };
@@ -200,6 +210,10 @@ class ApiService {
         for (final entry in mealSettings.entries)
           entry.key: entry.value.toJson(),
       };
+    }
+
+    if (enabledNutrients != null) {
+      body['enabled_nutrients'] = enabledNutrients;
     }
 
     final response = await http.post(

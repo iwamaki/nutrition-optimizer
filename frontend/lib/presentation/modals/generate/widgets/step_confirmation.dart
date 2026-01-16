@@ -286,10 +286,9 @@ class StepConfirmation extends ConsumerWidget {
         final value = plan.overallAchievement[n.key] ?? 0;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: NutrientProgressBar(
-            label: n.label,
+          child: NutrientProgressBar.fromDefinition(
+            definition: n,
             value: value.toDouble(),
-            color: n.color,
           ),
         );
       }).toList(),

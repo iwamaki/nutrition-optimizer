@@ -32,6 +32,7 @@ class GenerateModalState {
 
   // Step2: 手持ち食材
   final Set<int> ownedIngredientIds;
+  final Set<int> excludedIngredientIds; // 除外食材（嫌いな食材）
   final List<Map<String, dynamic>> ingredients; // APIから取得した基本食材リスト
   final bool isLoadingIngredients;
   final List<Map<String, dynamic>> searchResults;
@@ -61,6 +62,7 @@ class GenerateModalState {
     this.isLoadingFavorites = false,
     this.guaranteeFavorites = false,
     this.ownedIngredientIds = const {},
+    this.excludedIngredientIds = const {},
     this.ingredients = const [],
     this.isLoadingIngredients = false,
     this.searchResults = const [],
@@ -85,6 +87,7 @@ class GenerateModalState {
     bool? isLoadingFavorites,
     bool? guaranteeFavorites,
     Set<int>? ownedIngredientIds,
+    Set<int>? excludedIngredientIds,
     List<Map<String, dynamic>>? ingredients,
     bool? isLoadingIngredients,
     List<Map<String, dynamic>>? searchResults,
@@ -110,6 +113,7 @@ class GenerateModalState {
       isLoadingFavorites: isLoadingFavorites ?? this.isLoadingFavorites,
       guaranteeFavorites: guaranteeFavorites ?? this.guaranteeFavorites,
       ownedIngredientIds: ownedIngredientIds ?? this.ownedIngredientIds,
+      excludedIngredientIds: excludedIngredientIds ?? this.excludedIngredientIds,
       ingredients: ingredients ?? this.ingredients,
       isLoadingIngredients: isLoadingIngredients ?? this.isLoadingIngredients,
       searchResults: searchResults ?? this.searchResults,
@@ -154,6 +158,7 @@ class GenerateModalController extends _$GenerateModalController {
     required int defaultDays,
     required int defaultPeople,
     required Set<Allergen> excludedAllergens,
+    required Set<int> excludedIngredientIds,
     required String varietyLevel,
     required Map<String, MealSetting> mealSettings,
     required NutrientTarget nutrientTarget,
@@ -164,11 +169,15 @@ class GenerateModalController extends _$GenerateModalController {
         days: defaultDays,
         people: defaultPeople,
         excludedAllergens: excludedAllergens,
+        excludedIngredientIds: excludedIngredientIds,
         varietyLevel: varietyLevel,
         mealSettings: mealSettings,
         nutrientTarget: nutrientTarget,
       );
       _isInitialized = true;
+    } else {
+      // 初期化済みでも除外食材は常に最新を反映
+      state = state.copyWith(excludedIngredientIds: excludedIngredientIds);
     }
   }
 
@@ -190,6 +199,7 @@ class GenerateModalController extends _$GenerateModalController {
     required int defaultDays,
     required int defaultPeople,
     required Set<Allergen> excludedAllergens,
+    required Set<int> excludedIngredientIds,
     required String varietyLevel,
     required Map<String, MealSetting> mealSettings,
     required NutrientTarget nutrientTarget,
@@ -202,6 +212,7 @@ class GenerateModalController extends _$GenerateModalController {
       days: defaultDays,
       people: defaultPeople,
       excludedAllergens: excludedAllergens,
+      excludedIngredientIds: excludedIngredientIds,
       varietyLevel: varietyLevel,
       mealSettings: mealSettings,
       nutrientTarget: nutrientTarget,
@@ -468,6 +479,7 @@ class GenerateModalController extends _$GenerateModalController {
         preferredIngredientIds: state.ownedIngredientIds.toList(),
         // お気に入り料理は常に優先（確実に入れるオプションがOFFでも）
         preferredDishIds: preferredDishIds ?? favoriteIds,
+        excludedIngredientIds: state.excludedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
@@ -497,6 +509,7 @@ class GenerateModalController extends _$GenerateModalController {
         excludedAllergens: state.excludedAllergens.toList(),
         preferredIngredientIds: state.ownedIngredientIds.toList(),
         preferredDishIds: favoriteIds,
+        excludedIngredientIds: state.excludedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,

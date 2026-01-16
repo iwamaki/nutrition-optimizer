@@ -93,7 +93,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '長押しでお気に入り登録',
+                    '長押しでお気に入り/除外を設定',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.outline,
                           fontStyle: FontStyle.italic,
@@ -326,7 +326,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
     return '🍽️';
   }
 
-  /// カテゴリ別にセクション分けして表示（お気に入りが一番上）
+  /// カテゴリ別にセクション分けして表示（お気に入りが一番上、除外が一番下）
   Widget _buildCategorizedIngredients(
     BuildContext context,
     GenerateModalState state,
@@ -334,6 +334,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
   ) {
     final settingsState = ref.watch(settingsNotifierProvider);
     final favoriteIds = settingsState.favoriteIngredientIds;
+    final excludedIds = settingsState.excludedIngredientIds;
 
     // カテゴリでフィルタリング
     final filteredIngredients = _selectedCategory != null
@@ -346,7 +347,13 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         .toList()
       ..sort((a, b) => (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''));
 
-    // カテゴリ別にグループ化（お気に入りも含める＝コピー表示）
+    // 除外食材を抽出
+    final excludedIngredients = filteredIngredients
+        .where((i) => excludedIds.contains(i['id']))
+        .toList()
+      ..sort((a, b) => (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''));
+
+    // カテゴリ別にグループ化（お気に入り・除外も含める＝コピー表示）
     final ingredientsByCategory = <String, List<Map<String, dynamic>>>{};
     for (final ingredient in filteredIngredients) {
       final category = ingredient['category'] as String? ?? 'その他';
@@ -413,6 +420,20 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
             const SizedBox(height: 16),
           ];
         }),
+        // 除外セクション（一番下）
+        if (excludedIngredients.isNotEmpty) ...[
+          _buildCategorySection(
+            context,
+            '除外食材',
+            excludedIngredients,
+            state,
+            controller,
+            color: const Color(0xFFFFEBEE),
+            textColor: const Color(0xFFC62828),
+            icon: Icons.block,
+          ),
+          const SizedBox(height: 16),
+        ],
       ],
     );
   }
@@ -468,6 +489,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
   ) {
     final settingsState = ref.watch(settingsNotifierProvider);
     final favoriteIds = settingsState.favoriteIngredientIds;
+    final excludedIds = settingsState.excludedIngredientIds;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -484,6 +506,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
         final ingredientId = ingredient['id'] as int;
         final isSelected = state.ownedIngredientIds.contains(ingredientId);
         final isFavorite = favoriteIds.contains(ingredientId);
+        final isExcluded = excludedIds.contains(ingredientId);
         final emoji = ingredient['emoji'] ?? _getEmojiForFood(ingredient['name'] ?? '');
         final name = ingredient['name'] ?? '';
 
@@ -491,27 +514,21 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
           onTap: () => controller.toggleIngredient(ingredientId),
           onLongPress: () {
             HapticFeedback.mediumImpact();
-            ref.read(settingsNotifierProvider.notifier).toggleFavoriteIngredient(ingredientId);
-            final willBeFavorite = !isFavorite;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  willBeFavorite ? '$name をお気に入りに追加しました' : '$name をお気に入りから削除しました',
-                ),
-                duration: const Duration(seconds: 1),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            _showIngredientActionMenu(context, ingredientId, name, isFavorite, isExcluded);
           },
           child: Container(
             decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFFE8F5E9)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: isExcluded
+                  ? const Color(0xFFFFEBEE)
+                  : isSelected
+                      ? const Color(0xFFE8F5E9)
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
-              border: isSelected
-                  ? Border.all(color: const Color(0xFF4CAF50), width: 2)
-                  : null,
+              border: isExcluded
+                  ? Border.all(color: const Color(0xFFE53935), width: 2)
+                  : isSelected
+                      ? Border.all(color: const Color(0xFF4CAF50), width: 2)
+                      : null,
             ),
             child: Stack(
               children: [
@@ -521,7 +538,10 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                     children: [
                       Text(
                         emoji,
-                        style: const TextStyle(fontSize: 28),
+                        style: TextStyle(
+                          fontSize: 28,
+                          color: isExcluded ? Colors.grey : null,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Padding(
@@ -531,9 +551,11 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected
-                                ? const Color(0xFF2E7D32)
-                                : Theme.of(context).colorScheme.onSurface,
+                            color: isExcluded
+                                ? const Color(0xFFC62828)
+                                : isSelected
+                                    ? const Color(0xFF2E7D32)
+                                    : Theme.of(context).colorScheme.onSurface,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -544,7 +566,7 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                   ),
                 ),
                 // 選択中チェックマーク（右上）
-                if (isSelected)
+                if (isSelected && !isExcluded)
                   Positioned(
                     top: 4,
                     right: 4,
@@ -573,11 +595,92 @@ class _StepOwnedFoodsState extends ConsumerState<StepOwnedFoods> {
                       color: Colors.orange.shade600,
                     ),
                   ),
+                // 除外マーク（左上）
+                if (isExcluded)
+                  Positioned(
+                    top: 4,
+                    left: 4,
+                    child: Icon(
+                      Icons.block,
+                      size: 16,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  /// 長押しで表示するアクションメニュー
+  void _showIngredientActionMenu(
+    BuildContext context,
+    int ingredientId,
+    String name,
+    bool isFavorite,
+    bool isExcluded,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(
+                Icons.star,
+                color: isFavorite ? Colors.orange : Colors.grey,
+              ),
+              title: Text(isFavorite ? 'お気に入りから削除' : 'お気に入りに追加'),
+              onTap: () {
+                Navigator.pop(context);
+                ref.read(settingsNotifierProvider.notifier).toggleFavoriteIngredient(ingredientId);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      isFavorite ? '$name をお気に入りから削除しました' : '$name をお気に入りに追加しました',
+                    ),
+                    duration: const Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.block,
+                color: isExcluded ? Colors.red : Colors.grey,
+              ),
+              title: Text(isExcluded ? '除外を解除' : '除外する（嫌いな食材）'),
+              subtitle: isExcluded ? null : const Text('この食材を使う料理は献立に出ません'),
+              onTap: () {
+                Navigator.pop(context);
+                ref.read(settingsNotifierProvider.notifier).toggleExcludedIngredient(ingredientId);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      isExcluded ? '$name の除外を解除しました' : '$name を除外しました',
+                    ),
+                    duration: const Duration(seconds: 1),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }

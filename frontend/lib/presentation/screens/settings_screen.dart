@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/settings_provider.dart';
+import '../../core/constants/nutrients.dart';
 
 /// 設定画面（Riverpod版）
 class SettingsScreen extends ConsumerWidget {
@@ -32,6 +33,11 @@ class SettingsScreen extends ConsumerWidget {
           // 栄養目標セクション
           _buildSectionHeader(context, '栄養目標'),
           _buildOtherNutrientsSetting(context, settingsState),
+          const Divider(),
+
+          // 最適化パフォーマンスセクション
+          _buildSectionHeader(context, '最適化パフォーマンス'),
+          _buildOptimizationPerformanceSetting(context, ref, settingsState),
           const Divider(),
 
           // その他
@@ -66,6 +72,143 @@ class SettingsScreen extends ConsumerWidget {
       subtitle: const Text('厚生労働省の食事摂取基準に基づく推奨値'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _showOtherNutrientsDialog(context, settingsState),
+    );
+  }
+
+  Widget _buildOptimizationPerformanceSetting(
+    BuildContext context,
+    WidgetRef ref,
+    SettingsState settingsState,
+  ) {
+    final enabledOptional = settingsState.enabledOptionalNutrients;
+    final enabledCount = enabledOptional?.length ?? optionalNutrientKeys.length;
+    final subtitle = enabledOptional == null
+        ? '全栄養素を考慮（${coreNutrientKeys.length + optionalNutrientKeys.length}種類）'
+        : 'コア${coreNutrientKeys.length}種類 + オプション$enabledCount種類を考慮';
+
+    return ListTile(
+      leading: const Icon(Icons.speed),
+      title: const Text('最適化対象栄養素'),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _showOptimizationNutrientsDialog(context, ref, settingsState),
+    );
+  }
+
+  void _showOptimizationNutrientsDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SettingsState settingsState,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        '最適化対象栄養素',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('閉じる'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  '献立生成時に考慮する栄養素を選択できます。\n'
+                  '項目を減らすと生成速度が向上しますが、選択した栄養素のみが最適化されます。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // クイック選択ボタン
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.check_box_outline_blank, size: 18),
+                        label: const Text('コアのみ'),
+                        onPressed: () {
+                          ref.read(settingsNotifierProvider.notifier)
+                              .enableCoreNutrientsOnly();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.check_box, size: 18),
+                        label: const Text('全て有効'),
+                        onPressed: () {
+                          ref.read(settingsNotifierProvider.notifier)
+                              .enableAllOptionalNutrients();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              Expanded(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final state = ref.watch(settingsNotifierProvider);
+                    return ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        // コア栄養素（常に有効、変更不可）
+                        _buildNutrientSection(context, 'コア栄養素（常に有効）'),
+                        ...coreNutrients.map((n) => CheckboxListTile(
+                              title: Text(n.label),
+                              subtitle: const Text('必須'),
+                              value: true,
+                              onChanged: null, // 変更不可
+                              dense: true,
+                            )),
+                        const SizedBox(height: 16),
+                        // オプション栄養素
+                        _buildNutrientSection(context, 'オプション栄養素（選択可能）'),
+                        ...optionalNutrients.map((n) => CheckboxListTile(
+                              title: Text(n.label),
+                              value: state.isOptionalNutrientEnabled(n.key),
+                              onChanged: (value) {
+                                ref.read(settingsNotifierProvider.notifier)
+                                    .toggleOptionalNutrient(n.key);
+                              },
+                              dense: true,
+                            )),
+                        const SizedBox(height: 32),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

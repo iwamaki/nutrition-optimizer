@@ -6,7 +6,7 @@ part of 'menu_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$menuNotifierHash() => r'9bbc0b50f1e8921ef1d41c1241dffc3c71753490';
+String _$menuNotifierHash() => r'5abe26531020c4955c0b3032096e4510aecff921';
 
 /// 献立管理Notifier
 ///
