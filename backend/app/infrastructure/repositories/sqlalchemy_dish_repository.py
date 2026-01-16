@@ -50,75 +50,33 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
         return [self._to_entity(d) for d in db_dishes]
 
     def find_excluding_allergens(self, allergens: list[str]) -> list[Dish]:
-        """指定アレルゲンを含まない料理を取得"""
+        """指定アレルゲンを含まない料理を取得
+
+        アレルゲン情報は基本食材マスタ（IngredientDB.allergens）から取得する。
+        7大アレルゲン: 卵, 乳, 小麦, そば, 落花生, えび, かに
+        """
         if not allergens:
             return self.find_all()
 
-        # アレルゲンと対応するキーワード・カテゴリのマッピング
-        allergen_keywords = {
-            "卵": {
-                "keywords": ["卵", "たまご", "玉子"],
-                "categories": ["卵類"],
-            },
-            "乳": {
-                "keywords": ["牛乳", "乳", "チーズ", "ヨーグルト", "バター", "生クリーム", "練乳", "脱脂粉乳"],
-                "categories": ["乳類"],
-            },
-            "小麦": {
-                "keywords": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ", "中華めん", "中華麺", "焼きそば麺", "マカロニ"],
-                "categories": [],
-            },
-            "そば": {
-                "keywords": ["そば", "蕎麦"],
-                "categories": [],
-            },
-            "落花生": {
-                "keywords": ["落花生", "ピーナッツ"],
-                "categories": [],
-            },
-            "えび": {
-                "keywords": ["えび", "海老", "エビ", "シュリンプ"],
-                "categories": [],
-            },
-            "かに": {
-                "keywords": ["かに", "蟹", "カニ", "クラブ"],
-                "categories": [],
-            },
-        }
-
-        def food_contains_allergen(food, allergen: str) -> bool:
-            """食品がアレルゲンを含むか判定"""
-            if allergen not in allergen_keywords:
+        def ingredient_contains_allergen(ingredient, allergens_to_check: list[str]) -> bool:
+            """食材がアレルゲンを含むか判定"""
+            if not ingredient or not ingredient.allergens:
                 return False
-
-            mapping = allergen_keywords[allergen]
-
-            # カテゴリでチェック
-            if food.category in mapping["categories"]:
-                return True
-
-            # 食品名のキーワードでチェック
-            food_name = food.name or ""
-            for keyword in mapping["keywords"]:
-                if keyword in food_name:
-                    return True
-
-            return False
+            # カンマ区切りのアレルゲン文字列をリストに変換
+            ingredient_allergens = [a.strip() for a in ingredient.allergens.split(",")]
+            # 指定アレルゲンと一致するものがあるかチェック
+            return any(allergen in ingredient_allergens for allergen in allergens_to_check)
 
         # 全料理を取得してフィルタリング
         all_dishes = self._session.query(DishDB).all()
         filtered_dishes = []
 
         for dish_db in all_dishes:
-            # 料理の材料にアレルゲン食品が含まれているかチェック
+            # 料理の材料にアレルゲン食材が含まれているかチェック
             has_allergen = False
             for ing in dish_db.ingredients:
-                if ing.food:
-                    for allergen in allergens:
-                        if food_contains_allergen(ing.food, allergen):
-                            has_allergen = True
-                            break
-                if has_allergen:
+                if ing.ingredient and ingredient_contains_allergen(ing.ingredient, allergens):
+                    has_allergen = True
                     break
 
             if not has_allergen:

@@ -185,6 +185,7 @@ class IngredientDB(Base):
     category = Column(String, index=True)
     mext_code = Column(String, index=True)
     emoji = Column(String, nullable=True)
+    allergens = Column(String, nullable=True)  # カンマ区切りのアレルゲン（卵,乳,小麦,そば,落花生,えび,かに）
 
     # リレーション
     dish_ingredients = relationship("DishIngredientDB", back_populates="ingredient")

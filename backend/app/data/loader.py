@@ -318,9 +318,12 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
     """基本食材マスタCSVを読み込み
 
     CSVフォーマット:
-    id,name,category,mext_code,emoji
-    1,米,穀類,01088,🍚
-    2,卵,卵類,12004,🥚
+    id,name,category,mext_code,emoji,allergens
+    1,米,穀類,01088,🍚,
+    61,卵,卵類,12004,🥚,卵
+    64,牛乳,乳類,13003,🥛,乳
+
+    allergens: 7大アレルゲン（卵,乳,小麦,そば,落花生,えび,かに）をカンマ区切りで指定
     """
     if not csv_path.exists():
         print(f"基本食材マスタが見つかりません: {csv_path}")
@@ -348,6 +351,7 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
                 category=row.get("category", "").strip(),
                 mext_code=row.get("mext_code", "").strip(),
                 emoji=row.get("emoji", "").strip(),
+                allergens=row.get("allergens", "").strip() or None,
             )
             db.add(ingredient)
             count += 1
