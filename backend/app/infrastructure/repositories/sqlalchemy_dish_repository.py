@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.domain.entities.dish import Dish, DishIngredient, RecipeDetails
 from app.domain.entities.enums import DishCategoryEnum, MealTypeEnum, CookingMethodEnum
 from app.domain.interfaces.dish_repository import DishRepositoryInterface
-from app.infrastructure.database.models import DishDB, FoodAllergenDB
+from app.infrastructure.database.models import DishDB
 from app.data.loader import get_recipe_details
 
 
@@ -32,9 +32,12 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
         query = self._session.query(DishDB)
 
         if category:
-            query = query.filter(DishDB.category == category.value)
+            # 文字列またはEnumどちらでも対応
+            cat_value = category.value if hasattr(category, 'value') else category
+            query = query.filter(DishDB.category == cat_value)
         if meal_type:
-            query = query.filter(DishDB.meal_types.contains(meal_type.value))
+            mt_value = meal_type.value if hasattr(meal_type, 'value') else meal_type
+            query = query.filter(DishDB.meal_types.contains(mt_value))
 
         db_dishes = query.offset(skip).limit(limit).all()
         return [self._to_entity(d) for d in db_dishes]
@@ -51,14 +54,56 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
         if not allergens:
             return self.find_all()
 
-        # アレルゲンを含む食品IDを取得
-        allergen_food_ids = (
-            self._session.query(FoodAllergenDB.food_id)
-            .filter(FoodAllergenDB.allergen.in_(allergens))
-            .distinct()
-            .all()
-        )
-        allergen_food_id_set = {fid[0] for fid in allergen_food_ids}
+        # アレルゲンと対応するキーワード・カテゴリのマッピング
+        allergen_keywords = {
+            "卵": {
+                "keywords": ["卵", "たまご", "玉子"],
+                "categories": ["卵類"],
+            },
+            "乳": {
+                "keywords": ["牛乳", "乳", "チーズ", "ヨーグルト", "バター", "生クリーム", "練乳", "脱脂粉乳"],
+                "categories": ["乳類"],
+            },
+            "小麦": {
+                "keywords": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ", "中華めん", "マカロニ"],
+                "categories": [],
+            },
+            "そば": {
+                "keywords": ["そば", "蕎麦"],
+                "categories": [],
+            },
+            "落花生": {
+                "keywords": ["落花生", "ピーナッツ"],
+                "categories": [],
+            },
+            "えび": {
+                "keywords": ["えび", "海老", "エビ", "シュリンプ"],
+                "categories": [],
+            },
+            "かに": {
+                "keywords": ["かに", "蟹", "カニ", "クラブ"],
+                "categories": [],
+            },
+        }
+
+        def food_contains_allergen(food, allergen: str) -> bool:
+            """食品がアレルゲンを含むか判定"""
+            if allergen not in allergen_keywords:
+                return False
+
+            mapping = allergen_keywords[allergen]
+
+            # カテゴリでチェック
+            if food.category in mapping["categories"]:
+                return True
+
+            # 食品名のキーワードでチェック
+            food_name = food.name or ""
+            for keyword in mapping["keywords"]:
+                if keyword in food_name:
+                    return True
+
+            return False
 
         # 全料理を取得してフィルタリング
         all_dishes = self._session.query(DishDB).all()
@@ -66,10 +111,16 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
 
         for dish_db in all_dishes:
             # 料理の材料にアレルゲン食品が含まれているかチェック
-            has_allergen = any(
-                ing.food_id in allergen_food_id_set
-                for ing in dish_db.ingredients
-            )
+            has_allergen = False
+            for ing in dish_db.ingredients:
+                if ing.food:
+                    for allergen in allergens:
+                        if food_contains_allergen(ing.food, allergen):
+                            has_allergen = True
+                            break
+                if has_allergen:
+                    break
+
             if not has_allergen:
                 filtered_dishes.append(self._to_entity(dish_db))
 
@@ -84,9 +135,12 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
         query = self._session.query(DishDB)
 
         if category:
-            query = query.filter(DishDB.category == category.value)
+            # 文字列またはEnumどちらでも対応
+            cat_value = category.value if hasattr(category, 'value') else category
+            query = query.filter(DishDB.category == cat_value)
         if meal_type:
-            query = query.filter(DishDB.meal_types.contains(meal_type.value))
+            mt_value = meal_type.value if hasattr(meal_type, 'value') else meal_type
+            query = query.filter(DishDB.meal_types.contains(mt_value))
 
         return query.count()
 
@@ -127,10 +181,15 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
                 except ValueError:
                     pass
 
+            # 表示名は ingredient_name（簡潔名）を優先
+            display_name = (
+                ing_db.ingredient.name if ing_db.ingredient
+                else (ing_db.food.name if ing_db.food else None)
+            )
             ingredients.append(
                 DishIngredient(
                     food_id=ing_db.food_id,
-                    food_name=ing_db.food.name if ing_db.food else None,
+                    food_name=display_name,  # 表示用に簡潔名を優先
                     ingredient_id=ing_db.ingredient_id,
                     ingredient_name=ing_db.ingredient.name if ing_db.ingredient else None,
                     amount=ing_db.amount,
