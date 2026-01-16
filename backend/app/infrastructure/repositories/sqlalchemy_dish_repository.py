@@ -65,7 +65,7 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
                 "categories": ["乳類"],
             },
             "小麦": {
-                "keywords": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ", "中華めん", "マカロニ"],
+                "keywords": ["小麦", "パン", "うどん", "そうめん", "パスタ", "スパゲッティ", "中華めん", "中華麺", "焼きそば麺", "マカロニ"],
                 "categories": [],
             },
             "そば": {
