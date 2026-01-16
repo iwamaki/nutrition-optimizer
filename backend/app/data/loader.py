@@ -318,12 +318,18 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
     """基本食材マスタCSVを読み込み
 
     CSVフォーマット:
-    id,name,category,mext_code,emoji,allergens
-    1,米,穀類,01088,🍚,
-    61,卵,卵類,12004,🥚,卵
-    64,牛乳,乳類,13003,🥛,乳
+    id,name,category,mext_code,emoji,allergens_required,allergens_recommended
+    1,米,穀類,01088,🍚,,
+    61,卵,卵類,12004,🥚,卵,
+    64,牛乳,乳類,13003,🥛,乳,
+    39,豆腐,豆類,04032,🧈,,大豆
 
-    allergens: 7大アレルゲン（卵,乳,小麦,そば,落花生,えび,かに）をカンマ区切りで指定
+    allergens_required: 特定原材料8品目（表示義務）
+        卵,乳,小麦,えび,かに,くるみ,落花生,そば
+    allergens_recommended: 準特定原材料20品目（表示推奨）
+        大豆,鶏肉,豚肉,牛肉,さけ,さば,いか,いくら,あわび,オレンジ,
+        キウイフルーツ,バナナ,もも,りんご,やまいも,ごま,カシューナッツ,
+        アーモンド,ゼラチン,マカダミアナッツ
     """
     if not csv_path.exists():
         print(f"基本食材マスタが見つかりません: {csv_path}")
@@ -351,7 +357,8 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
                 category=row.get("category", "").strip(),
                 mext_code=row.get("mext_code", "").strip(),
                 emoji=row.get("emoji", "").strip(),
-                allergens=row.get("allergens", "").strip() or None,
+                allergens_required=row.get("allergens_required", "").strip() or None,
+                allergens_recommended=row.get("allergens_recommended", "").strip() or None,
             )
             db.add(ingredient)
             count += 1

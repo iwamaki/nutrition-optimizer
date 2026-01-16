@@ -4,7 +4,8 @@ from enum import Enum
 
 
 class AllergenEnum(str, Enum):
-    """7大アレルゲン（特定原材料）"""
+    """アレルゲン28品目（特定原材料8品目 + 準特定原材料20品目）"""
+    # 特定原材料8品目（表示義務）
     EGG = "卵"
     MILK = "乳"
     WHEAT = "小麦"
@@ -12,6 +13,28 @@ class AllergenEnum(str, Enum):
     PEANUT = "落花生"
     SHRIMP = "えび"
     CRAB = "かに"
+    WALNUT = "くるみ"
+    # 準特定原材料20品目（表示推奨）
+    ALMOND = "アーモンド"
+    ABALONE = "あわび"
+    SQUID = "いか"
+    SALMON_ROE = "いくら"
+    ORANGE = "オレンジ"
+    BEEF = "牛肉"
+    CASHEW = "カシューナッツ"
+    KIWI = "キウイフルーツ"
+    SESAME = "ごま"
+    SALMON = "さけ"
+    MACKEREL = "さば"
+    SOYBEAN = "大豆"
+    CHICKEN = "鶏肉"
+    PORK = "豚肉"
+    BANANA = "バナナ"
+    PEACH = "もも"
+    YAM = "やまいも"
+    APPLE = "りんご"
+    GELATIN = "ゼラチン"
+    MACADAMIA = "マカダミアナッツ"
 
 
 class VolumeLevelEnum(str, Enum):

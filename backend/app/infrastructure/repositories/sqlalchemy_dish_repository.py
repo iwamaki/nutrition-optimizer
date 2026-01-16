@@ -52,20 +52,32 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
     def find_excluding_allergens(self, allergens: list[str]) -> list[Dish]:
         """指定アレルゲンを含まない料理を取得
 
-        アレルゲン情報は基本食材マスタ（IngredientDB.allergens）から取得する。
-        7大アレルゲン: 卵, 乳, 小麦, そば, 落花生, えび, かに
+        アレルゲン情報は基本食材マスタから取得する:
+        - allergens_required: 特定原材料8品目（表示義務）
+        - allergens_recommended: 準特定原材料20品目（表示推奨）
+
+        両方の列をチェックしてアレルゲンを除外する。
         """
         if not allergens:
             return self.find_all()
 
         def ingredient_contains_allergen(ingredient, allergens_to_check: list[str]) -> bool:
             """食材がアレルゲンを含むか判定"""
-            if not ingredient or not ingredient.allergens:
+            if not ingredient:
                 return False
-            # カンマ区切りのアレルゲン文字列をリストに変換
-            ingredient_allergens = [a.strip() for a in ingredient.allergens.split(",")]
+
+            # 両方の列からアレルゲンを収集
+            all_allergens = []
+            if ingredient.allergens_required:
+                all_allergens.extend([a.strip() for a in ingredient.allergens_required.split(",")])
+            if ingredient.allergens_recommended:
+                all_allergens.extend([a.strip() for a in ingredient.allergens_recommended.split(",")])
+
+            if not all_allergens:
+                return False
+
             # 指定アレルゲンと一致するものがあるかチェック
-            return any(allergen in ingredient_allergens for allergen in allergens_to_check)
+            return any(allergen in all_allergens for allergen in allergens_to_check)
 
         # 全料理を取得してフィルタリング
         all_dishes = self._session.query(DishDB).all()
