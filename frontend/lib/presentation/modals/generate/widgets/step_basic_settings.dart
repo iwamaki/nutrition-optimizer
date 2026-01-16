@@ -330,48 +330,90 @@ class StepBasicSettings extends ConsumerWidget {
       builder: (context) => Consumer(
         builder: (context, ref, _) {
           final state = ref.watch(generateModalControllerProvider);
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text('アレルゲン除外', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('完了'),
-                      ),
-                    ],
+          return DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (context, scrollController) => SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text('アレルゲン除外', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('完了'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '選択したアレルゲンを含む料理を除外します',
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      '選択したアレルゲンを含む料理を除外します',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                ...Allergen.values.map((allergen) {
-                  final isSelected = state.excludedAllergens.contains(allergen);
-                  return CheckboxListTile(
-                    title: Text(allergen.displayName),
-                    value: isSelected,
-                    activeColor: Colors.red,
-                    onChanged: (_) {
-                      controller.toggleAllergen(allergen);
-                    },
-                  );
-                }),
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      children: [
+                        // 特定原材料8品目
+                        _buildAllergenSectionHeader(context, '特定原材料 8品目'),
+                        ...Allergen.requiredAllergens.map((allergen) {
+                          final isSelected = state.excludedAllergens.contains(allergen);
+                          return CheckboxListTile(
+                            title: Text(allergen.displayName),
+                            value: isSelected,
+                            activeColor: Colors.red,
+                            onChanged: (_) {
+                              controller.toggleAllergen(allergen);
+                            },
+                          );
+                        }),
+                        const SizedBox(height: 16),
+                        // 準特定原材料20品目
+                        _buildAllergenSectionHeader(context, '準特定原材料 20品目'),
+                        ...Allergen.recommendedAllergens.map((allergen) {
+                          final isSelected = state.excludedAllergens.contains(allergen);
+                          return CheckboxListTile(
+                            title: Text(allergen.displayName),
+                            value: isSelected,
+                            activeColor: Colors.red,
+                            onChanged: (_) {
+                              controller.toggleAllergen(allergen);
+                            },
+                          );
+                        }),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAllergenSectionHeader(BuildContext context, String title) {
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }

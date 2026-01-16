@@ -159,20 +159,52 @@ class MealSetting {
   }
 }
 
-/// アレルゲン（7大アレルゲン）
+/// アレルゲン28品目（特定原材料8品目 + 準特定原材料20品目）
 enum Allergen {
-  egg('卵', 'EGG'),
-  milk('乳', 'MILK'),
-  wheat('小麦', 'WHEAT'),
-  buckwheat('そば', 'BUCKWHEAT'),
-  peanut('落花生', 'PEANUT'),
-  shrimp('えび', 'SHRIMP'),
-  crab('かに', 'CRAB');
+  // 特定原材料8品目（表示義務）
+  egg('卵', 'EGG', true),
+  milk('乳', 'MILK', true),
+  wheat('小麦', 'WHEAT', true),
+  buckwheat('そば', 'BUCKWHEAT', true),
+  peanut('落花生', 'PEANUT', true),
+  shrimp('えび', 'SHRIMP', true),
+  crab('かに', 'CRAB', true),
+  walnut('くるみ', 'WALNUT', true),
+  // 準特定原材料20品目（表示推奨）
+  almond('アーモンド', 'ALMOND', false),
+  abalone('あわび', 'ABALONE', false),
+  squid('いか', 'SQUID', false),
+  salmonRoe('いくら', 'SALMON_ROE', false),
+  orange('オレンジ', 'ORANGE', false),
+  beef('牛肉', 'BEEF', false),
+  cashew('カシューナッツ', 'CASHEW', false),
+  kiwi('キウイフルーツ', 'KIWI', false),
+  sesame('ごま', 'SESAME', false),
+  salmon('さけ', 'SALMON', false),
+  mackerel('さば', 'MACKEREL', false),
+  soybean('大豆', 'SOYBEAN', false),
+  chicken('鶏肉', 'CHICKEN', false),
+  pork('豚肉', 'PORK', false),
+  banana('バナナ', 'BANANA', false),
+  peach('もも', 'PEACH', false),
+  yam('やまいも', 'YAM', false),
+  apple('りんご', 'APPLE', false),
+  gelatin('ゼラチン', 'GELATIN', false),
+  macadamia('マカダミアナッツ', 'MACADAMIA', false);
 
   final String displayName;
   final String apiValue;
+  final bool isRequired; // true: 特定原材料（表示義務）, false: 準特定原材料（表示推奨）
 
-  const Allergen(this.displayName, this.apiValue);
+  const Allergen(this.displayName, this.apiValue, this.isRequired);
+
+  /// 特定原材料8品目を取得
+  static List<Allergen> get requiredAllergens =>
+      values.where((a) => a.isRequired).toList();
+
+  /// 準特定原材料20品目を取得
+  static List<Allergen> get recommendedAllergens =>
+      values.where((a) => !a.isRequired).toList();
 
   static Allergen? fromApiValue(String value) {
     for (final allergen in Allergen.values) {
