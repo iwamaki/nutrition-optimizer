@@ -25,6 +25,7 @@ class OptimizeMultiDayMenuUseCase:
         target: Optional[NutrientTarget] = None,
         excluded_allergens: Optional[list[str]] = None,
         excluded_dish_ids: Optional[list[int]] = None,
+        excluded_ingredient_ids: Optional[list[int]] = None,
         keep_dish_ids: Optional[list[int]] = None,
         preferred_ingredient_ids: Optional[list[int]] = None,
         preferred_dish_ids: Optional[list[int]] = None,
@@ -32,6 +33,8 @@ class OptimizeMultiDayMenuUseCase:
         volume_level: str = "normal",
         variety_level: str = "normal",
         meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        optimization_strategy: str = "auto",
     ) -> Optional[MultiDayMenuPlan]:
         """複数日献立を最適化
 
@@ -41,6 +44,7 @@ class OptimizeMultiDayMenuUseCase:
             target: 栄養素目標（1人1日あたり）
             excluded_allergens: 除外アレルゲン
             excluded_dish_ids: 除外料理ID
+            excluded_ingredient_ids: 除外食材ID（嫌いな食材）
             keep_dish_ids: 必ず含める料理ID
             preferred_ingredient_ids: 優先食材ID（手持ち食材）
             preferred_dish_ids: 優先料理ID（お気に入り）
@@ -48,6 +52,8 @@ class OptimizeMultiDayMenuUseCase:
             volume_level: 献立ボリューム
             variety_level: 料理の繰り返し
             meal_settings: 朝昼夜別の設定
+            enabled_nutrients: 有効にする栄養素リスト（Noneの場合は全栄養素）
+            optimization_strategy: 最適化戦略 ("full_mip", "rolling", "auto")
 
         Returns:
             最適化された献立プラン
@@ -77,12 +83,15 @@ class OptimizeMultiDayMenuUseCase:
             people=people,
             target=target,
             excluded_dish_ids=excluded_ids,
+            excluded_ingredient_ids=set(excluded_ingredient_ids or []),
             keep_dish_ids=set(keep_dish_ids or []),
             preferred_ingredient_ids=set(preferred_ingredient_ids or []),
             preferred_dish_ids=set(preferred_dish_ids or []),
             batch_cooking_level=batch_cooking_level,
             variety_level=variety_level,
             meal_settings=meal_settings,
+            enabled_nutrients=enabled_nutrients,
+            optimization_strategy=optimization_strategy,
         )
 
         return result

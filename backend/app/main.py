@@ -4,8 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from app.presentation.api.v1 import router
-from app.db.database import init_db
-from app.data.loader import SessionLocal, load_dishes_from_csv, load_ingredients_from_csv, load_recipe_details
+from app.db.database import init_db, SessionLocal
+from app.data.loader import load_dishes_from_csv, load_ingredients_from_csv, load_recipe_details
 from app.core.exceptions import (
     AppException,
     EntityNotFoundError,

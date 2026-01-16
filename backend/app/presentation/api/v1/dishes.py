@@ -18,7 +18,6 @@ from app.presentation.dependencies import (
     get_generate_recipe_use_case,
     get_batch_generate_recipes_use_case,
 )
-from app.core.exceptions import EntityNotFoundError, ExternalServiceError
 
 router = APIRouter(prefix="/dishes", tags=["dishes"])
 
@@ -86,7 +85,6 @@ def generate_recipes_batch(
     results = use_case.execute(category=category)
 
     generated = []
-    skipped = []
     failed = []
     count = 0
 

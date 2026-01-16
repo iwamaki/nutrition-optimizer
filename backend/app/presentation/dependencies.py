@@ -5,7 +5,6 @@
 FastAPIのDependsで使用するファクトリ関数を定義
 """
 from functools import lru_cache
-from typing import Generator
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -90,8 +89,18 @@ def get_unit_converter() -> UnitConverter:
 
 @lru_cache()
 def get_solver() -> PuLPSolver:
-    """PuLPソルバーを取得"""
-    return PuLPSolver(time_limit=30)
+    """PuLPソルバーを取得
+
+    パフォーマンスチューニング:
+    - gap_rel=0.35: 35%以内で早期終了（サチュレーション時に早期終了）
+    - 栄養密度ベースの事前フィルタリングは削除
+      → 代わりに除外食材(excluded_ingredient_ids)でユーザーが制御
+    """
+    return PuLPSolver(
+        time_limit=30,
+        solver_type="cbc",  # HiGHS CLIが未インストールのためCBC使用
+        gap_rel=0.35,  # 35%以内で早期終了
+    )
 
 
 @lru_cache()

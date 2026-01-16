@@ -105,6 +105,7 @@ def optimize_multi_day_menu(
         target=target,
         excluded_allergens=excluded_allergens,
         excluded_dish_ids=request.excluded_dish_ids,
+        excluded_ingredient_ids=request.excluded_ingredient_ids,
         keep_dish_ids=request.keep_dish_ids,
         preferred_ingredient_ids=request.preferred_ingredient_ids,
         preferred_dish_ids=request.preferred_dish_ids,
@@ -112,6 +113,8 @@ def optimize_multi_day_menu(
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
         meal_settings=meal_settings,
+        enabled_nutrients=request.enabled_nutrients,
+        optimization_strategy=request.optimization_strategy.value,
     )
 
     if not result:
@@ -174,12 +177,15 @@ def refine_multi_day_menu(
         keep_dish_ids=request.keep_dish_ids,
         exclude_dish_ids=request.exclude_dish_ids,
         excluded_allergens=excluded_allergens,
+        excluded_ingredient_ids=request.excluded_ingredient_ids,
         preferred_ingredient_ids=request.preferred_ingredient_ids,
         preferred_dish_ids=request.preferred_dish_ids,
         batch_cooking_level=request.batch_cooking_level.value,
         volume_level=request.volume_level.value,
         variety_level=request.variety_level.value,
         meal_settings=meal_settings,
+        enabled_nutrients=request.enabled_nutrients,
+        optimization_strategy=request.optimization_strategy.value,
     )
 
     if not result:

@@ -4,8 +4,7 @@ import json
 from pathlib import Path
 from sqlalchemy.orm import Session
 from app.db.database import (
-    FoodDB, DishDB, DishIngredientDB, CookingFactorDB, IngredientDB,
-    init_db, SessionLocal
+    FoodDB, DishDB, DishIngredientDB, CookingFactorDB, IngredientDB
 )
 
 # レシピ詳細データ（メモリキャッシュ）

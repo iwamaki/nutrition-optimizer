@@ -475,6 +475,13 @@ class MealSettings(BaseModel):
         return result if result else None
 
 
+class OptimizationStrategyEnum(str, Enum):
+    """最適化戦略"""
+    FULL_MIP = "full_mip"    # 全期間同時最適化（厳密解）
+    ROLLING = "rolling"       # ローリングホライズン（日単位逐次）
+    AUTO = "auto"             # 自動選択（日数に応じて切り替え）
+
+
 class MultiDayOptimizeRequest(BaseModel):
     """複数日最適化リクエスト"""
     days: int = Field(default=1, ge=1, le=7, description="日数")
@@ -482,6 +489,7 @@ class MultiDayOptimizeRequest(BaseModel):
     target: Optional[NutrientTarget] = None
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
     excluded_dish_ids: list[int] = Field(default_factory=list, description="除外料理ID")
+    excluded_ingredient_ids: list[int] = Field(default_factory=list, description="除外食材ID（嫌いな食材）")
     keep_dish_ids: list[int] = Field(default_factory=list, description="必ず含める料理ID（お気に入り確定）")
     preferred_ingredient_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     preferred_dish_ids: list[int] = Field(default_factory=list, description="優先料理ID（お気に入り）")
@@ -489,6 +497,10 @@ class MultiDayOptimizeRequest(BaseModel):
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
     meal_settings: Optional[MealSettings] = Field(default=None, description="朝昼夜別の設定")
+    # Phase 1: 栄養素フィルタリング
+    enabled_nutrients: Optional[list[str]] = Field(default=None, description="有効にする栄養素リスト（Noneの場合は全栄養素）")
+    # Phase 2: 最適化戦略
+    optimization_strategy: OptimizationStrategyEnum = Field(default=OptimizationStrategyEnum.AUTO, description="最適化戦略")
 
 
 class CookingTask(BaseModel):
@@ -549,9 +561,14 @@ class RefineOptimizeRequest(BaseModel):
     keep_dish_ids: list[int] = Field(default_factory=list, description="残したい料理ID")
     exclude_dish_ids: list[int] = Field(default_factory=list, description="外したい料理ID")
     excluded_allergens: list[AllergenEnum] = Field(default_factory=list, description="除外アレルゲン")
+    excluded_ingredient_ids: list[int] = Field(default_factory=list, description="除外食材ID（嫌いな食材）")
     preferred_ingredient_ids: list[int] = Field(default_factory=list, description="優先食材ID（手持ち食材）")
     preferred_dish_ids: list[int] = Field(default_factory=list, description="優先料理ID（お気に入り）")
     batch_cooking_level: BatchCookingLevelEnum = Field(default=BatchCookingLevelEnum.NORMAL, description="作り置き優先度")
     volume_level: VolumeLevelEnum = Field(default=VolumeLevelEnum.NORMAL, description="カロリー目標レベル")
     variety_level: VarietyLevelEnum = Field(default=VarietyLevelEnum.NORMAL, description="料理の繰り返し")
     meal_settings: Optional[MealSettings] = Field(default=None, description="朝昼夜別の設定")
+    # Phase 1: 栄養素フィルタリング
+    enabled_nutrients: Optional[list[str]] = Field(default=None, description="有効にする栄養素リスト（Noneの場合は全栄養素）")
+    # Phase 2: 最適化戦略
+    optimization_strategy: OptimizationStrategyEnum = Field(default=OptimizationStrategyEnum.AUTO, description="最適化戦略")

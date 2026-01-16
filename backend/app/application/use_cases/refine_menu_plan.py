@@ -26,12 +26,15 @@ class RefineMenuPlanUseCase:
         keep_dish_ids: Optional[list[int]] = None,
         exclude_dish_ids: Optional[list[int]] = None,
         excluded_allergens: Optional[list[str]] = None,
+        excluded_ingredient_ids: Optional[list[int]] = None,
         preferred_ingredient_ids: Optional[list[int]] = None,
         preferred_dish_ids: Optional[list[int]] = None,
         batch_cooking_level: str = "normal",
         volume_level: str = "normal",
         variety_level: str = "normal",
         meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        optimization_strategy: str = "auto",
     ) -> Optional[MultiDayMenuPlan]:
         """献立を調整して再最適化
 
@@ -45,12 +48,15 @@ class RefineMenuPlanUseCase:
             keep_dish_ids: 残したい料理ID
             exclude_dish_ids: 外したい料理ID
             excluded_allergens: 除外アレルゲン
+            excluded_ingredient_ids: 除外食材ID（嫌いな食材）
             preferred_ingredient_ids: 優先食材ID（手持ち食材）
             preferred_dish_ids: 優先料理ID（お気に入り）
             batch_cooking_level: 作り置き優先度
             volume_level: 献立ボリューム
             variety_level: 料理の繰り返し
             meal_settings: 朝昼夜別の設定
+            enabled_nutrients: 有効にする栄養素リスト（Noneの場合は全栄養素）
+            optimization_strategy: 最適化戦略 ("full_mip", "rolling", "auto")
 
         Returns:
             調整後の献立
@@ -81,11 +87,14 @@ class RefineMenuPlanUseCase:
             target=target,
             keep_dish_ids=set(keep_dish_ids or []),
             exclude_dish_ids=excluded_ids,
+            excluded_ingredient_ids=set(excluded_ingredient_ids or []),
             preferred_ingredient_ids=set(preferred_ingredient_ids or []),
             preferred_dish_ids=set(preferred_dish_ids or []),
             batch_cooking_level=batch_cooking_level,
             variety_level=variety_level,
             meal_settings=meal_settings,
+            enabled_nutrients=enabled_nutrients,
+            optimization_strategy=optimization_strategy,
         )
 
         return result

@@ -3,12 +3,10 @@
 
 クリーンアーキテクチャ: presentation層
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.domain.entities import NutrientTarget, AllergenEnum
 from app.models.schemas import UserPreferences
-from app.presentation.dependencies import get_preference_repository
-from app.domain.interfaces import PreferenceRepositoryInterface
 
 router = APIRouter(tags=["preferences"])
 

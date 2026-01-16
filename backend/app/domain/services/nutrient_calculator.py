@@ -1,9 +1,8 @@
 """Nutrient calculation service."""
 
-from typing import Optional
 
 from app.domain.entities.food import NutrientTarget
-from app.domain.entities.dish import Dish, DishPortion
+from app.domain.entities.dish import DishPortion
 from app.domain.entities.meal_plan import NutrientWarning
 from app.domain.services.constants import ALL_NUTRIENTS
 

@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from app.domain.entities import Dish, RecipeDetails
+from app.domain.entities import RecipeDetails
 from app.domain.interfaces import DishRepositoryInterface
 from app.infrastructure.external import GeminiRecipeGenerator
 from app.core.exceptions import EntityNotFoundError, ExternalServiceError

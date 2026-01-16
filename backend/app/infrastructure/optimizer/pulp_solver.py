@@ -4,21 +4,35 @@ PuLP線形計画法ソルバー
 クリーンアーキテクチャ: infrastructure層
 """
 import uuid
+import logging
 from typing import Optional
 from pulp import (
     LpProblem, LpMinimize, LpVariable, lpSum, LpStatus, value, PULP_CBC_CMD
 )
 
+# HiGHS solver import with fallback
+try:
+    from pulp import HiGHS_CMD
+    HIGHS_AVAILABLE = True
+except ImportError:
+    HIGHS_AVAILABLE = False
+    HiGHS_CMD = None
+
 from app.domain.entities import (
     Dish, DishPortion, MealPlan, DailyMenuPlan, DailyMealAssignment,
     MultiDayMenuPlan, NutrientTarget, CookingTask, ShoppingItem,
-    MealTypeEnum, DishCategoryEnum,
+    MealTypeEnum,
 )
 from app.domain.services.constants import (
     ALL_NUTRIENTS, NUTRIENT_WEIGHTS, MEAL_RATIOS,
     DEFAULT_MEAL_CATEGORY_CONSTRAINTS, CATEGORY_CONSTRAINTS_BY_VOLUME,
+    get_enabled_nutrients,
+    SATURATION_THRESHOLD, UNDER_PENALTY, OVER_PENALTY,
+    NUTRIENT_UPPER_LIMIT_RATIO, UPPER_TARGET_NUTRIENTS, UPPER_LIMIT_PENALTY,
 )
 from app.domain.services import NutrientCalculator, UnitConverter
+
+logger = logging.getLogger(__name__)
 
 
 class PuLPSolver:
@@ -28,17 +42,148 @@ class PuLPSolver:
         self,
         time_limit: int = 30,
         msg: int = 0,
+        solver_type: str = "auto",
+        prefilter_top_n: int = 30,
+        gap_rel: float = 0.05,
     ):
         """
         Args:
             time_limit: ソルバーのタイムリミット（秒）
             msg: メッセージ出力レベル（0=なし）
+            solver_type: ソルバータイプ ("highs", "cbc", "auto")
+            prefilter_top_n: 事前フィルタリングで残す料理数（カテゴリ毎）
+            gap_rel: MIPギャップ許容値（0.05=最適解の5%以内で終了）
         """
         self.time_limit = time_limit
         self.msg = msg
-        self._solver = PULP_CBC_CMD(msg=msg, timeLimit=time_limit)
+        self.solver_type = solver_type
+        self.prefilter_top_n = prefilter_top_n
+        self.gap_rel = gap_rel
+        self._solver = self._create_solver()
         self._nutrient_calc = NutrientCalculator()
         self._unit_converter = UnitConverter()
+
+    def _create_solver(self):
+        """ソルバーインスタンスを作成（HiGHS優先、CBCフォールバック）
+
+        gapRel: 相対ギャップ許容値を設定することで、最適解に近い解が
+        見つかった時点で早期終了できる（例: 0.05 = 5%以内で終了）
+        """
+        if self.solver_type == "highs" or (self.solver_type == "auto" and HIGHS_AVAILABLE):
+            if HIGHS_AVAILABLE:
+                logger.info("Using HiGHS solver")
+                return HiGHS_CMD(
+                    msg=self.msg,
+                    timeLimit=self.time_limit,
+                    gapRel=self.gap_rel,
+                )
+            else:
+                logger.warning("HiGHS not available, falling back to CBC")
+
+        logger.info("Using CBC solver")
+        return PULP_CBC_CMD(
+            msg=self.msg,
+            timeLimit=self.time_limit,
+            gapRel=self.gap_rel,
+        )
+
+    def _calculate_dish_score(
+        self,
+        dish: Dish,
+        target: NutrientTarget,
+        enabled_nutrients: list[str],
+    ) -> float:
+        """料理の栄養密度スコアを計算
+
+        Args:
+            dish: 料理
+            target: 栄養素目標
+            enabled_nutrients: 有効な栄養素リスト
+
+        Returns:
+            栄養密度スコア（高いほど良い）
+        """
+        score = 0.0
+        calories = max(dish.calories, 1)  # ゼロ除算防止
+
+        for nutrient in enabled_nutrients:
+            value = getattr(dish, nutrient, 0)
+            weight = NUTRIENT_WEIGHTS.get(nutrient, 1.0)
+
+            # 目標値を取得
+            if nutrient == "sodium":
+                target_val = getattr(target, "sodium_max", 2500)
+                # ナトリウムは低いほうが良い（逆スコア）
+                if target_val > 0 and value < target_val:
+                    score += weight * (1 - value / target_val)
+            elif nutrient == "calories":
+                # カロリーはスコアに含めない（密度計算の分母なので）
+                continue
+            else:
+                target_attr = f"{nutrient}_min"
+                target_val = getattr(target, target_attr, 0)
+                if target_val > 0:
+                    # 栄養密度 = 栄養素量 / カロリー × 目標比率
+                    density = (value / calories) * (100 / target_val) * weight
+                    score += density
+
+        return score
+
+    def _prefilter_dishes(
+        self,
+        dishes: list[Dish],
+        target: NutrientTarget,
+        enabled_nutrients: list[str],
+        preferred_dish_ids: Optional[set[int]] = None,
+        keep_dish_ids: Optional[set[int]] = None,
+    ) -> list[Dish]:
+        """栄養密度スコアでカテゴリ毎に上位N件に絞る
+
+        Args:
+            dishes: 全料理リスト
+            target: 栄養素目標
+            enabled_nutrients: 有効な栄養素リスト
+            preferred_dish_ids: 優先料理ID（必ず残す）
+            keep_dish_ids: 必須料理ID（必ず残す）
+
+        Returns:
+            フィルタリングされた料理リスト
+        """
+        if len(dishes) <= self.prefilter_top_n * 5:
+            # 料理数が少なければフィルタリング不要
+            return dishes
+
+        preferred_dish_ids = preferred_dish_ids or set()
+        keep_dish_ids = keep_dish_ids or set()
+        must_keep_ids = preferred_dish_ids | keep_dish_ids
+
+        # カテゴリ別に分類
+        dishes_by_category: dict[str, list[tuple[Dish, float]]] = {}
+        for dish in dishes:
+            cat = dish.category.value
+            if cat not in dishes_by_category:
+                dishes_by_category[cat] = []
+            score = self._calculate_dish_score(dish, target, enabled_nutrients)
+            dishes_by_category[cat].append((dish, score))
+
+        # 各カテゴリで上位N件を選択
+        filtered_dishes = []
+        for cat, dish_scores in dishes_by_category.items():
+            # スコア降順でソート
+            dish_scores.sort(key=lambda x: x[1], reverse=True)
+
+            selected = []
+            for dish, score in dish_scores:
+                if dish.id in must_keep_ids:
+                    # 必須料理は常に含める
+                    selected.append(dish)
+                elif len(selected) < self.prefilter_top_n:
+                    selected.append(dish)
+
+            filtered_dishes.extend(selected)
+
+        logger.info(f"Dish pre-filtering: {len(dishes)} -> {len(filtered_dishes)} dishes")
+        return filtered_dishes
 
     def optimize_meal(
         self,
@@ -120,8 +265,11 @@ class PuLPSolver:
         dev_neg = {n: LpVariable(f"dev_neg_{n}", lowBound=0) for n in targets}
 
         # 目的関数: 重み付き偏差の最小化
+        # 下振れ（不足）は重くペナルティ、上振れ（超過）は軽く
         prob += lpSum(
-            NUTRIENT_WEIGHTS.get(n, 1.0) * (dev_pos[n] + dev_neg[n]) / max(targets[n], 1)
+            NUTRIENT_WEIGHTS.get(n, 1.0) * (
+                OVER_PENALTY * dev_pos[n] + UNDER_PENALTY * dev_neg[n]
+            ) / max(targets[n], 1)
             for n in targets
         )
 
@@ -236,12 +384,15 @@ class PuLPSolver:
         people: int = 1,
         target: Optional[NutrientTarget] = None,
         excluded_dish_ids: Optional[set[int]] = None,
+        excluded_ingredient_ids: Optional[set[int]] = None,
         keep_dish_ids: Optional[set[int]] = None,
         preferred_ingredient_ids: Optional[set[int]] = None,
         preferred_dish_ids: Optional[set[int]] = None,
         batch_cooking_level: str = "normal",
         variety_level: str = "normal",
         meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        optimization_strategy: str = "auto",
     ) -> Optional[MultiDayMenuPlan]:
         """複数日×複数人のメニューを最適化（作り置き対応）
 
@@ -251,21 +402,29 @@ class PuLPSolver:
             people: 人数（1-6）
             target: 栄養素目標（1人1日あたり）
             excluded_dish_ids: 除外料理ID
+            excluded_ingredient_ids: 除外食材ID（嫌いな食材を含む料理を除外）
             keep_dish_ids: 必ず含める料理ID
             preferred_ingredient_ids: 優先食材ID
             preferred_dish_ids: 優先料理ID
             batch_cooking_level: 作り置き優先度
             variety_level: 料理の繰り返し
             meal_settings: 朝昼夜別の設定
+            enabled_nutrients: 有効な栄養素リスト（Noneの場合は全栄養素）
+            optimization_strategy: 最適化戦略 ("full_mip", "rolling", "auto")
 
         Returns:
             MultiDayMenuPlan
         """
         target = target or NutrientTarget()
         excluded_dish_ids = excluded_dish_ids or set()
+        excluded_ingredient_ids = excluded_ingredient_ids or set()
         keep_dish_ids = keep_dish_ids or set()
         preferred_ingredient_ids = preferred_ingredient_ids or set()
         preferred_dish_ids = preferred_dish_ids or set()
+
+        # 有効な栄養素を決定（Phase 1）
+        active_nutrients = get_enabled_nutrients(enabled_nutrients)
+        logger.info(f"Active nutrients: {len(active_nutrients)} (of {len(ALL_NUTRIENTS)})")
 
         # meal_settingsの正規化
         meal_settings = self._normalize_meal_settings(meal_settings)
@@ -279,6 +438,13 @@ class PuLPSolver:
         # 除外料理を適用
         available_dishes = [d for d in dishes if d.id not in excluded_dish_ids]
 
+        # 除外食材を含む料理をフィルタリング
+        if excluded_ingredient_ids:
+            available_dishes = self._filter_dishes_by_excluded_ingredients(
+                available_dishes, excluded_ingredient_ids
+            )
+            logger.info(f"After excluding ingredients: {len(available_dishes)} dishes")
+
         if not available_dishes:
             return None
 
@@ -290,28 +456,27 @@ class PuLPSolver:
             available_dishes, days, people, enabled_meals
         )
 
-        # 偏差変数
-        dev_pos, dev_neg = self._create_deviation_variables(days)
+        # 偏差変数（有効な栄養素のみ）
+        dev_pos, dev_neg = self._create_deviation_variables(days, active_nutrients)
 
-        # 目的関数
+        # 目的関数（有効な栄養素のみ使用）
         prob += self._build_multi_day_objective(
             available_dishes, days, x,
             dev_pos, dev_neg, target,
             preferred_ingredient_ids, preferred_dish_ids,
-            batch_cooking_level
+            batch_cooking_level, active_nutrients
         )
 
-        # 制約条件を追加
+        # 制約条件を追加（有効な栄養素のみ）
         self._add_multi_day_constraints(
             prob, available_dishes, days, people, target,
             x, s, c, q, dev_pos, dev_neg,
             enabled_meals, meal_settings,
-            variety_level, keep_dish_ids
+            variety_level, keep_dish_ids, active_nutrients
         )
 
-        # 求解
-        solver = PULP_CBC_CMD(msg=self.msg, timeLimit=self.time_limit)
-        prob.solve(solver)
+        # 求解（Phase 5: HiGHS/CBCを使用）
+        prob.solve(self._solver)
 
         if LpStatus[prob.status] not in ["Optimal", "Not Solved"]:
             # フォールバック
@@ -335,11 +500,14 @@ class PuLPSolver:
         target: Optional[NutrientTarget] = None,
         keep_dish_ids: Optional[set[int]] = None,
         exclude_dish_ids: Optional[set[int]] = None,
+        excluded_ingredient_ids: Optional[set[int]] = None,
         preferred_ingredient_ids: Optional[set[int]] = None,
         preferred_dish_ids: Optional[set[int]] = None,
         batch_cooking_level: str = "normal",
         variety_level: str = "normal",
         meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        optimization_strategy: str = "auto",
     ) -> Optional[MultiDayMenuPlan]:
         """献立を調整して再最適化"""
         return self.solve_multi_day(
@@ -348,47 +516,87 @@ class PuLPSolver:
             people=people,
             target=target,
             excluded_dish_ids=exclude_dish_ids,
+            excluded_ingredient_ids=excluded_ingredient_ids,
             keep_dish_ids=keep_dish_ids,
             preferred_ingredient_ids=preferred_ingredient_ids,
             preferred_dish_ids=preferred_dish_ids,
             batch_cooking_level=batch_cooking_level,
             variety_level=variety_level,
             meal_settings=meal_settings,
+            enabled_nutrients=enabled_nutrients,
+            optimization_strategy=optimization_strategy,
         )
 
     # ========== Private Methods ==========
+
+    def _filter_dishes_by_excluded_ingredients(
+        self,
+        dishes: list[Dish],
+        excluded_ingredient_ids: set[int],
+    ) -> list[Dish]:
+        """除外食材を含む料理をフィルタリング
+
+        Args:
+            dishes: 料理リスト
+            excluded_ingredient_ids: 除外食材ID（嫌いな食材）
+
+        Returns:
+            除外食材を含まない料理リスト
+        """
+        if not excluded_ingredient_ids:
+            return dishes
+
+        filtered = []
+        for dish in dishes:
+            # 料理の食材IDを収集
+            dish_ingredient_ids = {
+                ing.ingredient_id for ing in dish.ingredients
+                if ing.ingredient_id is not None
+            }
+            # 除外食材を含まなければ追加
+            if not dish_ingredient_ids & excluded_ingredient_ids:
+                filtered.append(dish)
+
+        return filtered
 
     def _calculate_meal_targets(
         self,
         target: NutrientTarget,
         ratio: float
     ) -> dict[str, float]:
-        """1食分の目標値を計算"""
+        """1食分の目標値を計算
+
+        サチュレーション閾値を適用: 目標の80%を達成すれば十分
+        """
+        sat = SATURATION_THRESHOLD
         return {
-            "calories": ((target.calories_min + target.calories_max) / 2) * ratio,
-            "protein": ((target.protein_min + target.protein_max) / 2) * ratio,
-            "fat": ((target.fat_min + target.fat_max) / 2) * ratio,
-            "carbohydrate": ((target.carbohydrate_min + target.carbohydrate_max) / 2) * ratio,
-            "fiber": target.fiber_min * ratio,
+            # PFC（カロリー・タンパク質・脂質・炭水化物）はサチュレーション適用
+            "calories": ((target.calories_min + target.calories_max) / 2) * ratio * sat,
+            "protein": ((target.protein_min + target.protein_max) / 2) * ratio * sat,
+            "fat": ((target.fat_min + target.fat_max) / 2) * ratio * sat,
+            "carbohydrate": ((target.carbohydrate_min + target.carbohydrate_max) / 2) * ratio * sat,
+            "fiber": target.fiber_min * ratio * sat,
+            # ナトリウムは上限制約なのでサチュレーション不適用
             "sodium": target.sodium_max * ratio,
-            "potassium": target.potassium_min * ratio,
-            "calcium": target.calcium_min * ratio,
-            "magnesium": target.magnesium_min * ratio,
-            "iron": target.iron_min * ratio,
-            "zinc": target.zinc_min * ratio,
-            "vitamin_a": target.vitamin_a_min * ratio,
-            "vitamin_d": target.vitamin_d_min * ratio,
-            "vitamin_e": target.vitamin_e_min * ratio,
-            "vitamin_k": target.vitamin_k_min * ratio,
-            "vitamin_b1": target.vitamin_b1_min * ratio,
-            "vitamin_b2": target.vitamin_b2_min * ratio,
-            "vitamin_b6": target.vitamin_b6_min * ratio,
-            "vitamin_b12": target.vitamin_b12_min * ratio,
-            "niacin": target.niacin_min * ratio,
-            "pantothenic_acid": target.pantothenic_acid_min * ratio,
-            "biotin": target.biotin_min * ratio,
-            "folate": target.folate_min * ratio,
-            "vitamin_c": target.vitamin_c_min * ratio,
+            # ミネラル・ビタミンはサチュレーション適用
+            "potassium": target.potassium_min * ratio * sat,
+            "calcium": target.calcium_min * ratio * sat,
+            "magnesium": target.magnesium_min * ratio * sat,
+            "iron": target.iron_min * ratio * sat,
+            "zinc": target.zinc_min * ratio * sat,
+            "vitamin_a": target.vitamin_a_min * ratio * sat,
+            "vitamin_d": target.vitamin_d_min * ratio * sat,
+            "vitamin_e": target.vitamin_e_min * ratio * sat,
+            "vitamin_k": target.vitamin_k_min * ratio * sat,
+            "vitamin_b1": target.vitamin_b1_min * ratio * sat,
+            "vitamin_b2": target.vitamin_b2_min * ratio * sat,
+            "vitamin_b6": target.vitamin_b6_min * ratio * sat,
+            "vitamin_b12": target.vitamin_b12_min * ratio * sat,
+            "niacin": target.niacin_min * ratio * sat,
+            "pantothenic_acid": target.pantothenic_acid_min * ratio * sat,
+            "biotin": target.biotin_min * ratio * sat,
+            "folate": target.folate_min * ratio * sat,
+            "vitamin_c": target.vitamin_c_min * ratio * sat,
         }
 
     def _extract_meal_result(
@@ -521,13 +729,23 @@ class PuLPSolver:
 
         return x, s, c, q
 
-    def _create_deviation_variables(self, days: int) -> tuple[dict, dict]:
-        """偏差変数を作成"""
+    def _create_deviation_variables(
+        self,
+        days: int,
+        active_nutrients: list[str] | None = None
+    ) -> tuple[dict, dict]:
+        """偏差変数を作成（有効な栄養素のみ）
+
+        Args:
+            days: 日数
+            active_nutrients: 有効な栄養素リスト（Noneの場合は全栄養素）
+        """
+        nutrients = active_nutrients if active_nutrients else ALL_NUTRIENTS
         dev_pos = {}
         dev_neg = {}
         for day in range(1, days + 1):
-            dev_pos[day] = {n: LpVariable(f"dev_pos_{day}_{n}", lowBound=0) for n in ALL_NUTRIENTS}
-            dev_neg[day] = {n: LpVariable(f"dev_neg_{day}_{n}", lowBound=0) for n in ALL_NUTRIENTS}
+            dev_pos[day] = {n: LpVariable(f"dev_pos_{day}_{n}", lowBound=0) for n in nutrients}
+            dev_neg[day] = {n: LpVariable(f"dev_neg_{day}_{n}", lowBound=0) for n in nutrients}
         return dev_pos, dev_neg
 
     def _build_multi_day_objective(
@@ -541,15 +759,40 @@ class PuLPSolver:
         preferred_ingredient_ids: set[int],
         preferred_dish_ids: set[int],
         batch_cooking_level: str,
+        active_nutrients: list[str] | None = None,
     ):
-        """目的関数を構築"""
-        # 栄養バランスからの偏差
-        nutrient_deviation = lpSum(
-            NUTRIENT_WEIGHTS.get(n, 1.0) * (dev_pos[day][n] + dev_neg[day][n]) /
-            max(getattr(target, f"{n}_min", 1) if hasattr(target, f"{n}_min") else 1, 1)
-            for day in range(1, days + 1)
-            for n in ALL_NUTRIENTS
-        )
+        """目的関数を構築（有効な栄養素のみ使用）
+
+        Args:
+            active_nutrients: 有効な栄養素リスト（Noneの場合は全栄養素）
+        """
+        nutrients = active_nutrients if active_nutrients else ALL_NUTRIENTS
+
+        # 栄養バランスからの偏差（有効な栄養素のみ）
+        # 厚生労働省の指針に基づく:
+        # - 通常栄養素: 推奨量(100%)以上を目指す。未達はペナルティ大、超過はOK
+        # - ナトリウム: 目標量(100%)以下を目指す。超過はペナルティ大、未達はOK
+        nutrient_deviation_terms = []
+        for day in range(1, days + 1):
+            for n in nutrients:
+                weight = NUTRIENT_WEIGHTS.get(n, 1.0)
+                normalizer = max(getattr(target, f"{n}_min", 1) if hasattr(target, f"{n}_min") else 1, 1)
+
+                if n in UPPER_TARGET_NUTRIENTS:
+                    # ナトリウム等: 超過を抑制（減らす方向が良い）
+                    penalty = weight * (
+                        UNDER_PENALTY * dev_pos[day][n] +  # 超過は大きなペナルティ
+                        OVER_PENALTY * dev_neg[day][n]     # 未達は軽いペナルティ
+                    ) / normalizer
+                else:
+                    # 通常栄養素: 未達を抑制（増やす方向が良い）
+                    penalty = weight * (
+                        UNDER_PENALTY * dev_neg[day][n] +  # 未達は大きなペナルティ
+                        OVER_PENALTY * dev_pos[day][n]     # 超過は軽いペナルティ
+                    ) / normalizer
+                nutrient_deviation_terms.append(penalty)
+
+        nutrient_deviation = lpSum(nutrient_deviation_terms)
 
         # 調理回数
         cooking_count = lpSum(x[(d.id, t)] for d in dishes for t in range(1, days + 1))
@@ -601,8 +844,15 @@ class PuLPSolver:
         meal_settings: dict,
         variety_level: str,
         keep_dish_ids: set[int],
+        active_nutrients: list[str] | None = None,
     ):
-        """複数日最適化の制約条件を追加"""
+        """複数日最適化の制約条件を追加（有効な栄養素のみ）
+
+        Args:
+            active_nutrients: 有効な栄養素リスト（Noneの場合は全栄養素）
+        """
+        nutrients = active_nutrients if active_nutrients else ALL_NUTRIENTS
+
         # C1: 調理しない場合は人前数0
         for d in dishes:
             for t in range(1, days + 1):
@@ -627,9 +877,9 @@ class PuLPSolver:
             prob += q[key] <= people * c[key]
             prob += q[key] >= 1 * c[key]
 
-        # C4: 各日の栄養素制約
+        # C4: 各日の栄養素制約（有効な栄養素のみ）
         for day in range(1, days + 1):
-            for nutrient in ALL_NUTRIENTS:
+            for nutrient in nutrients:
                 daily_intake = []
                 for d in dishes:
                     for t in range(max(1, day - d.storage_days), day + 1):
@@ -643,13 +893,16 @@ class PuLPSolver:
                     intake_per_person = intake_sum / people
 
                     if nutrient == "sodium":
+                        # ナトリウムは上限制約（過剰摂取を避ける）
                         target_val = target.sodium_max
                         prob += intake_per_person <= target_val + dev_pos[day][nutrient]
                     else:
                         if hasattr(target, f"{nutrient}_min"):
                             min_val = getattr(target, f"{nutrient}_min")
                             max_val = getattr(target, f"{nutrient}_max", min_val * 1.5)
-                            target_val = (min_val + max_val) / 2
+                            # サチュレーション: 目標の80%を達成すれば十分
+                            # 100%を目指すより、全体的なバランスを重視
+                            target_val = (min_val + max_val) / 2 * SATURATION_THRESHOLD
                         else:
                             target_val = 0
                         if target_val > 0:
@@ -728,8 +981,6 @@ class PuLPSolver:
         preferred_ingredient_ids: set[int],
     ) -> MultiDayMenuPlan:
         """最適化結果からMultiDayMenuPlanを生成"""
-        dish_map = {d.id: d for d in dishes}
-
         # 調理タスクを抽出
         cooking_tasks = []
         for d in dishes:
