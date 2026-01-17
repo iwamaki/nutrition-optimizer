@@ -618,6 +618,31 @@ class StepBasicSettings extends ConsumerWidget {
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Align(
                       alignment: Alignment.centerLeft,
+                      child: Text('主食', style: TextStyle(fontWeight: FontWeight.w500)),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 8,
+                      children: StapleType.values.map((type) {
+                        final isSelected = currentSetting.stapleType == type;
+                        return ChoiceChip(
+                          label: Text(type.displayName),
+                          selected: isSelected,
+                          onSelected: (_) {
+                            controller.setMealStapleType(mealType, type);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
                       child: Text('プリセット', style: TextStyle(fontWeight: FontWeight.w500)),
                     ),
                   ),

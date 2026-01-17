@@ -70,6 +70,7 @@ class DishCategoryEnum(str, Enum):
     """料理カテゴリ"""
     STAPLE = "主食"
     MAIN = "主菜"
+    STAPLE_MAIN = "主食・主菜"  # 丼物、カレー、ラーメンなど（主食と主菜を兼ねる）
     SIDE = "副菜"
     SOUP = "汁物"
     DESSERT = "デザート"

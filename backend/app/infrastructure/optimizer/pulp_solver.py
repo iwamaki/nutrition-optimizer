@@ -648,7 +648,7 @@ class PuLPSolver:
         # Phase 1: 主食スケジューリング
         logger.info("Phase 1: Scheduling staples")
         staples = scheduler.schedule_staples(
-            available_dishes, days, enabled_meals, household_type
+            available_dishes, days, enabled_meals, household_type, meal_settings
         )
 
         # Phase 2: 主菜スケジューリング
@@ -687,11 +687,12 @@ class PuLPSolver:
                 enabled_nutrients=enabled_nutrients,
             )
 
-        # Phase 4: 栄養達成率チェック
-        avg_achievement = sum(result.overall_achievement.values()) / len(result.overall_achievement)
-        logger.info(f"Phase 4: Average achievement rate: {avg_achievement:.1f}%")
+        # Phase 4: 栄養達成率チェック（最低達成率で判定）
+        min_achievement = min(result.overall_achievement.values())
+        min_nutrient = min(result.overall_achievement, key=result.overall_achievement.get)
+        logger.info(f"Phase 4: Minimum achievement rate: {min_achievement:.1f}% ({min_nutrient})")
 
-        if avg_achievement < 70:
+        if min_achievement < 85:
             logger.info("Achievement rate too low, retrying with different mains")
             # 使用した主菜を除外して再試行
             used_main_ids = {
@@ -709,9 +710,10 @@ class PuLPSolver:
                 variety_level, enabled_nutrients
             )
             if result_retry:
-                retry_avg = sum(result_retry.overall_achievement.values()) / len(result_retry.overall_achievement)
-                if retry_avg > avg_achievement:
-                    logger.info(f"Retry improved achievement: {avg_achievement:.1f}% -> {retry_avg:.1f}%")
+                retry_min = min(result_retry.overall_achievement.values())
+                if retry_min > min_achievement:
+                    retry_min_nutrient = min(result_retry.overall_achievement, key=result_retry.overall_achievement.get)
+                    logger.info(f"Retry improved minimum achievement: {min_achievement:.1f}% ({min_nutrient}) -> {retry_min:.1f}% ({retry_min_nutrient})")
                     result = result_retry
 
         return result

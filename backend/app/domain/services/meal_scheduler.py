@@ -134,6 +134,7 @@ class MealScheduler:
         days: int,
         meals: list[str],
         household_type: str = "single",
+        meal_settings: Optional[dict] = None,
     ) -> dict[int, dict[str, Optional[Dish]]]:
         """Phase 1: 主食のスケジューリング
 
@@ -142,18 +143,22 @@ class MealScheduler:
         - パンは朝食優先
         - 麺は連続しない
         - 一人暮らしは簡便性重視
+        - staple_typeが指定されている場合はそれに従う
 
         Args:
             dishes: 主食カテゴリの料理リスト
             days: 日数
             meals: 食事タイプリスト ["breakfast", "lunch", "dinner"]
             household_type: 世帯タイプ（"single", "couple", "family"）
+            meal_settings: 朝昼夜別の設定 {meal: {staple_type: "rice"|"bread"|"noodle"|"auto"}}
 
         Returns:
             {day: {meal: Dish or None}} の形式
         """
-        # 主食カテゴリのみフィルタ
-        staple_dishes = [d for d in dishes if d.category == DishCategoryEnum.STAPLE]
+        # 主食カテゴリのみフィルタ（主食・主菜も含む）
+        staple_dishes = [d for d in dishes if d.category in (
+            DishCategoryEnum.STAPLE, DishCategoryEnum.STAPLE_MAIN
+        )]
 
         if not staple_dishes:
             logger.warning("No staple dishes available")
@@ -174,10 +179,15 @@ class MealScheduler:
         for day in range(1, days + 1):
             schedule[day] = {}
             for meal in meals:
+                # meal_settingsからstaple_typeを取得
+                staple_type_setting = None
+                if meal_settings and meal in meal_settings:
+                    staple_type_setting = meal_settings[meal].get("staple_type", "auto")
+
                 dish = self._select_staple_for_meal(
                     meal, day, last_type,
                     rice_dishes, bread_dishes, noodle_dishes,
-                    household_type
+                    household_type, staple_type_setting
                 )
                 schedule[day][meal] = dish
                 if dish:
@@ -195,14 +205,51 @@ class MealScheduler:
         bread_dishes: list[Dish],
         noodle_dishes: list[Dish],
         household_type: str,
+        staple_type: Optional[str] = None,
     ) -> Optional[Dish]:
-        """特定の食事に対する主食を選択"""
+        """特定の食事に対する主食を選択
+
+        Args:
+            staple_type: 指定された主食タイプ
+                - "auto": 自動選択
+                - "white_rice": 白ごはん
+                - "brown_rice": 玄米ご飯
+                - "toast": トースト
+                - "none": 主食なし
+        """
+        # staple_typeが指定されている場合はそれに従う
+        if staple_type and staple_type != "auto":
+            # 主食なし
+            if staple_type == "none":
+                return None
+
+            # 具体的な料理名でマッチング
+            all_staples = rice_dishes + bread_dishes + noodle_dishes
+            staple_name_map = {
+                "white_rice": "白ごはん",
+                "brown_rice": "玄米ご飯",
+                "toast": "トースト",
+            }
+            target_name = staple_name_map.get(staple_type)
+            if target_name:
+                matched = [d for d in all_staples if d.name == target_name]
+                if matched:
+                    return matched[0]
+                # 完全一致がなければ部分一致
+                matched = [d for d in all_staples if target_name in d.name]
+                if matched:
+                    return matched[0]
+
+            # 指定されたタイプがなければフォールバック
+            logger.warning(f"Requested staple_type={staple_type} not available, falling back")
+
+        # 以下は従来の自動選択ロジック
         if meal == "breakfast":
             # 朝食: パン優先、なければご飯系
             if bread_dishes and self._rng.random() < 0.6:
                 return self._rng.choice(bread_dishes)
             # パンがなければシンプルなご飯系
-            simple_rice = [d for d in rice_dishes if "おにぎり" in d.name or "ご飯" in d.name]
+            simple_rice = [d for d in rice_dishes if "ご飯" in d.name]
             if simple_rice:
                 return self._rng.choice(simple_rice)
             return self._rng.choice(rice_dishes) if rice_dishes else None
@@ -313,6 +360,13 @@ class MealScheduler:
         for day in range(1, days + 1):
             schedule[day] = {}
             for meal in meals:
+                # 主食が「主食・主菜」なら主菜は不要
+                staple = scheduled_staples.get(day, {}).get(meal)
+                if staple and staple.category == DishCategoryEnum.STAPLE_MAIN:
+                    schedule[day][meal] = None
+                    logger.debug(f"Day {day} {meal}: Skipping main (staple is {staple.name})")
+                    continue
+
                 # その日使用可能な料理（作り置き期間考慮）
                 available_dishes = set()
                 for d in main_dishes:

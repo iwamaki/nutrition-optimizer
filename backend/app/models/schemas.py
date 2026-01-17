@@ -424,11 +424,21 @@ MEAL_PRESETS: dict[str, MealCategoryConstraints] = {
 }
 
 
+class StapleTypeEnum(str, Enum):
+    """主食タイプ（具体的な料理名）"""
+    AUTO = "auto"           # 自動選択
+    WHITE_RICE = "white_rice"   # 白ごはん
+    BROWN_RICE = "brown_rice"   # 玄米ご飯
+    TOAST = "toast"         # トースト
+    NONE = "none"           # なし
+
+
 class MealSetting(BaseModel):
     """食事タイプ別の設定（拡張版）"""
     enabled: bool = Field(default=True, description="この食事を生成するか")
     preset: MealPresetEnum = Field(default=MealPresetEnum.STANDARD, description="プリセット")
     categories: Optional[dict] = Field(default=None, description="カテゴリ制約（フロントエンドからの直接指定用、{'主食': [min, max], ...}形式）")
+    staple_type: StapleTypeEnum = Field(default=StapleTypeEnum.AUTO, description="主食タイプ（auto/white_rice/brown_rice/toast/none）")
 
     def get_category_constraints_dict(self) -> dict:
         """solver用のカテゴリ制約dictを取得"""
@@ -461,16 +471,19 @@ class MealSettings(BaseModel):
             result["breakfast"] = {
                 "enabled": self.breakfast.enabled,
                 "categories": self.breakfast.get_category_constraints_dict(),
+                "staple_type": self.breakfast.staple_type.value,
             }
         if self.lunch:
             result["lunch"] = {
                 "enabled": self.lunch.enabled,
                 "categories": self.lunch.get_category_constraints_dict(),
+                "staple_type": self.lunch.staple_type.value,
             }
         if self.dinner:
             result["dinner"] = {
                 "enabled": self.dinner.enabled,
                 "categories": self.dinner.get_category_constraints_dict(),
+                "staple_type": self.dinner.staple_type.value,
             }
         return result if result else None
 

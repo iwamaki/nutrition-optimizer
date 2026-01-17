@@ -32,6 +32,14 @@ class GenerateModalState {
   final bool isLoadingFavorites;
   final bool guaranteeFavorites; // 確実に献立に入れる
 
+  // Step1: 指定料理（ユーザーが選んだ必須料理）
+  final List<Dish> specifiedDishes; // 指定した料理リスト
+  final List<Dish> allDishes; // 全料理リスト（検索用）
+  final bool isLoadingDishes;
+  final List<Dish> dishSearchResults;
+  final String dishSearchQuery;
+  final String? selectedDishCategory; // 選択中のカテゴリフィルター
+
   // Step2: 手持ち食材
   final Set<int> ownedIngredientIds;
   final Set<int> excludedIngredientIds; // 除外食材（嫌いな食材）
@@ -65,6 +73,12 @@ class GenerateModalState {
     this.favoriteDishes = const [],
     this.isLoadingFavorites = false,
     this.guaranteeFavorites = false,
+    this.specifiedDishes = const [],
+    this.allDishes = const [],
+    this.isLoadingDishes = false,
+    this.dishSearchResults = const [],
+    this.dishSearchQuery = '',
+    this.selectedDishCategory,
     this.ownedIngredientIds = const {},
     this.excludedIngredientIds = const {},
     this.ingredients = const [],
@@ -91,6 +105,13 @@ class GenerateModalState {
     List<Dish>? favoriteDishes,
     bool? isLoadingFavorites,
     bool? guaranteeFavorites,
+    List<Dish>? specifiedDishes,
+    List<Dish>? allDishes,
+    bool? isLoadingDishes,
+    List<Dish>? dishSearchResults,
+    String? dishSearchQuery,
+    String? selectedDishCategory,
+    bool clearDishCategory = false,
     Set<int>? ownedIngredientIds,
     Set<int>? excludedIngredientIds,
     List<Map<String, dynamic>>? ingredients,
@@ -119,6 +140,12 @@ class GenerateModalState {
       favoriteDishes: favoriteDishes ?? this.favoriteDishes,
       isLoadingFavorites: isLoadingFavorites ?? this.isLoadingFavorites,
       guaranteeFavorites: guaranteeFavorites ?? this.guaranteeFavorites,
+      specifiedDishes: specifiedDishes ?? this.specifiedDishes,
+      allDishes: allDishes ?? this.allDishes,
+      isLoadingDishes: isLoadingDishes ?? this.isLoadingDishes,
+      dishSearchResults: dishSearchResults ?? this.dishSearchResults,
+      dishSearchQuery: dishSearchQuery ?? this.dishSearchQuery,
+      selectedDishCategory: clearDishCategory ? null : (selectedDishCategory ?? this.selectedDishCategory),
       ownedIngredientIds: ownedIngredientIds ?? this.ownedIngredientIds,
       excludedIngredientIds: excludedIngredientIds ?? this.excludedIngredientIds,
       ingredients: ingredients ?? this.ingredients,
@@ -290,6 +317,88 @@ class GenerateModalController extends _$GenerateModalController {
     state = state.copyWith(guaranteeFavorites: value);
   }
 
+  // === Step1: 指定料理 ===
+
+  /// 全料理リストをAPIから読み込み
+  Future<void> loadAllDishes() async {
+    if (state.allDishes.isNotEmpty || state.isLoadingDishes) {
+      return; // 既に読み込み済みまたは読み込み中
+    }
+
+    state = state.copyWith(isLoadingDishes: true);
+
+    try {
+      final apiService = ApiService();
+      final dishes = await apiService.getDishes();
+      state = state.copyWith(
+        allDishes: dishes,
+        isLoadingDishes: false,
+      );
+    } catch (e) {
+      debugPrint('料理リストの読み込みに失敗: $e');
+      state = state.copyWith(isLoadingDishes: false);
+    }
+  }
+
+  /// 料理を検索（ローカルフィルタリング）
+  void searchDishes(String query) {
+    state = state.copyWith(dishSearchQuery: query);
+    _filterDishes();
+  }
+
+  /// カテゴリフィルターを設定
+  void setDishCategoryFilter(String? category) {
+    state = state.copyWith(
+      selectedDishCategory: category,
+      clearDishCategory: category == null,
+    );
+    _filterDishes();
+  }
+
+  /// 料理をフィルタリング
+  void _filterDishes() {
+    var results = state.allDishes;
+
+    // カテゴリでフィルタリング
+    if (state.selectedDishCategory != null) {
+      results = results.where((d) => d.category == state.selectedDishCategory).toList();
+    }
+
+    // テキスト検索でフィルタリング
+    if (state.dishSearchQuery.isNotEmpty) {
+      final lowerQuery = state.dishSearchQuery.toLowerCase();
+      results = results.where((d) => d.name.toLowerCase().contains(lowerQuery)).toList();
+    }
+
+    state = state.copyWith(dishSearchResults: results);
+  }
+
+  /// 指定料理の追加/削除を切り替え
+  void toggleSpecifiedDish(Dish dish) {
+    final current = List<Dish>.from(state.specifiedDishes);
+    final index = current.indexWhere((d) => d.id == dish.id);
+    if (index >= 0) {
+      current.removeAt(index);
+    } else {
+      current.add(dish);
+    }
+    state = state.copyWith(specifiedDishes: current);
+  }
+
+  /// 指定料理をクリア
+  void clearSpecifiedDishes() {
+    state = state.copyWith(specifiedDishes: []);
+  }
+
+  /// 料理検索をクリア
+  void clearDishSearch() {
+    state = state.copyWith(
+      dishSearchQuery: '',
+      dishSearchResults: [],
+      clearDishCategory: true,
+    );
+  }
+
   // === Step1: Basic Settings ===
   void setDays(int days) {
     state = state.copyWith(days: days.clamp(1, 7));
@@ -352,6 +461,13 @@ class GenerateModalController extends _$GenerateModalController {
       // プリセット変更時はカスタム設定をクリア（customの場合を除く）
       customCategories: preset == MealPreset.custom ? currentSetting.customCategories : null,
     );
+    state = state.copyWith(mealSettings: current);
+  }
+
+  void setMealStapleType(String mealType, StapleType stapleType) {
+    final current = Map<String, MealSetting>.from(state.mealSettings);
+    final currentSetting = current[mealType] ?? const MealSetting();
+    current[mealType] = currentSetting.copyWith(stapleType: stapleType);
     state = state.copyWith(mealSettings: current);
   }
 
@@ -485,13 +601,22 @@ class GenerateModalController extends _$GenerateModalController {
       // お気に入り料理のID
       final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
 
+      // 指定料理のID（必ず献立に入れる）
+      final specifiedIds = state.specifiedDishes.map((d) => d.id).toList();
+
+      // keepDishIds: 指定料理 + (guaranteeFavoritesがONならお気に入りも)
+      final keepIds = [
+        ...specifiedIds,
+        if (state.guaranteeFavorites) ...favoriteIds,
+      ];
+
       // SSEストリームを購読
       await for (final event in apiService.optimizeMultiDayWithProgress(
         days: state.days,
         people: state.people,
         target: state.nutrientTarget,
         excludedAllergens: state.excludedAllergens.toList(),
-        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
+        keepDishIds: keepIds,
         preferredIngredientIds: state.ownedIngredientIds.toList(),
         preferredDishIds: preferredDishIds ?? favoriteIds,
         excludedIngredientIds: state.excludedIngredientIds.toList(),
@@ -538,6 +663,15 @@ class GenerateModalController extends _$GenerateModalController {
       // お気に入り料理のID
       final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
 
+      // 指定料理のID（必ず献立に入れる）
+      final specifiedIds = state.specifiedDishes.map((d) => d.id).toList();
+
+      // keepDishIds: 指定料理 + (guaranteeFavoritesがONならお気に入りも)
+      final keepIds = [
+        ...specifiedIds,
+        if (state.guaranteeFavorites) ...favoriteIds,
+      ];
+
       // SSEストリームを購読（除外料理IDを追加）
       await for (final event in apiService.optimizeMultiDayWithProgress(
         days: state.days,
@@ -545,7 +679,7 @@ class GenerateModalController extends _$GenerateModalController {
         target: state.nutrientTarget,
         excludedAllergens: state.excludedAllergens.toList(),
         excludedDishIds: state.excludedDishIdsInStep3.toList(),
-        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
+        keepDishIds: keepIds,
         preferredIngredientIds: state.ownedIngredientIds.toList(),
         preferredDishIds: favoriteIds,
         excludedIngredientIds: state.excludedIngredientIds.toList(),

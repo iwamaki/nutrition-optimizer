@@ -118,16 +118,32 @@ const Map<String, MealPreset> defaultMealPresets = {
   'dinner': MealPreset.full,
 };
 
+/// 主食タイプ（具体的な料理名）
+enum StapleType {
+  auto('おまかせ', 'auto'),
+  whiteRice('白ごはん', 'white_rice'),
+  brownRice('玄米ご飯', 'brown_rice'),
+  toast('トースト', 'toast'),
+  none('なし', 'none');
+
+  final String displayName;
+  final String apiValue;
+
+  const StapleType(this.displayName, this.apiValue);
+}
+
 /// 食事タイプ別の設定（拡張版）
 class MealSetting {
   final bool enabled;
   final MealPreset preset;
   final MealCategoryConstraints? customCategories;  // preset=customの場合に使用
+  final StapleType stapleType;  // 主食タイプ
 
   const MealSetting({
     this.enabled = true,
     this.preset = MealPreset.standard,
     this.customCategories,
+    this.stapleType = StapleType.auto,
   });
 
   /// 有効なカテゴリ制約を取得
@@ -143,6 +159,7 @@ class MealSetting {
     return {
       'enabled': enabled,
       'categories': categories.toJson(),
+      'staple_type': stapleType.apiValue,
     };
   }
 
@@ -150,11 +167,13 @@ class MealSetting {
     bool? enabled,
     MealPreset? preset,
     MealCategoryConstraints? customCategories,
+    StapleType? stapleType,
   }) {
     return MealSetting(
       enabled: enabled ?? this.enabled,
       preset: preset ?? this.preset,
       customCategories: customCategories ?? this.customCategories,
+      stapleType: stapleType ?? this.stapleType,
     );
   }
 }
