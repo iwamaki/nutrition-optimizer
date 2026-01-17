@@ -104,6 +104,8 @@ class DishDB(Base):
     storage_days = Column(Integer, default=1)
     min_servings = Column(Integer, default=1)
     max_servings = Column(Integer, default=4)
+    # 味付け系統（段階的決定フロー用）
+    flavor_profile = Column(String, default="和風")  # 和風/洋風/中華
     # キャッシュ用: 計算済み栄養素
     calories = Column(Float, default=0)
     protein = Column(Float, default=0)

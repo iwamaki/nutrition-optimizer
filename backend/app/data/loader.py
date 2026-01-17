@@ -371,9 +371,10 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
     """CSVから料理データを読み込み
 
     CSVフォーマット:
-    name,category,meal_types,storage_days,ingredients,instructions
-    白ごはん,主食,"breakfast,lunch,dinner",0,"6:150:蒸す","米を研いで炊飯器で炊く"
+    name,category,meal_types,storage_days,flavor_profile,ingredients,instructions
+    白ごはん,主食,"breakfast,lunch,dinner",0,和風,"6:150:蒸す","米を研いで炊飯器で炊く"
 
+    - flavor_profile: 和風/洋風/中華（段階的決定フロー用）
     - ingredients: ingredient_id:量g:調理法 を | で区切り
       - ingredient_id: 基本食材マスタのID（mext_codeは自動取得）
     """
@@ -466,6 +467,11 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
             except ValueError:
                 storage_days = 1
 
+            # flavor_profileをパース
+            flavor_profile = row.get("flavor_profile", "和風").strip()
+            if flavor_profile not in ["和風", "洋風", "中華"]:
+                flavor_profile = "和風"
+
             # 料理を作成
             dish = DishDB(
                 name=name,
@@ -473,6 +479,7 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
                 meal_types=row.get("meal_types", "").strip(),
                 serving_size=1.0,
                 storage_days=storage_days,
+                flavor_profile=flavor_profile,
                 instructions=instructions,
             )
             db.add(dish)

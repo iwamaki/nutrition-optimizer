@@ -482,6 +482,19 @@ class OptimizationStrategyEnum(str, Enum):
     AUTO = "auto"             # 自動選択（日数に応じて切り替え）
 
 
+class SchedulingModeEnum(str, Enum):
+    """スケジューリングモード"""
+    CLASSIC = "classic"       # 従来の一括最適化
+    STAGED = "staged"         # 段階的決定（主食→主菜→副菜・汁物）
+
+
+class HouseholdTypeEnum(str, Enum):
+    """世帯タイプ"""
+    SINGLE = "single"         # 一人暮らし
+    COUPLE = "couple"         # 二人暮らし
+    FAMILY = "family"         # 家族（3人以上）
+
+
 class MultiDayOptimizeRequest(BaseModel):
     """複数日最適化リクエスト"""
     days: int = Field(default=1, ge=1, le=7, description="日数")
@@ -501,6 +514,9 @@ class MultiDayOptimizeRequest(BaseModel):
     enabled_nutrients: Optional[list[str]] = Field(default=None, description="有効にする栄養素リスト（Noneの場合は全栄養素）")
     # Phase 2: 最適化戦略
     optimization_strategy: OptimizationStrategyEnum = Field(default=OptimizationStrategyEnum.AUTO, description="最適化戦略")
+    # 段階的決定モード
+    scheduling_mode: SchedulingModeEnum = Field(default=SchedulingModeEnum.STAGED, description="スケジューリングモード")
+    household_type: HouseholdTypeEnum = Field(default=HouseholdTypeEnum.SINGLE, description="世帯タイプ")
 
 
 class CookingTask(BaseModel):

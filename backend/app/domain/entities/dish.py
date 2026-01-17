@@ -50,6 +50,8 @@ class Dish(DishBase):
     storage_days: int = Field(default=1, description="作り置き可能日数（0=当日のみ）")
     min_servings: int = Field(default=1, description="最小調理人前")
     max_servings: int = Field(default=4, description="最大調理人前")
+    # 味付け系統（段階的決定フロー用）
+    flavor_profile: str = Field(default="和風", description="味付け系統（和風/洋風/中華）")
     # 計算済み栄養素（1人前あたり）
     calories: float = 0
     protein: float = 0

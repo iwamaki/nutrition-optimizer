@@ -35,6 +35,8 @@ class OptimizeMultiDayMenuUseCase:
         meal_settings: Optional[dict] = None,
         enabled_nutrients: Optional[list[str]] = None,
         optimization_strategy: str = "auto",
+        scheduling_mode: str = "staged",
+        household_type: str = "single",
     ) -> Optional[MultiDayMenuPlan]:
         """複数日献立を最適化
 
@@ -54,6 +56,8 @@ class OptimizeMultiDayMenuUseCase:
             meal_settings: 朝昼夜別の設定
             enabled_nutrients: 有効にする栄養素リスト（Noneの場合は全栄養素）
             optimization_strategy: 最適化戦略 ("full_mip", "rolling", "auto")
+            scheduling_mode: スケジューリングモード ("classic", "staged")
+            household_type: 世帯タイプ ("single", "couple", "family")
 
         Returns:
             最適化された献立プラン
@@ -77,22 +81,42 @@ class OptimizeMultiDayMenuUseCase:
         target = self._adjust_target_for_volume(target, volume_level)
 
         # 最適化実行
-        result = self.solver.solve_multi_day(
-            dishes=dishes,
-            days=days,
-            people=people,
-            target=target,
-            excluded_dish_ids=excluded_ids,
-            excluded_ingredient_ids=set(excluded_ingredient_ids or []),
-            keep_dish_ids=set(keep_dish_ids or []),
-            preferred_ingredient_ids=set(preferred_ingredient_ids or []),
-            preferred_dish_ids=set(preferred_dish_ids or []),
-            batch_cooking_level=batch_cooking_level,
-            variety_level=variety_level,
-            meal_settings=meal_settings,
-            enabled_nutrients=enabled_nutrients,
-            optimization_strategy=optimization_strategy,
-        )
+        if scheduling_mode == "staged":
+            # 段階的決定モード: 主食→主菜→副菜・汁物
+            result = self.solver.solve_multi_day_staged(
+                dishes=dishes,
+                days=days,
+                people=people,
+                target=target,
+                excluded_dish_ids=excluded_ids,
+                excluded_ingredient_ids=set(excluded_ingredient_ids or []),
+                keep_dish_ids=set(keep_dish_ids or []),
+                preferred_ingredient_ids=set(preferred_ingredient_ids or []),
+                preferred_dish_ids=set(preferred_dish_ids or []),
+                batch_cooking_level=batch_cooking_level,
+                variety_level=variety_level,
+                meal_settings=meal_settings,
+                enabled_nutrients=enabled_nutrients,
+                household_type=household_type,
+            )
+        else:
+            # 従来モード: 一括最適化
+            result = self.solver.solve_multi_day(
+                dishes=dishes,
+                days=days,
+                people=people,
+                target=target,
+                excluded_dish_ids=excluded_ids,
+                excluded_ingredient_ids=set(excluded_ingredient_ids or []),
+                keep_dish_ids=set(keep_dish_ids or []),
+                preferred_ingredient_ids=set(preferred_ingredient_ids or []),
+                preferred_dish_ids=set(preferred_dish_ids or []),
+                batch_cooking_level=batch_cooking_level,
+                variety_level=variety_level,
+                meal_settings=meal_settings,
+                enabled_nutrients=enabled_nutrients,
+                optimization_strategy=optimization_strategy,
+            )
 
         return result
 

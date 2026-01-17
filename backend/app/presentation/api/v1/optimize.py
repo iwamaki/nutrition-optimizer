@@ -83,6 +83,10 @@ def optimize_multi_day_menu(
     - volume_level: カロリー目標レベル（small/normal/large）
     - variety_level: 料理の繰り返し（small/normal/large）
     - meal_settings: 朝昼夜別の設定（enabled, volume）
+    - scheduling_mode: スケジューリングモード（classic/staged）
+      - classic: 従来の一括最適化
+      - staged: 段階的決定（主食→主菜→副菜・汁物）。たんぱく源ローテーション対応
+    - household_type: 世帯タイプ（single/couple/family）
 
     戻り値:
     - daily_plans: 日別の献立
@@ -115,6 +119,8 @@ def optimize_multi_day_menu(
         meal_settings=meal_settings,
         enabled_nutrients=request.enabled_nutrients,
         optimization_strategy=request.optimization_strategy.value,
+        scheduling_mode=request.scheduling_mode.value,
+        household_type=request.household_type.value,
     )
 
     if not result:

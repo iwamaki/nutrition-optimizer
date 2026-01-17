@@ -185,6 +185,7 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
             storage_days=db_dish.storage_days or 1,
             min_servings=db_dish.min_servings or 1,
             max_servings=db_dish.max_servings or 4,
+            flavor_profile=db_dish.flavor_profile or "和風",
             calories=db_dish.calories or 0,
             protein=db_dish.protein or 0,
             fat=db_dish.fat or 0,
