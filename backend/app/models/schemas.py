@@ -588,3 +588,46 @@ class RefineOptimizeRequest(BaseModel):
     enabled_nutrients: Optional[list[str]] = Field(default=None, description="有効にする栄養素リスト（Noneの場合は全栄養素）")
     # Phase 2: 最適化戦略
     optimization_strategy: OptimizationStrategyEnum = Field(default=OptimizationStrategyEnum.AUTO, description="最適化戦略")
+
+
+# ========== SSE進捗イベント ==========
+
+class OptimizePhase(str, Enum):
+    """最適化の進捗フェーズ"""
+    FILTERING_NUTRIENTS = "phase1"    # 栄養素フィルタリング中...
+    FILTERING_DISHES = "phase2"       # 料理フィルタを適用中...
+    BUILDING_MODEL = "phase3"         # 最適化モデルを構築中...
+    APPLYING_CONSTRAINTS = "phase4"   # 制約条件を適用中...
+    SOLVING = "phase5"                # 計算中...
+    FINALIZING = "phase6"             # 結果を整理中...
+
+
+PHASE_MESSAGES = {
+    OptimizePhase.FILTERING_NUTRIENTS: "栄養素フィルタリング中...",
+    OptimizePhase.FILTERING_DISHES: "料理フィルタを適用中...",
+    OptimizePhase.BUILDING_MODEL: "最適化モデルを構築中...",
+    OptimizePhase.APPLYING_CONSTRAINTS: "制約条件を適用中...",
+    OptimizePhase.SOLVING: "計算中...",
+    OptimizePhase.FINALIZING: "結果を整理中...",
+}
+
+
+class OptimizeProgressEvent(BaseModel):
+    """SSE進捗イベント"""
+    type: str = Field(default="progress", description="イベントタイプ")
+    phase: OptimizePhase = Field(description="現在のフェーズ")
+    message: str = Field(description="進捗メッセージ")
+    progress: int = Field(ge=0, le=100, description="進捗率（0-100）")
+    elapsed_seconds: Optional[float] = Field(default=None, description="経過時間（秒）")
+
+
+class OptimizeResultEvent(BaseModel):
+    """SSE結果イベント"""
+    type: str = Field(default="result", description="イベントタイプ")
+    plan: MultiDayMenuPlan = Field(description="生成された献立")
+
+
+class OptimizeErrorEvent(BaseModel):
+    """SSEエラーイベント"""
+    type: str = Field(default="error", description="イベントタイプ")
+    message: str = Field(description="エラーメッセージ")

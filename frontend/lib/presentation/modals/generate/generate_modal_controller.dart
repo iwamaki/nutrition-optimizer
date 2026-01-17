@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../domain/entities/dish.dart';
 import '../../../domain/entities/menu_plan.dart';
 import '../../../domain/entities/settings.dart';
+import '../../../domain/entities/optimize_progress.dart';
 import '../../../data/repositories/menu_repository_impl.dart';
 import '../../../data/repositories/food_repository_impl.dart';
 import '../../../data/datasources/api_service.dart';
@@ -44,6 +46,8 @@ class GenerateModalState {
   final bool isGenerating;
   final String? error;
   final Set<int> excludedDishIdsInStep3;
+  // 進捗状態（SSE対応）
+  final OptimizeProgress? currentProgress;
 
   const GenerateModalState({
     this.currentStep = 0,
@@ -72,6 +76,7 @@ class GenerateModalState {
     this.isGenerating = false,
     this.error,
     this.excludedDishIdsInStep3 = const {},
+    this.currentProgress,
   });
 
   GenerateModalState copyWith({
@@ -97,8 +102,10 @@ class GenerateModalState {
     bool? isGenerating,
     String? error,
     Set<int>? excludedDishIdsInStep3,
+    OptimizeProgress? currentProgress,
     bool clearPlan = false,
     bool clearError = false,
+    bool clearProgress = false,
   }) {
     return GenerateModalState(
       currentStep: currentStep ?? this.currentStep,
@@ -123,6 +130,7 @@ class GenerateModalState {
       isGenerating: isGenerating ?? this.isGenerating,
       error: clearError ? null : (error ?? this.error),
       excludedDishIdsInStep3: excludedDishIdsInStep3 ?? this.excludedDishIdsInStep3,
+      currentProgress: clearProgress ? null : (currentProgress ?? this.currentProgress),
     );
   }
 }
@@ -191,6 +199,7 @@ class GenerateModalController extends _$GenerateModalController {
       clearError: true,
       excludedDishIdsInStep3: {},
       isGenerating: false,
+      clearProgress: true,
     );
   }
 
@@ -457,70 +466,117 @@ class GenerateModalController extends _$GenerateModalController {
   }
 
   Future<void> generatePlan({List<int>? preferredDishIds}) async {
+    // SSE対応のgeneratePlanWithProgressを使用
+    await generatePlanWithProgress(preferredDishIds: preferredDishIds);
+  }
+
+  /// SSEストリームを使用して進捗付きで献立を生成
+  Future<void> generatePlanWithProgress({List<int>? preferredDishIds}) async {
     state = state.copyWith(
       isGenerating: true,
       clearError: true,
       excludedDishIdsInStep3: {},
+      currentProgress: OptimizeProgress.initial,
     );
 
     try {
-      final repo = ref.read(menuRepositoryProvider);
+      final apiService = ApiService();
 
       // お気に入り料理のID
       final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
 
-      final plan = await repo.generateMultiDayPlan(
+      // SSEストリームを購読
+      await for (final event in apiService.optimizeMultiDayWithProgress(
         days: state.days,
         people: state.people,
         target: state.nutrientTarget,
         excludedAllergens: state.excludedAllergens.toList(),
-        // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
         keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
         preferredIngredientIds: state.ownedIngredientIds.toList(),
-        // お気に入り料理は常に優先（確実に入れるオプションがOFFでも）
         preferredDishIds: preferredDishIds ?? favoriteIds,
         excludedIngredientIds: state.excludedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
-      );
-      state = state.copyWith(generatedPlan: plan, isGenerating: false);
+      )) {
+        switch (event) {
+          case OptimizeProgressStreamEvent(:final progress):
+            state = state.copyWith(currentProgress: progress);
+          case OptimizeResultStreamEvent(:final plan):
+            state = state.copyWith(
+              generatedPlan: plan,
+              isGenerating: false,
+              currentProgress: OptimizeProgress.completed,
+            );
+          case OptimizeErrorStreamEvent(:final message):
+            state = state.copyWith(
+              error: message,
+              isGenerating: false,
+              clearProgress: true,
+            );
+        }
+      }
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isGenerating: false);
+      state = state.copyWith(
+        error: e.toString(),
+        isGenerating: false,
+        clearProgress: true,
+      );
     }
   }
 
   Future<void> regeneratePlan() async {
-    state = state.copyWith(isGenerating: true, clearError: true);
+    state = state.copyWith(
+      isGenerating: true,
+      clearError: true,
+      currentProgress: OptimizeProgress.initial,
+    );
 
     try {
-      final repo = ref.read(menuRepositoryProvider);
+      final apiService = ApiService();
 
       // お気に入り料理のID
       final favoriteIds = state.favoriteDishes.map((d) => d.id).toList();
 
-      final plan = await repo.refineMultiDayPlan(
+      // SSEストリームを購読（除外料理IDを追加）
+      await for (final event in apiService.optimizeMultiDayWithProgress(
         days: state.days,
         people: state.people,
         target: state.nutrientTarget,
-        // 確実に入れるオプションがONの場合、keep_dish_idsに渡す
-        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
-        excludeDishIds: state.excludedDishIdsInStep3.toList(),
         excludedAllergens: state.excludedAllergens.toList(),
+        excludedDishIds: state.excludedDishIdsInStep3.toList(),
+        keepDishIds: state.guaranteeFavorites ? favoriteIds : [],
         preferredIngredientIds: state.ownedIngredientIds.toList(),
         preferredDishIds: favoriteIds,
         excludedIngredientIds: state.excludedIngredientIds.toList(),
         batchCookingLevel: state.batchCookingLevel,
         varietyLevel: state.varietyLevel,
         mealSettings: state.mealSettings,
-      );
-      state = state.copyWith(
-        generatedPlan: plan,
-        isGenerating: false,
-        excludedDishIdsInStep3: {},
-      );
+      )) {
+        switch (event) {
+          case OptimizeProgressStreamEvent(:final progress):
+            state = state.copyWith(currentProgress: progress);
+          case OptimizeResultStreamEvent(:final plan):
+            state = state.copyWith(
+              generatedPlan: plan,
+              isGenerating: false,
+              excludedDishIdsInStep3: {},
+              currentProgress: OptimizeProgress.completed,
+            );
+          case OptimizeErrorStreamEvent(:final message):
+            state = state.copyWith(
+              error: message,
+              isGenerating: false,
+              clearProgress: true,
+            );
+        }
+      }
     } catch (e) {
-      state = state.copyWith(error: e.toString(), isGenerating: false);
+      state = state.copyWith(
+        error: e.toString(),
+        isGenerating: false,
+        clearProgress: true,
+      );
     }
   }
 }

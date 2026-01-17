@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/nutrients.dart';
 import '../../../../domain/entities/dish.dart';
 import '../../../../domain/entities/menu_plan.dart';
+import '../../../../domain/entities/optimize_progress.dart';
 import '../../../../presentation/widgets/nutrient_progress_bar.dart';
 import '../generate_modal_controller.dart';
 
@@ -22,16 +23,7 @@ class StepConfirmation extends ConsumerWidget {
     final state = ref.watch(generateModalControllerProvider);
 
     if (state.isGenerating) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('献立を生成中...'),
-          ],
-        ),
-      );
+      return _buildProgressView(context, state.currentProgress);
     }
 
     if (state.error != null) {
@@ -464,6 +456,137 @@ class StepConfirmation extends ConsumerWidget {
     if (value >= 90) return Colors.green;
     if (value >= 70) return Colors.orange;
     return Colors.red;
+  }
+
+  /// 進捗表示ビュー
+  Widget _buildProgressView(BuildContext context, OptimizeProgress? progress) {
+    final currentProgress = progress ?? OptimizeProgress.initial;
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 円形プログレスインジケーター
+            SizedBox(
+              width: 120,
+              height: 120,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: CircularProgressIndicator(
+                      value: currentProgress.progress / 100,
+                      strokeWidth: 8,
+                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${currentProgress.progress}%',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      if (currentProgress.elapsedSeconds != null)
+                        Text(
+                          '${currentProgress.elapsedSeconds!.toInt()}秒',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            // 現在のフェーズメッセージ
+            Text(
+              currentProgress.message,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            // フェーズリスト
+            _buildPhaseList(context, currentProgress),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// フェーズリスト
+  Widget _buildPhaseList(BuildContext context, OptimizeProgress currentProgress) {
+    final theme = Theme.of(context);
+    final phases = OptimizePhase.values;
+
+    return Column(
+      children: phases.map((phase) {
+        final isCompleted = currentProgress.isPhaseCompleted(phase);
+        final isCurrent = currentProgress.isCurrentPhase(phase);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              // ステータスアイコン
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: isCompleted
+                    ? Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 20,
+                      )
+                    : isCurrent
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                theme.colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.circle_outlined,
+                            color: theme.colorScheme.outline,
+                            size: 20,
+                          ),
+              ),
+              const SizedBox(width: 12),
+              // フェーズ名
+              Expanded(
+                child: Text(
+                  phase.message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isCompleted || isCurrent
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.outline,
+                    fontWeight: isCurrent ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
   }
 }
 

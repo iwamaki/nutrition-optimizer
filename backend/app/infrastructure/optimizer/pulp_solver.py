@@ -5,7 +5,10 @@ PuLP線形計画法ソルバー
 """
 import uuid
 import logging
-from typing import Optional
+from typing import Optional, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.schemas import OptimizePhase
 from pulp import (
     LpProblem, LpMinimize, LpVariable, lpSum, LpStatus, value, PULP_CBC_CMD
 )
@@ -553,6 +556,7 @@ class PuLPSolver:
         enabled_nutrients: Optional[list[str]] = None,
         household_type: str = "single",
         scheduler_seed: Optional[int] = None,
+        progress_callback: Optional[Callable[["OptimizePhase"], None]] = None,
     ) -> Optional[MultiDayMenuPlan]:
         """段階的決定モードで複数日メニューを最適化
 
@@ -617,6 +621,19 @@ class PuLPSolver:
         # MealSchedulerを初期化
         scheduler = MealScheduler(seed=scheduler_seed)
 
+        # 進捗報告用のヘルパー関数
+        def report_progress(phase_name: str) -> None:
+            if progress_callback:
+                from app.models.schemas import OptimizePhase
+                phase_map = {
+                    "building_model": OptimizePhase.BUILDING_MODEL,
+                    "applying_constraints": OptimizePhase.APPLYING_CONSTRAINTS,
+                    "solving": OptimizePhase.SOLVING,
+                    "finalizing": OptimizePhase.FINALIZING,
+                }
+                if phase_name in phase_map:
+                    progress_callback(phase_map[phase_name])
+
         # 食材カテゴリをロード（たんぱく源検出用）
         ingredient_categories = []
         for dish in available_dishes:
@@ -643,11 +660,13 @@ class PuLPSolver:
 
         # Phase 3: 副菜・汁物を最適化
         logger.info("Phase 3: Optimizing sides and soups")
+        report_progress("building_model")
         result = self._optimize_sides_staged(
             available_dishes, days, people, target,
             staples, mains, enabled_meals, meal_settings,
             preferred_ingredient_ids, preferred_dish_ids,
-            variety_level, enabled_nutrients
+            variety_level, enabled_nutrients,
+            report_progress,
         )
 
         if result is None:
@@ -711,6 +730,7 @@ class PuLPSolver:
         preferred_dish_ids: set[int],
         variety_level: str,
         enabled_nutrients: Optional[list[str]],
+        report_progress: Optional[Callable[[str], None]] = None,
     ) -> Optional[MultiDayMenuPlan]:
         """Phase 3: 副菜・汁物を最適化
 
@@ -889,6 +909,10 @@ class PuLPSolver:
 
         prob += lpSum(dish_used[d.id] for d in side_dishes) <= max_distinct
 
+        # 進捗報告: 制約条件適用完了
+        if report_progress:
+            report_progress("applying_constraints")
+
         # 制約: 多様性（同じ副菜は連続日で使わない）
         # small: 連続OK（作り置き重視）、large: 連続NG（多様性重視）
         if variety_level == "large":
@@ -900,12 +924,20 @@ class PuLPSolver:
                         if key_today in y and key_tomorrow in y:
                             prob += y[key_today] + y[key_tomorrow] <= 1
 
+        # 進捗報告: 計算開始
+        if report_progress:
+            report_progress("solving")
+
         # 求解
         prob.solve(self._solver)
 
         if LpStatus[prob.status] not in ["Optimal", "Not Solved"]:
             logger.warning(f"Optimization failed with status: {LpStatus[prob.status]}")
             return None
+
+        # 進捗報告: 結果整理開始
+        if report_progress:
+            report_progress("finalizing")
 
         # 結果抽出: 選択された副菜
         sides: dict[int, dict[str, list[Dish]]] = {}

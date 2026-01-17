@@ -4,11 +4,12 @@
 クリーンアーキテクチャ: application層
 """
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Callable
 
 from app.domain.entities import NutrientTarget, MultiDayMenuPlan
 from app.domain.interfaces import DishRepositoryInterface
 from app.infrastructure.optimizer import PuLPSolver
+from app.models.schemas import OptimizePhase
 
 
 @dataclass
@@ -117,6 +118,109 @@ class OptimizeMultiDayMenuUseCase:
                 enabled_nutrients=enabled_nutrients,
                 optimization_strategy=optimization_strategy,
             )
+
+        return result
+
+    def execute_with_progress(
+        self,
+        days: int = 1,
+        people: int = 1,
+        target: Optional[NutrientTarget] = None,
+        excluded_allergens: Optional[list[str]] = None,
+        excluded_dish_ids: Optional[list[int]] = None,
+        excluded_ingredient_ids: Optional[list[int]] = None,
+        keep_dish_ids: Optional[list[int]] = None,
+        preferred_ingredient_ids: Optional[list[int]] = None,
+        preferred_dish_ids: Optional[list[int]] = None,
+        batch_cooking_level: str = "normal",
+        volume_level: str = "normal",
+        variety_level: str = "normal",
+        meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        optimization_strategy: str = "auto",
+        scheduling_mode: str = "staged",
+        household_type: str = "single",
+        progress_callback: Optional[Callable[[OptimizePhase], None]] = None,
+    ) -> Optional[MultiDayMenuPlan]:
+        """複数日献立を最適化（進捗コールバック対応）
+
+        Args:
+            ... (executeと同じ引数)
+            progress_callback: 進捗を報告するコールバック関数
+
+        Returns:
+            最適化された献立プラン
+        """
+        # Phase 1: 栄養素フィルタリング
+        if progress_callback:
+            progress_callback(OptimizePhase.FILTERING_NUTRIENTS)
+
+        target = target or NutrientTarget()
+
+        # Phase 2: 料理フィルタ
+        if progress_callback:
+            progress_callback(OptimizePhase.FILTERING_DISHES)
+
+        # 料理を取得
+        if excluded_allergens:
+            dishes = self.dish_repo.find_excluding_allergens(excluded_allergens)
+        else:
+            dishes = self.dish_repo.find_all(limit=1000)
+
+        if not dishes:
+            return None
+
+        # 除外料理をフィルタ
+        excluded_ids = set(excluded_dish_ids or [])
+        dishes = [d for d in dishes if d.id not in excluded_ids]
+
+        # ボリュームレベルによる目標調整
+        target = self._adjust_target_for_volume(target, volume_level)
+
+        # Phase 3-6: 最適化実行（ソルバー内で進捗報告）
+        if scheduling_mode == "staged":
+            result = self.solver.solve_multi_day_staged(
+                dishes=dishes,
+                days=days,
+                people=people,
+                target=target,
+                excluded_dish_ids=excluded_ids,
+                excluded_ingredient_ids=set(excluded_ingredient_ids or []),
+                keep_dish_ids=set(keep_dish_ids or []),
+                preferred_ingredient_ids=set(preferred_ingredient_ids or []),
+                preferred_dish_ids=set(preferred_dish_ids or []),
+                batch_cooking_level=batch_cooking_level,
+                variety_level=variety_level,
+                meal_settings=meal_settings,
+                enabled_nutrients=enabled_nutrients,
+                household_type=household_type,
+                progress_callback=progress_callback,
+            )
+        else:
+            # 従来モード（進捗報告対応）
+            if progress_callback:
+                progress_callback(OptimizePhase.BUILDING_MODEL)
+
+            result = self.solver.solve_multi_day(
+                dishes=dishes,
+                days=days,
+                people=people,
+                target=target,
+                excluded_dish_ids=excluded_ids,
+                excluded_ingredient_ids=set(excluded_ingredient_ids or []),
+                keep_dish_ids=set(keep_dish_ids or []),
+                preferred_ingredient_ids=set(preferred_ingredient_ids or []),
+                preferred_dish_ids=set(preferred_dish_ids or []),
+                batch_cooking_level=batch_cooking_level,
+                variety_level=variety_level,
+                meal_settings=meal_settings,
+                enabled_nutrients=enabled_nutrients,
+                optimization_strategy=optimization_strategy,
+            )
+
+        # Phase 6: 結果整理
+        if progress_callback:
+            progress_callback(OptimizePhase.FINALIZING)
 
         return result
 

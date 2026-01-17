@@ -3,10 +3,20 @@
 
 クリーンアーキテクチャ: presentation層
 """
+import json
+import time
+import asyncio
+from typing import AsyncGenerator, Callable
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.domain.entities import NutrientTarget, DailyMenuPlan, MultiDayMenuPlan
-from app.models.schemas import OptimizeRequest, MultiDayOptimizeRequest, RefineOptimizeRequest
+from app.models.schemas import (
+    OptimizeRequest, MultiDayOptimizeRequest, RefineOptimizeRequest,
+    OptimizePhase, OptimizeProgressEvent, OptimizeResultEvent, OptimizeErrorEvent,
+    PHASE_MESSAGES,
+)
 from app.application.use_cases import (
     OptimizeMultiDayMenuUseCase,
     RefineMenuPlanUseCase,
@@ -201,3 +211,169 @@ def refine_multi_day_menu(
         )
 
     return result
+
+
+def _format_sse_event(event_type: str, data: dict) -> str:
+    """SSEイベントをフォーマット"""
+    return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+async def _generate_sse_stream(
+    use_case: OptimizeMultiDayMenuUseCase,
+    request: MultiDayOptimizeRequest,
+) -> AsyncGenerator[str, None]:
+    """SSEストリームを生成"""
+    import queue
+    import threading
+
+    start_time = time.time()
+    progress_queue: queue.Queue = queue.Queue()
+
+    # フェーズを進捗率にマッピング
+    phase_progress = {
+        OptimizePhase.FILTERING_NUTRIENTS: 10,
+        OptimizePhase.FILTERING_DISHES: 20,
+        OptimizePhase.BUILDING_MODEL: 35,
+        OptimizePhase.APPLYING_CONSTRAINTS: 50,
+        OptimizePhase.SOLVING: 70,
+        OptimizePhase.FINALIZING: 95,
+    }
+
+    def report_progress(phase: OptimizePhase) -> None:
+        """進捗を報告（コールバック関数）- キューに追加"""
+        elapsed = time.time() - start_time
+        event = OptimizeProgressEvent(
+            phase=phase,
+            message=PHASE_MESSAGES[phase],
+            progress=phase_progress[phase],
+            elapsed_seconds=round(elapsed, 1),
+        )
+        progress_queue.put(("progress", event.model_dump()))
+
+    def run_optimization():
+        """最適化を実行（別スレッド）"""
+        try:
+            target = request.target or NutrientTarget()
+            excluded_allergens = [a.value for a in request.excluded_allergens]
+            meal_settings = request.meal_settings.to_dict() if request.meal_settings else None
+
+            result = use_case.execute_with_progress(
+                days=request.days,
+                people=request.people,
+                target=target,
+                excluded_allergens=excluded_allergens,
+                excluded_dish_ids=request.excluded_dish_ids,
+                excluded_ingredient_ids=request.excluded_ingredient_ids,
+                keep_dish_ids=request.keep_dish_ids,
+                preferred_ingredient_ids=request.preferred_ingredient_ids,
+                preferred_dish_ids=request.preferred_dish_ids,
+                batch_cooking_level=request.batch_cooking_level.value,
+                volume_level=request.volume_level.value,
+                variety_level=request.variety_level.value,
+                meal_settings=meal_settings,
+                enabled_nutrients=request.enabled_nutrients,
+                optimization_strategy=request.optimization_strategy.value,
+                scheduling_mode=request.scheduling_mode.value,
+                household_type=request.household_type.value,
+                progress_callback=report_progress,
+            )
+            progress_queue.put(("result", result))
+        except Exception as e:
+            progress_queue.put(("error", str(e)))
+
+    try:
+        # 最適化を別スレッドで開始
+        optimization_thread = threading.Thread(target=run_optimization)
+        optimization_thread.start()
+
+        result = None
+        while True:
+            try:
+                # キューから進捗を取得（タイムアウト付き）
+                event_type, data = progress_queue.get(timeout=0.1)
+
+                if event_type == "progress":
+                    yield _format_sse_event("progress", data)
+                elif event_type == "result":
+                    result = data
+                    break
+                elif event_type == "error":
+                    error_event = OptimizeErrorEvent(message=data)
+                    yield _format_sse_event("error", error_event.model_dump())
+                    return
+            except queue.Empty:
+                # キューが空の場合、スレッドがまだ実行中か確認
+                if not optimization_thread.is_alive():
+                    break
+                # スレッドが実行中ならasyncioに制御を戻す
+                await asyncio.sleep(0.05)
+
+        # スレッドの終了を待機
+        optimization_thread.join(timeout=1.0)
+
+        # 結果を送信
+        if result:
+            # 完了の進捗
+            elapsed = time.time() - start_time
+            final_progress = OptimizeProgressEvent(
+                phase=OptimizePhase.FINALIZING,
+                message="完了しました",
+                progress=100,
+                elapsed_seconds=round(elapsed, 1),
+            )
+            yield _format_sse_event("progress", final_progress.model_dump())
+
+            # 結果イベント（直接dictを構築）
+            result_data = {
+                "type": "result",
+                "plan": result.model_dump() if hasattr(result, 'model_dump') else result.dict(),
+            }
+            yield _format_sse_event("result", result_data)
+        else:
+            error_event = OptimizeErrorEvent(
+                message="最適化に失敗しました。料理データが不足しているか、制約が厳しすぎる可能性があります。"
+            )
+            yield _format_sse_event("error", error_event.model_dump())
+
+    except Exception as e:
+        error_event = OptimizeErrorEvent(message=str(e))
+        yield _format_sse_event("error", error_event.model_dump())
+
+
+@router.post("/multi-day/stream")
+async def optimize_multi_day_menu_stream(
+    request: MultiDayOptimizeRequest = None,
+    use_case: OptimizeMultiDayMenuUseCase = Depends(get_optimize_multi_day_use_case),
+):
+    """複数日・複数人のメニューを最適化（SSEストリーム）
+
+    Server-Sent Events (SSE) で進捗をリアルタイム送信します。
+
+    イベントタイプ:
+    - progress: 進捗情報（phase, message, progress, elapsed_seconds）
+    - result: 最適化結果（plan）
+    - error: エラー情報（message）
+
+    使用例（JavaScript）:
+    ```javascript
+    const eventSource = new EventSource('/api/v1/optimize/multi-day/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: 3, people: 2 })
+    });
+    eventSource.addEventListener('progress', (e) => console.log(JSON.parse(e.data)));
+    eventSource.addEventListener('result', (e) => console.log(JSON.parse(e.data)));
+    eventSource.addEventListener('error', (e) => console.error(JSON.parse(e.data)));
+    ```
+    """
+    request = request or MultiDayOptimizeRequest()
+
+    return StreamingResponse(
+        _generate_sse_stream(use_case, request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # nginx buffering を無効化
+        },
+    )

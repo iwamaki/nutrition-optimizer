@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -5,6 +6,7 @@ import '../../domain/entities/food.dart';
 import '../../domain/entities/dish.dart';
 import '../../domain/entities/menu_plan.dart';
 import '../../domain/entities/settings.dart';
+import '../../domain/entities/optimize_progress.dart';
 
 class ApiService {
   // Web: 同一オリジン（相対パス）, モバイル: localhost
@@ -230,6 +232,132 @@ class ApiService {
     }
   }
 
+  /// 複数日最適化（SSEストリーム版）
+  /// 進捗をリアルタイムで受信しながら献立を生成
+  Stream<OptimizeStreamEvent> optimizeMultiDayWithProgress({
+    int days = 3,
+    int people = 2,
+    NutrientTarget? target,
+    List<Allergen> excludedAllergens = const [],
+    List<int> excludedDishIds = const [],
+    List<int> keepDishIds = const [],
+    List<int> preferredIngredientIds = const [],
+    List<int> preferredDishIds = const [],
+    List<int> excludedIngredientIds = const [],
+    String batchCookingLevel = 'normal',
+    String varietyLevel = 'normal',
+    Map<String, MealSetting>? mealSettings,
+    List<String>? enabledNutrients,
+  }) async* {
+    final body = {
+      'days': days,
+      'people': people,
+      'excluded_allergens': excludedAllergens.map((a) => a.displayName).toList(),
+      'excluded_dish_ids': excludedDishIds,
+      'keep_dish_ids': keepDishIds,
+      'preferred_ingredient_ids': preferredIngredientIds,
+      'preferred_dish_ids': preferredDishIds,
+      'excluded_ingredient_ids': excludedIngredientIds,
+      'batch_cooking_level': batchCookingLevel,
+      'variety_level': varietyLevel,
+    };
+
+    if (target != null) {
+      body['target'] = target.toJson();
+    }
+
+    if (mealSettings != null) {
+      body['meal_settings'] = {
+        for (final entry in mealSettings.entries)
+          entry.key: entry.value.toJson(),
+      };
+    }
+
+    if (enabledNutrients != null) {
+      body['enabled_nutrients'] = enabledNutrients;
+    }
+
+    final request = http.Request(
+      'POST',
+      Uri.parse('$baseUrl/optimize/multi-day/stream'),
+    );
+    request.headers['Content-Type'] = 'application/json';
+    request.body = json.encode(body);
+
+    final client = http.Client();
+    try {
+      final response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw Exception('SSEストリームの開始に失敗しました: ${response.statusCode}');
+      }
+
+      // SSEストリームをパース
+      String buffer = '';
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+
+        // 複数のイベントを処理
+        while (buffer.contains('\n\n')) {
+          final eventEnd = buffer.indexOf('\n\n');
+          final eventText = buffer.substring(0, eventEnd);
+          buffer = buffer.substring(eventEnd + 2);
+
+          final event = _parseSSEEvent(eventText);
+          if (event != null) {
+            yield event;
+            // エラーまたは結果イベントで終了
+            if (event is OptimizeErrorStreamEvent ||
+                event is OptimizeResultStreamEvent) {
+              return;
+            }
+          }
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
+  /// SSEイベントをパース
+  OptimizeStreamEvent? _parseSSEEvent(String eventText) {
+    String? eventType;
+    String? data;
+
+    for (final line in eventText.split('\n')) {
+      if (line.startsWith('event: ')) {
+        eventType = line.substring(7);
+      } else if (line.startsWith('data: ')) {
+        data = line.substring(6);
+      }
+    }
+
+    if (eventType == null || data == null) return null;
+
+    try {
+      final jsonData = json.decode(data) as Map<String, dynamic>;
+
+      switch (eventType) {
+        case 'progress':
+          return OptimizeProgressStreamEvent(
+            progress: OptimizeProgress.fromJson(jsonData),
+          );
+        case 'result':
+          return OptimizeResultStreamEvent(
+            plan: MultiDayMenuPlan.fromJson(jsonData['plan']),
+          );
+        case 'error':
+          return OptimizeErrorStreamEvent(
+            message: jsonData['message'] as String,
+          );
+        default:
+          return null;
+      }
+    } catch (e) {
+      return OptimizeErrorStreamEvent(message: 'イベントのパースに失敗: $e');
+    }
+  }
+
   // ========== アレルゲンAPI ==========
 
   Future<List<Map<String, String>>> getAllergens() async {
@@ -298,4 +426,28 @@ class ApiService {
       throw Exception('Health check failed');
     }
   }
+}
+
+/// SSEストリームイベントの基底クラス
+sealed class OptimizeStreamEvent {}
+
+/// 進捗イベント
+class OptimizeProgressStreamEvent extends OptimizeStreamEvent {
+  final OptimizeProgress progress;
+
+  OptimizeProgressStreamEvent({required this.progress});
+}
+
+/// 結果イベント
+class OptimizeResultStreamEvent extends OptimizeStreamEvent {
+  final MultiDayMenuPlan plan;
+
+  OptimizeResultStreamEvent({required this.plan});
+}
+
+/// エラーイベント
+class OptimizeErrorStreamEvent extends OptimizeStreamEvent {
+  final String message;
+
+  OptimizeErrorStreamEvent({required this.message});
 }
