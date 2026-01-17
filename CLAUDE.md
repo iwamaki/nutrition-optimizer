@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-栄養バランスを考慮した献立自動生成システム。線形計画法（PuLP/CBCソルバー）を使用して、日本政府の食品成分表（八訂2023）に基づき最適な献立を提案する。
+栄養バランスを考慮した献立自動生成システム。線形計画法（PuLP + HiGHS/CBCソルバー）を使用して、日本政府の食品成分表（八訂2023）に基づき最適な献立を提案する。
 
 ## 開発コマンド
 
@@ -23,6 +23,7 @@ cd frontend
 flutter pub get
 flutter run -d chrome                   # Web
 flutter run -d ios                      # iOS
+dart run build_runner build             # Riverpod コード生成
 ```
 
 ### 料理マスタの追加・検証
@@ -43,56 +44,38 @@ python tools/generate_recipes.py              # 全て生成
 python tools/generate_recipes.py -c 主食      # カテゴリ指定
 ```
 
-## アーキテクチャ
+## アーキテクチャ（Clean Architecture）
 
 ### Backend
 ```
-backend/
-├── app/
-│   ├── main.py              # FastAPI エントリポイント
-│   ├── api/routes.py        # 全APIエンドポイント (/api/v1)
-│   ├── db/database.py       # SQLAlchemy + SQLite
-│   ├── optimizer/solver.py  # PuLP 線形計画ソルバー（核心ロジック）
-│   ├── models/schemas.py    # Pydantic スキーマ
-│   ├── data/loader.py       # Excel/CSV/JSONデータローダー
-│   └── services/
-│       └── recipe_generator.py  # Gemini APIレシピ詳細生成
-├── data/
-│   ├── food_composition_2023.xlsx  # 文科省食品成分表（約2,500食品）
-│   ├── dishes.csv                  # 料理マスタ（117件）
-│   └── recipe_details.json         # レシピ詳細（手順・コツ）
-└── tools/                   # CLI ユーティリティ
+backend/app/
+├── main.py                    # FastAPI エントリポイント
+├── domain/                    # ビジネスロジック・エンティティ
+│   ├── entities/              # Dish, Food, Ingredient, MealPlan, UserPreference
+│   └── services/              # NutrientCalculator, UnitConverter
+├── application/               # ユースケース層
+│   └── use_cases/             # OptimizeMultiDayMenu, RefineMenuPlan, GenerateRecipe
+├── infrastructure/            # 外部実装
+│   ├── database/              # SQLAlchemy モデル・接続
+│   ├── optimizer/pulp_solver.py  # PuLP 線形計画ソルバー
+│   ├── repositories/          # SQLAlchemy Repository 実装
+│   └── external/              # Gemini API クライアント
+├── presentation/              # API層
+│   └── api/v1/                # FastAPI ルーター（dishes, optimize, preferences）
+└── models/schemas.py          # Pydantic リクエスト/レスポンススキーマ
 ```
 
-### Frontend（現状）
+### Frontend (Flutter + Riverpod)
 ```
 frontend/lib/
-├── main.dart                # Material Design 3 アプリ
-├── screens/home_screen.dart # メイン画面（献立表示）
-├── services/api_service.dart # HTTP クライアント
-├── models/food.dart         # データモデル
-└── widgets/                 # MealCard, NutrientChart
-```
-
-### Frontend（実装予定）
-UI設計書: `docs/ui-design-mobile.svg` (v6) を参照
-
-```
-frontend/lib/
-├── main.dart
-├── models/                  # Dish, MultiDayMenuPlan, ShoppingItem
-├── services/api_service.dart # 拡張（multi-day, refine, search）
-├── providers/               # 状態管理（menu, settings, shopping）
-├── screens/
-│   ├── main_scaffold.dart   # タブナビゲーション（ホーム/週間/買物/設定）
-│   ├── home_screen.dart     # 今日の献立・栄養達成率
-│   ├── calendar_screen.dart # 献立カレンダー（週/月表示・ドラッグ入替）
-│   ├── shopping_screen.dart # 買い物リスト
-│   └── settings_screen.dart # 設定画面
-├── widgets/                 # 共通ウィジェット
-└── modals/
-    ├── generate_modal.dart  # 献立生成（3ステップウィザード）
-    └── dish_detail_modal.dart # 料理詳細
+├── main.dart                  # Material Design 3 アプリ
+├── domain/                    # エンティティ・リポジトリインターフェース
+├── data/                      # API Service・リポジトリ実装
+└── presentation/
+    ├── screens/               # Home, Calendar, Shopping, Settings
+    ├── modals/                # GenerateModal（3ステップ）, DishDetailModal
+    ├── providers/             # Riverpod 状態管理
+    └── widgets/               # MealCard, NutrientProgressBar
 ```
 
 ## 主要API
@@ -100,47 +83,62 @@ frontend/lib/
 ### 最適化
 - `POST /api/v1/optimize` - 1日分の献立最適化
 - `POST /api/v1/optimize/multi-day` - 複数日×複数人の作り置き対応
-- `POST /api/v1/optimize/multi-day/refine` - 献立調整（イテレーション）
+- `POST /api/v1/optimize/multi-day/refine` - 献立調整（料理差し替え）
 
 ### マスタ
-- `GET /api/v1/foods` - 食品一覧
-- `GET /api/v1/foods/search` - 食品検索（キーワード・カテゴリ）
 - `GET /api/v1/dishes` - 料理一覧
 - `GET /api/v1/dishes/{id}` - 料理詳細
 - `POST /api/v1/dishes/{id}/generate-recipe` - レシピ詳細生成（Gemini）
-- `GET /api/v1/allergens` - アレルゲン一覧（7大アレルゲン）
+- `GET /api/v1/ingredients` - 食材一覧
+- `GET /api/v1/foods` - 食品一覧（検索対応）
 
 ### 設定
 - `GET/PUT /api/v1/preferences` - ユーザー設定
 
-## 最適化ロジック (solver.py)
+## 最適化ロジック (pulp_solver.py)
 
-**目的関数**: 各栄養素の目標値からの乖離を最小化
+### 栄養素目標の考え方（厚生労働省「日本人の食事摂取基準」）
+
+**5つの指標**（[参照](https://www.nutri.co.jp/nutrition/keywords/append/)）：
+- **推定平均必要量（EAR）**: 集団の50%が必要量を満たす摂取量
+- **推奨量（RDA）**: 集団の97〜98%が充足する摂取量（EAR × 算定係数）
+- **目安量（AI）**: 科学的根拠が不十分な場合に設定される十分量
+- **耐容上限量（UL）**: 健康障害リスクがないとみなされる上限
+- **目標量（DG）**: 生活習慣病予防を目的とした摂取量
+
+**最適化における目標**:
+- 推奨量・目安量 → **100%以上**を目指す（不足は避ける）
+- 耐容上限量 → **超えてはいけない**（過剰摂取リスク）
+- 目標量（範囲指定）→ 範囲内に収める
+
+### 目的関数
+
+各栄養素の目標値からの乖離を最小化（不足にはより大きなペナルティ）
 ```
-Σ(weight × |実績 - 目標| / 目標)
+Σ(weight × penalty × |実績 - 目標| / 目標)
 ```
+- 不足（< 100%）: UNDER_PENALTY（大きい）
+- 過剰（> 上限）: OVER_PENALTY
 
 **制約条件**:
 - カロリー範囲（1800-2200 kcal）
 - 料理カテゴリ構成: 主食(1) + 主菜(1) + 副菜(1-2) + 汁物(0-1)
-- 食材の最大使用量
-- 作り置き日数 (storage_days)
-- アレルゲン除外（卵/乳/小麦/そば/落花生/えび/かに）
+- アレルゲン除外（28品目対応: 8特定原材料 + 20推奨表示）
 
-**栄養素重み** (優先度):
-- 高: protein(1.5), fiber(1.2), iron(1.3), vitamin_d(1.5)
-- 標準: calories, fat, carbs(1.0)
-- 低: sodium(0.8)
+**ソルバー設定**:
+- HiGHS 優先、CBC フォールバック
+- タイムアウト: 30秒、MIPギャップ: 5%
+- カテゴリ別上位30件をプレフィルタリング
 
 ## データ
 
-- 食品成分表: `backend/data/food_composition_2023.xlsx` から起動時に自動ロード
-- 料理CSV形式: `name,category,meal_types,ingredients,instructions,storage_days`
-- ingredients: `食品名:グラム数:調理法` 形式
-- レシピ詳細: `backend/data/recipe_details.json`（料理名をキーにした詳細手順）
+- `backend/data/food_composition_2023.xlsx` - 文科省食品成分表（約2,500食品）
+- `backend/data/dishes.csv` - 料理マスタ（約150件）
+- `backend/data/recipe_details.json` - レシピ詳細（手順・コツ）
+- `backend/data/app_ingredients.csv` - 正規化食材リスト
 
 ## ドキュメント
 
-- `/docs/PLAN.md` - システム設計書・Flutter実装計画
-- `/docs/ui-design-mobile.svg` - スマホUI設計書（v6・8画面構成）
+- `/docs/PLAN.md` - システム設計書
+- `/docs/ui-design-mobile.svg` - スマホUI設計書
 - `/docs/add-dish-workflow.md` - 料理追加ワークフロー

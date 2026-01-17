@@ -29,6 +29,7 @@ from app.domain.services.constants import (
     get_enabled_nutrients,
     SATURATION_THRESHOLD, UNDER_PENALTY, OVER_PENALTY,
     NUTRIENT_UPPER_LIMIT_RATIO, UPPER_TARGET_NUTRIENTS, UPPER_LIMIT_PENALTY,
+    RANGE_TARGET_NUTRIENTS,
 )
 from app.domain.services import NutrientCalculator, UnitConverter
 
@@ -72,11 +73,19 @@ class PuLPSolver:
         if self.solver_type == "highs" or (self.solver_type == "auto" and HIGHS_AVAILABLE):
             if HIGHS_AVAILABLE:
                 logger.info("Using HiGHS solver")
-                return HiGHS_CMD(
-                    msg=self.msg,
-                    timeLimit=self.time_limit,
-                    gapRel=self.gap_rel,
-                )
+                try:
+                    # HiGHS version によってはgapRelをサポートしていない
+                    return HiGHS_CMD(
+                        msg=self.msg,
+                        timeLimit=self.time_limit,
+                        gapRel=self.gap_rel,
+                    )
+                except TypeError:
+                    logger.warning("HiGHS does not support gapRel, using without it")
+                    return HiGHS_CMD(
+                        msg=self.msg,
+                        timeLimit=self.time_limit,
+                    )
             else:
                 logger.warning("HiGHS not available, falling back to CBC")
 
@@ -527,7 +536,529 @@ class PuLPSolver:
             optimization_strategy=optimization_strategy,
         )
 
+    def solve_multi_day_staged(
+        self,
+        dishes: list[Dish],
+        days: int = 1,
+        people: int = 1,
+        target: Optional[NutrientTarget] = None,
+        excluded_dish_ids: Optional[set[int]] = None,
+        excluded_ingredient_ids: Optional[set[int]] = None,
+        keep_dish_ids: Optional[set[int]] = None,
+        preferred_ingredient_ids: Optional[set[int]] = None,
+        preferred_dish_ids: Optional[set[int]] = None,
+        batch_cooking_level: str = "normal",
+        variety_level: str = "normal",
+        meal_settings: Optional[dict] = None,
+        enabled_nutrients: Optional[list[str]] = None,
+        household_type: str = "single",
+        scheduler_seed: Optional[int] = None,
+    ) -> Optional[MultiDayMenuPlan]:
+        """段階的決定モードで複数日メニューを最適化
+
+        Phase 1: MealSchedulerで主食を決定（ルールベース）
+        Phase 2: MealSchedulerで主菜を決定（たんぱく源ローテーション）
+        Phase 3: 副菜・汁物を既存の最適化で埋める
+        Phase 4: 栄養達成率チェック、必要なら主菜を変更してリトライ
+
+        Args:
+            dishes: 利用可能な料理リスト
+            days: 日数（1-7）
+            people: 人数（1-6）
+            target: 栄養素目標（1人1日あたり）
+            excluded_dish_ids: 除外料理ID
+            excluded_ingredient_ids: 除外食材ID
+            keep_dish_ids: 必ず含める料理ID
+            preferred_ingredient_ids: 優先食材ID
+            preferred_dish_ids: 優先料理ID
+            batch_cooking_level: 作り置き優先度
+            variety_level: 料理の繰り返し
+            meal_settings: 朝昼夜別の設定
+            enabled_nutrients: 有効な栄養素リスト
+            household_type: 世帯タイプ（single/couple/family）
+            scheduler_seed: MealSchedulerの乱数シード
+
+        Returns:
+            MultiDayMenuPlan
+        """
+        from app.domain.services.meal_scheduler import (
+            MealScheduler, load_ingredient_categories, get_protein_source
+        )
+
+        target = target or NutrientTarget()
+        excluded_dish_ids = excluded_dish_ids or set()
+        excluded_ingredient_ids = excluded_ingredient_ids or set()
+        keep_dish_ids = keep_dish_ids or set()
+        preferred_ingredient_ids = preferred_ingredient_ids or set()
+        preferred_dish_ids = preferred_dish_ids or set()
+
+        # meal_settingsの正規化
+        meal_settings = self._normalize_meal_settings(meal_settings)
+
+        # 有効な食事タイプのみ抽出
+        enabled_meals = [
+            m for m in ["breakfast", "lunch", "dinner"]
+            if meal_settings[m].get("enabled", True)
+        ]
+
+        # 除外料理を適用
+        available_dishes = [d for d in dishes if d.id not in excluded_dish_ids]
+
+        # 除外食材を含む料理をフィルタリング
+        if excluded_ingredient_ids:
+            available_dishes = self._filter_dishes_by_excluded_ingredients(
+                available_dishes, excluded_ingredient_ids
+            )
+
+        if not available_dishes:
+            logger.warning("No dishes available after filtering")
+            return None
+
+        # MealSchedulerを初期化
+        scheduler = MealScheduler(seed=scheduler_seed)
+
+        # 食材カテゴリをロード（たんぱく源検出用）
+        ingredient_categories = []
+        for dish in available_dishes:
+            for ing in dish.ingredients:
+                if ing.ingredient_id and ing.ingredient_name:
+                    # 食材名からカテゴリを推定
+                    category = self._estimate_ingredient_category(ing.ingredient_name)
+                    ingredient_categories.append((ing.ingredient_id, category))
+        if ingredient_categories:
+            load_ingredient_categories(ingredient_categories)
+
+        # Phase 1: 主食スケジューリング
+        logger.info("Phase 1: Scheduling staples")
+        staples = scheduler.schedule_staples(
+            available_dishes, days, enabled_meals, household_type
+        )
+
+        # Phase 2: 主菜スケジューリング
+        logger.info("Phase 2: Scheduling mains")
+        mains = scheduler.schedule_mains(
+            available_dishes, days, enabled_meals, staples,
+            household_type, excluded_dish_ids, variety_level
+        )
+
+        # Phase 3: 副菜・汁物を最適化
+        logger.info("Phase 3: Optimizing sides and soups")
+        result = self._optimize_sides_staged(
+            available_dishes, days, people, target,
+            staples, mains, enabled_meals, meal_settings,
+            preferred_ingredient_ids, preferred_dish_ids,
+            variety_level, enabled_nutrients
+        )
+
+        if result is None:
+            logger.warning("Phase 3 optimization failed, falling back to full optimization")
+            return self.solve_multi_day(
+                dishes=dishes,
+                days=days,
+                people=people,
+                target=target,
+                excluded_dish_ids=excluded_dish_ids,
+                excluded_ingredient_ids=excluded_ingredient_ids,
+                keep_dish_ids=keep_dish_ids,
+                preferred_ingredient_ids=preferred_ingredient_ids,
+                preferred_dish_ids=preferred_dish_ids,
+                batch_cooking_level=batch_cooking_level,
+                variety_level=variety_level,
+                meal_settings=meal_settings,
+                enabled_nutrients=enabled_nutrients,
+            )
+
+        # Phase 4: 栄養達成率チェック
+        avg_achievement = sum(result.overall_achievement.values()) / len(result.overall_achievement)
+        logger.info(f"Phase 4: Average achievement rate: {avg_achievement:.1f}%")
+
+        if avg_achievement < 70:
+            logger.info("Achievement rate too low, retrying with different mains")
+            # 使用した主菜を除外して再試行
+            used_main_ids = {
+                mains[d][m].id for d in mains for m in mains[d]
+                if mains[d][m] is not None
+            }
+            mains_retry = scheduler.schedule_mains(
+                available_dishes, days, enabled_meals, staples,
+                household_type, excluded_dish_ids | used_main_ids
+            )
+            result_retry = self._optimize_sides_staged(
+                available_dishes, days, people, target,
+                staples, mains_retry, enabled_meals, meal_settings,
+                preferred_ingredient_ids, preferred_dish_ids,
+                variety_level, enabled_nutrients
+            )
+            if result_retry:
+                retry_avg = sum(result_retry.overall_achievement.values()) / len(result_retry.overall_achievement)
+                if retry_avg > avg_achievement:
+                    logger.info(f"Retry improved achievement: {avg_achievement:.1f}% -> {retry_avg:.1f}%")
+                    result = result_retry
+
+        return result
+
+    def _optimize_sides_staged(
+        self,
+        dishes: list[Dish],
+        days: int,
+        people: int,
+        target: NutrientTarget,
+        staples: dict[int, dict[str, Optional[Dish]]],
+        mains: dict[int, dict[str, Optional[Dish]]],
+        meals: list[str],
+        meal_settings: dict,
+        preferred_ingredient_ids: set[int],
+        preferred_dish_ids: set[int],
+        variety_level: str,
+        enabled_nutrients: Optional[list[str]],
+    ) -> Optional[MultiDayMenuPlan]:
+        """Phase 3: 副菜・汁物を最適化
+
+        主食・主菜は固定し、残りのカテゴリを最適化で埋める。
+        """
+        from app.domain.entities.enums import DishCategoryEnum
+
+        # 有効な栄養素を決定
+        active_nutrients = get_enabled_nutrients(enabled_nutrients)
+
+        # 副菜・汁物・デザートのみフィルタ
+        side_categories = {DishCategoryEnum.SIDE, DishCategoryEnum.SOUP, DishCategoryEnum.DESSERT}
+        side_dishes = [d for d in dishes if d.category in side_categories]
+
+        if not side_dishes:
+            logger.warning("No side dishes available")
+            # 主食・主菜だけで結果を構築
+            return self._build_result_from_scheduled(
+                days, people, target, staples, mains, {}, meals, preferred_ingredient_ids
+            )
+
+        # 固定された料理のIDを収集
+        fixed_dish_ids: set[int] = set()
+        for day in range(1, days + 1):
+            for meal in meals:
+                if staples.get(day, {}).get(meal):
+                    fixed_dish_ids.add(staples[day][meal].id)
+                if mains.get(day, {}).get(meal):
+                    fixed_dish_ids.add(mains[day][meal].id)
+
+        # 問題定義
+        prob = LpProblem("staged_sides_optimization", LpMinimize)
+
+        # 決定変数: 各副菜を各日各食事に割り当てるか
+        y = {}
+        for d in side_dishes:
+            for day in range(1, days + 1):
+                for meal in meals:
+                    meal_type = MealTypeEnum(meal)
+                    if meal_type in d.meal_types:
+                        y[(d.id, day, meal)] = LpVariable(
+                            f"side_{d.id}_{day}_{meal}", cat="Binary"
+                        )
+
+        # 偏差変数
+        dev_pos = {}
+        dev_neg = {}
+        for day in range(1, days + 1):
+            dev_pos[day] = {n: LpVariable(f"dev_pos_{day}_{n}", lowBound=0) for n in active_nutrients}
+            dev_neg[day] = {n: LpVariable(f"dev_neg_{day}_{n}", lowBound=0) for n in active_nutrients}
+
+        # 目的関数: 栄養偏差最小化（3グループ対応）
+        objective_terms = []
+        for day in range(1, days + 1):
+            for n in active_nutrients:
+                weight = NUTRIENT_WEIGHTS.get(n, 1.0)
+                normalizer = max(getattr(target, f"{n}_min", 1) if hasattr(target, f"{n}_min") else 1, 1)
+
+                if n in UPPER_TARGET_NUTRIENTS:
+                    # グループC（上限重視）: 超過を強くペナルティ
+                    penalty = weight * UNDER_PENALTY * dev_pos[day][n] / normalizer
+
+                elif n in RANGE_TARGET_NUTRIENTS:
+                    # グループA（範囲型）: 下限未達と上限超過を等しくペナルティ
+                    penalty = weight * (UNDER_PENALTY * dev_neg[day][n] + UNDER_PENALTY * dev_pos[day][n]) / normalizer
+
+                else:
+                    # グループB（下限重視）: 下限未達を強く、UL超過はさらに強くペナルティ
+                    ul_ratio = NUTRIENT_UPPER_LIMIT_RATIO.get(n)
+                    if ul_ratio is not None:
+                        # ULがある場合: 超過にUPPER_LIMIT_PENALTY
+                        penalty = weight * (UNDER_PENALTY * dev_neg[day][n] + UPPER_LIMIT_PENALTY * dev_pos[day][n]) / normalizer
+                    else:
+                        # ULがない場合: 超過は軽いペナルティ（または0）
+                        penalty = weight * (UNDER_PENALTY * dev_neg[day][n] + OVER_PENALTY * dev_pos[day][n]) / normalizer
+
+                objective_terms.append(penalty)
+
+        prob += lpSum(objective_terms)
+
+        # 制約: 日別栄養素
+        for day in range(1, days + 1):
+            for nutrient in active_nutrients:
+                # 固定料理からの栄養素
+                fixed_nutrients = 0.0
+                for meal in meals:
+                    staple = staples.get(day, {}).get(meal)
+                    main = mains.get(day, {}).get(meal)
+                    if staple:
+                        fixed_nutrients += getattr(staple, nutrient, 0) * people
+                    if main:
+                        fixed_nutrients += getattr(main, nutrient, 0) * people
+
+                # 副菜からの栄養素
+                side_nutrients = lpSum(
+                    getattr(d, nutrient, 0) * people * y[(d.id, day, meal)]
+                    for d in side_dishes
+                    for meal in meals
+                    if (d.id, day, meal) in y
+                )
+
+                total_intake = fixed_nutrients + side_nutrients
+                intake_per_person = total_intake / people
+
+                # 3グループ対応の栄養素制約
+                if nutrient in UPPER_TARGET_NUTRIENTS:
+                    # グループC（上限重視）: x ≤ max を目指す（食塩など）
+                    max_val = getattr(target, f"{nutrient}_max")
+                    # 上限超過分をdev_posで捕捉
+                    prob += intake_per_person - dev_pos[day][nutrient] <= max_val
+
+                elif nutrient in RANGE_TARGET_NUTRIENTS:
+                    # グループA（範囲型）: min ≤ x ≤ max を等しく重視
+                    min_val = getattr(target, f"{nutrient}_min")
+                    max_val = getattr(target, f"{nutrient}_max")
+                    # 下限未達分をdev_negで捕捉
+                    prob += intake_per_person + dev_neg[day][nutrient] >= min_val
+                    # 上限超過分をdev_posで捕捉
+                    prob += intake_per_person - dev_pos[day][nutrient] <= max_val
+
+                else:
+                    # グループB（下限重視）: x ≥ min を強く目指す
+                    if hasattr(target, f"{nutrient}_min"):
+                        min_val = getattr(target, f"{nutrient}_min")
+                        # 下限未達分をdev_negで捕捉
+                        prob += intake_per_person + dev_neg[day][nutrient] >= min_val
+
+                        # UL（耐容上限量）がある場合は上限制約も追加
+                        ul_ratio = NUTRIENT_UPPER_LIMIT_RATIO.get(nutrient)
+                        if ul_ratio is not None:
+                            ul_val = min_val * ul_ratio
+                            # 上限超過分をdev_posで捕捉（UPPER_LIMIT_PENALTYで重く罰する）
+                            prob += intake_per_person - dev_pos[day][nutrient] <= ul_val
+
+        # 制約: カテゴリ別品数（副菜・汁物）
+        for day in range(1, days + 1):
+            for meal in meals:
+                category_constraints = meal_settings[meal].get(
+                    "categories", DEFAULT_MEAL_CATEGORY_CONSTRAINTS[meal]
+                )
+
+                for cat, (min_count, max_count) in category_constraints.items():
+                    if cat in ["主食", "主菜"]:
+                        continue  # 主食・主菜は固定済み
+
+                    cat_dishes = [
+                        d for d in side_dishes
+                        if d.category.value == cat and (d.id, day, meal) in y
+                    ]
+                    if cat_dishes:
+                        prob += lpSum(y[(d.id, day, meal)] for d in cat_dishes) >= min_count
+                        prob += lpSum(y[(d.id, day, meal)] for d in cat_dishes) <= max_count
+
+        # 制約: 料理の使用回数を促進（作り置き効果）
+        # 各料理が使われるかどうかを示す変数
+        dish_used = {}
+        for d in side_dishes:
+            dish_used[d.id] = LpVariable(f"dish_used_{d.id}", cat="Binary")
+            # 料理が1回でも使われたらdish_used=1
+            all_uses = [y[(d.id, day, meal)]
+                       for day in range(1, days + 1)
+                       for meal in meals
+                       if (d.id, day, meal) in y]
+            if all_uses:
+                prob += dish_used[d.id] * len(all_uses) >= lpSum(all_uses)
+                prob += dish_used[d.id] <= lpSum(all_uses)
+
+        # 使用する副菜の種類数を制限（作り置きを促進）
+        # variety_level: small=種類少なめ（繰り返し多い）, large=種類多め（多様性重視）
+        if variety_level == "small":
+            max_distinct = max(days, 5)  # 7日なら7種類まで（繰り返し重視）
+        elif variety_level == "large":
+            max_distinct = len(side_dishes)  # 制限なし（多様性重視）
+        else:  # normal
+            max_distinct = days + 3  # 7日なら10種類まで
+
+        prob += lpSum(dish_used[d.id] for d in side_dishes) <= max_distinct
+
+        # 制約: 多様性（同じ副菜は連続日で使わない）
+        # small: 連続OK（作り置き重視）、large: 連続NG（多様性重視）
+        if variety_level == "large":
+            for d in side_dishes:
+                for meal in meals:
+                    for day in range(1, days):
+                        key_today = (d.id, day, meal)
+                        key_tomorrow = (d.id, day + 1, meal)
+                        if key_today in y and key_tomorrow in y:
+                            prob += y[key_today] + y[key_tomorrow] <= 1
+
+        # 求解
+        prob.solve(self._solver)
+
+        if LpStatus[prob.status] not in ["Optimal", "Not Solved"]:
+            logger.warning(f"Optimization failed with status: {LpStatus[prob.status]}")
+            return None
+
+        # 結果抽出: 選択された副菜
+        sides: dict[int, dict[str, list[Dish]]] = {}
+        for day in range(1, days + 1):
+            sides[day] = {meal: [] for meal in meals}
+            for d in side_dishes:
+                for meal in meals:
+                    key = (d.id, day, meal)
+                    if key in y and value(y[key]) and value(y[key]) > 0.5:
+                        sides[day][meal].append(d)
+
+        return self._build_result_from_scheduled(
+            days, people, target, staples, mains, sides, meals, preferred_ingredient_ids
+        )
+
+    def _build_result_from_scheduled(
+        self,
+        days: int,
+        people: int,
+        target: NutrientTarget,
+        staples: dict[int, dict[str, Optional[Dish]]],
+        mains: dict[int, dict[str, Optional[Dish]]],
+        sides: dict[int, dict[str, list[Dish]]],
+        meals: list[str],
+        preferred_ingredient_ids: set[int],
+    ) -> MultiDayMenuPlan:
+        """スケジュールされた料理からMultiDayMenuPlanを構築"""
+        cooking_tasks: list[CookingTask] = []
+        daily_plans: list[DailyMealAssignment] = []
+        overall_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+        dish_usage: dict[int, dict] = {}  # 料理の使用状況を追跡
+
+        for day in range(1, days + 1):
+            day_meals = {"breakfast": [], "lunch": [], "dinner": []}
+            day_nutrients = {n: 0.0 for n in ALL_NUTRIENTS}
+
+            for meal in meals:
+                # 主食
+                staple = staples.get(day, {}).get(meal)
+                if staple:
+                    day_meals[meal].append(DishPortion(dish=staple, servings=people))
+                    for nutrient in ALL_NUTRIENTS:
+                        day_nutrients[nutrient] += getattr(staple, nutrient, 0) * people
+                    if staple.id not in dish_usage:
+                        dish_usage[staple.id] = {"dish": staple, "days": [], "servings": 0}
+                    dish_usage[staple.id]["days"].append(day)
+                    dish_usage[staple.id]["servings"] += people
+
+                # 主菜
+                main = mains.get(day, {}).get(meal)
+                if main:
+                    day_meals[meal].append(DishPortion(dish=main, servings=people))
+                    for nutrient in ALL_NUTRIENTS:
+                        day_nutrients[nutrient] += getattr(main, nutrient, 0) * people
+                    if main.id not in dish_usage:
+                        dish_usage[main.id] = {"dish": main, "days": [], "servings": 0}
+                    dish_usage[main.id]["days"].append(day)
+                    dish_usage[main.id]["servings"] += people
+
+                # 副菜・汁物
+                for side in sides.get(day, {}).get(meal, []):
+                    day_meals[meal].append(DishPortion(dish=side, servings=people))
+                    for nutrient in ALL_NUTRIENTS:
+                        day_nutrients[nutrient] += getattr(side, nutrient, 0) * people
+                    if side.id not in dish_usage:
+                        dish_usage[side.id] = {"dish": side, "days": [], "servings": 0}
+                    dish_usage[side.id]["days"].append(day)
+                    dish_usage[side.id]["servings"] += people
+
+            # 1人あたりの栄養素
+            day_nutrients_per_person = {k: v / people for k, v in day_nutrients.items()}
+            achievement = self._nutrient_calc.calculate_achievement_rate(day_nutrients_per_person, target)
+
+            daily_plans.append(DailyMealAssignment(
+                day=day,
+                breakfast=day_meals.get("breakfast", []),
+                lunch=day_meals.get("lunch", []),
+                dinner=day_meals.get("dinner", []),
+                total_nutrients={k: round(v, 1) for k, v in day_nutrients_per_person.items()},
+                achievement_rate={k: round(v, 1) for k, v in achievement.items()},
+            ))
+
+            for n in ALL_NUTRIENTS:
+                overall_nutrients[n] += day_nutrients_per_person[n]
+
+        # CookingTaskを生成
+        for dish_id, usage in dish_usage.items():
+            dish = usage["dish"]
+            cook_days = sorted(set(usage["days"]))
+            if cook_days:
+                cooking_tasks.append(CookingTask(
+                    cook_day=cook_days[0],
+                    dish=dish,
+                    servings=usage["servings"],
+                    consume_days=cook_days,
+                ))
+
+        # 期間平均
+        avg_nutrients = {k: v / days for k, v in overall_nutrients.items()}
+        overall_achievement = self._nutrient_calc.calculate_achievement_rate(avg_nutrients, target)
+
+        # 買い物リスト
+        shopping_list = self._generate_shopping_list(cooking_tasks, preferred_ingredient_ids)
+
+        # 警告
+        warnings = self._nutrient_calc.generate_warnings(avg_nutrients, target)
+
+        return MultiDayMenuPlan(
+            plan_id=str(uuid.uuid4()),
+            days=days,
+            people=people,
+            daily_plans=daily_plans,
+            cooking_tasks=cooking_tasks,
+            shopping_list=shopping_list,
+            overall_nutrients={k: round(v, 1) for k, v in overall_nutrients.items()},
+            overall_achievement={k: round(v, 1) for k, v in overall_achievement.items()},
+            warnings=warnings,
+        )
+
     # ========== Private Methods ==========
+
+    def _estimate_ingredient_category(self, ingredient_name: str) -> str:
+        """食材名からカテゴリを推定
+
+        Args:
+            ingredient_name: 食材名
+
+        Returns:
+            カテゴリ名（肉類, 魚介類, 卵類, 乳類, 豆類, その他）
+        """
+        name = ingredient_name.lower()
+
+        # 肉類
+        if any(kw in name for kw in ["鶏", "豚", "牛", "肉", "ベーコン", "ハム", "ウインナー", "ソーセージ", "ひき肉", "ささみ"]):
+            return "肉類"
+
+        # 魚介類
+        if any(kw in name for kw in ["鮭", "サバ", "さば", "鯖", "魚", "えび", "いか", "たこ", "貝", "ツナ", "しらす", "ちりめん", "あじ", "ぶり", "まぐろ", "かつお"]):
+            return "魚介類"
+
+        # 卵類
+        if any(kw in name for kw in ["卵", "たまご", "玉子"]):
+            return "卵類"
+
+        # 乳類
+        if any(kw in name for kw in ["牛乳", "チーズ", "ヨーグルト", "バター", "クリーム", "乳"]):
+            return "乳類"
+
+        # 豆類
+        if any(kw in name for kw in ["豆腐", "納豆", "大豆", "厚揚げ", "油揚げ", "豆", "あずき", "枝豆"]):
+            return "豆類"
+
+        return "その他"
 
     def _filter_dishes_by_excluded_ingredients(
         self,

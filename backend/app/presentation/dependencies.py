@@ -92,14 +92,15 @@ def get_solver() -> PuLPSolver:
     """PuLPソルバーを取得
 
     パフォーマンスチューニング:
-    - gap_rel=0.35: 35%以内で早期終了（サチュレーション時に早期終了）
+    - gap_rel=0.05: 5%以内で終了（より精度の高い解を求める）
     - 栄養密度ベースの事前フィルタリングは削除
       → 代わりに除外食材(excluded_ingredient_ids)でユーザーが制御
     """
     return PuLPSolver(
         time_limit=30,
         solver_type="cbc",  # HiGHS CLIが未インストールのためCBC使用
-        gap_rel=0.35,  # 35%以内で早期終了
+        gap_rel=0.05,  # 5%以内で終了（厳密化）
+        msg=1,  # デバッグ用: ソルバーメッセージ表示
     )
 
 
