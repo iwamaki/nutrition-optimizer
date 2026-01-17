@@ -645,18 +645,83 @@ class PuLPSolver:
         if ingredient_categories:
             load_ingredient_categories(ingredient_categories)
 
-        # Phase 1: 主食スケジューリング
+        # keep_dish_ids から主食・主菜を抽出
+        from app.domain.entities.enums import DishCategoryEnum
+        keep_staples: list[Dish] = []
+        keep_mains: list[Dish] = []
+        if keep_dish_ids:
+            for dish in available_dishes:
+                if dish.id in keep_dish_ids:
+                    if dish.category in (DishCategoryEnum.STAPLE, DishCategoryEnum.STAPLE_MAIN):
+                        keep_staples.append(dish)
+                    elif dish.category == DishCategoryEnum.MAIN:
+                        keep_mains.append(dish)
+            if keep_staples:
+                logger.info(f"Keep staples from keep_dish_ids: {[d.name for d in keep_staples]}")
+            if keep_mains:
+                logger.info(f"Keep mains from keep_dish_ids: {[d.name for d in keep_mains]}")
+
+        # === 確定枠の初期化 ===
+        # keep_dish_ids の料理は条件チェックなしで最初に配置
+        fixed_staples: dict[int, dict[str, Dish]] = {d: {} for d in range(1, days + 1)}
+        fixed_mains: dict[int, dict[str, Dish]] = {d: {} for d in range(1, days + 1)}
+
+        # keep_staples を確定枠に配置（条件チェックなし、順番に空きスロットへ）
+        staple_idx = 0
+        for day in range(1, days + 1):
+            for meal in enabled_meals:
+                if staple_idx >= len(keep_staples):
+                    break
+                fixed_staples[day][meal] = keep_staples[staple_idx]
+                logger.info(f"Fixed staple: {keep_staples[staple_idx].name} -> day {day} {meal}")
+                staple_idx += 1
+            if staple_idx >= len(keep_staples):
+                break
+
+        # keep_mains を確定枠に配置（条件チェックなし、順番に空きスロットへ）
+        main_idx = 0
+        for day in range(1, days + 1):
+            for meal in enabled_meals:
+                if main_idx >= len(keep_mains):
+                    break
+                # 確定主食が「主食・主菜」の場合はスキップ（主菜枠がない）
+                fixed_staple = fixed_staples.get(day, {}).get(meal)
+                if fixed_staple and fixed_staple.category == DishCategoryEnum.STAPLE_MAIN:
+                    continue
+                fixed_mains[day][meal] = keep_mains[main_idx]
+                logger.info(f"Fixed main: {keep_mains[main_idx].name} -> day {day} {meal}")
+                main_idx += 1
+            if main_idx >= len(keep_mains):
+                break
+
+        # 配置できなかった料理があれば警告
+        if staple_idx < len(keep_staples):
+            unplaced = [d.name for d in keep_staples[staple_idx:]]
+            logger.warning(f"Could not place all keep_staples: {unplaced}")
+        if main_idx < len(keep_mains):
+            unplaced = [d.name for d in keep_mains[main_idx:]]
+            logger.warning(f"Could not place all keep_mains: {unplaced}")
+
+        # Phase 1: 主食スケジューリング（確定枠以外を埋める）
         logger.info("Phase 1: Scheduling staples")
         staples = scheduler.schedule_staples(
-            available_dishes, days, enabled_meals, household_type, meal_settings
+            available_dishes, days, enabled_meals, household_type, meal_settings, variety_level
         )
+        # 確定枠で上書き
+        for day in fixed_staples:
+            for meal in fixed_staples[day]:
+                staples[day][meal] = fixed_staples[day][meal]
 
-        # Phase 2: 主菜スケジューリング
+        # Phase 2: 主菜スケジューリング（確定枠以外を埋める）
         logger.info("Phase 2: Scheduling mains")
         mains = scheduler.schedule_mains(
             available_dishes, days, enabled_meals, staples,
             household_type, excluded_dish_ids, variety_level
         )
+        # 確定枠で上書き
+        for day in fixed_mains:
+            for meal in fixed_mains[day]:
+                mains[day][meal] = fixed_mains[day][meal]
 
         # Phase 3: 副菜・汁物を最適化
         logger.info("Phase 3: Optimizing sides and soups")
@@ -694,15 +759,20 @@ class PuLPSolver:
 
         if min_achievement < 85:
             logger.info("Achievement rate too low, retrying with different mains")
-            # 使用した主菜を除外して再試行
+            # 使用した主菜を除外して再試行（ただし確定枠は除外しない）
+            fixed_main_ids = {d.id for day in fixed_mains for d in fixed_mains[day].values()}
             used_main_ids = {
                 mains[d][m].id for d in mains for m in mains[d]
-                if mains[d][m] is not None
+                if mains[d][m] is not None and mains[d][m].id not in fixed_main_ids
             }
             mains_retry = scheduler.schedule_mains(
                 available_dishes, days, enabled_meals, staples,
-                household_type, excluded_dish_ids | used_main_ids
+                household_type, excluded_dish_ids | used_main_ids, variety_level
             )
+            # 確定枠で上書き
+            for day in fixed_mains:
+                for meal in fixed_mains[day]:
+                    mains_retry[day][meal] = fixed_mains[day][meal]
             result_retry = self._optimize_sides_staged(
                 available_dishes, days, people, target,
                 staples, mains_retry, enabled_meals, meal_settings,

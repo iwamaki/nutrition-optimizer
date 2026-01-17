@@ -4,13 +4,11 @@ import '../../../../domain/entities/dish.dart';
 import '../../../providers/settings_provider.dart';
 import '../generate_modal_controller.dart';
 
-/// 料理カテゴリ（主食はStep1で設定するため除外）
+/// 料理カテゴリ（主菜と主食・主菜のみ選択可能）
+/// 副菜・汁物・デザートは自動最適化に任せる
 const dishCategories = [
   {'name': '主菜', 'colorValue': 0xFFFFEBEE, 'textColorValue': 0xFFC62828},
   {'name': '主食・主菜', 'colorValue': 0xFFFFF3E0, 'textColorValue': 0xFFE65100},
-  {'name': '副菜', 'colorValue': 0xFFE8F5E9, 'textColorValue': 0xFF2E7D32},
-  {'name': '汁物', 'colorValue': 0xFFE3F2FD, 'textColorValue': 0xFF1565C0},
-  {'name': 'デザート', 'colorValue': 0xFFFCE4EC, 'textColorValue': 0xFFC2185B},
 ];
 
 /// Step1: お気に入り料理

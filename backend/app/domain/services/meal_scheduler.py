@@ -135,6 +135,7 @@ class MealScheduler:
         meals: list[str],
         household_type: str = "single",
         meal_settings: Optional[dict] = None,
+        variety_level: str = "normal",
     ) -> dict[int, dict[str, Optional[Dish]]]:
         """Phase 1: 主食のスケジューリング
 
@@ -144,6 +145,7 @@ class MealScheduler:
         - 麺は連続しない
         - 一人暮らしは簡便性重視
         - staple_typeが指定されている場合はそれに従う
+        - variety_level=small: 同じ主食を繰り返す
 
         Args:
             dishes: 主食カテゴリの料理リスト
@@ -151,6 +153,7 @@ class MealScheduler:
             meals: 食事タイプリスト ["breakfast", "lunch", "dinner"]
             household_type: 世帯タイプ（"single", "couple", "family"）
             meal_settings: 朝昼夜別の設定 {meal: {staple_type: "rice"|"bread"|"noodle"|"auto"}}
+            variety_level: 多様性レベル（small/normal/large）
 
         Returns:
             {day: {meal: Dish or None}} の形式
@@ -175,6 +178,8 @@ class MealScheduler:
 
         schedule: dict[int, dict[str, Optional[Dish]]] = {}
         last_type: Optional[str] = None
+        # variety_level=small: 同じ料理を繰り返すため、食事タイプ別に固定
+        fixed_staples: dict[str, Optional[Dish]] = {}
 
         for day in range(1, days + 1):
             schedule[day] = {}
@@ -184,16 +189,27 @@ class MealScheduler:
                 if meal_settings and meal in meal_settings:
                     staple_type_setting = meal_settings[meal].get("staple_type", "auto")
 
+                # variety_level=small で自動選択の場合、一度選んだ主食を繰り返す
+                if variety_level == "small" and staple_type_setting in (None, "auto"):
+                    if meal in fixed_staples:
+                        schedule[day][meal] = fixed_staples[meal]
+                        continue
+
                 dish = self._select_staple_for_meal(
                     meal, day, last_type,
                     rice_dishes, bread_dishes, noodle_dishes,
                     household_type, staple_type_setting
                 )
                 schedule[day][meal] = dish
+
+                # variety_level=small: 選んだ料理を固定
+                if variety_level == "small" and staple_type_setting in (None, "auto"):
+                    fixed_staples[meal] = dish
+
                 if dish:
                     last_type = get_staple_type(dish)
 
-        logger.info(f"Scheduled staples for {days} days, {len(meals)} meals/day")
+        logger.info(f"Scheduled staples for {days} days, {len(meals)} meals/day (variety={variety_level})")
         return schedule
 
     def _select_staple_for_meal(
@@ -336,12 +352,18 @@ class MealScheduler:
             else:
                 dishes_without_protein.append(dish)
 
+        # たんぱく源不明の料理も "other" として扱う
+        if dishes_without_protein:
+            dishes_by_protein["other"] = dishes_without_protein
+
         logger.info(f"Main dishes by protein: {[(k, len(v)) for k, v in dishes_by_protein.items()]}")
 
         schedule: dict[int, dict[str, Optional[Dish]]] = {}
         protein_index = 0
         recent_proteins: list[str] = []  # 直近のたんぱく源（連続回避用）
         used_dishes: dict[int, int] = {}  # {dish_id: last_used_day} 使用日を追跡
+        # variety_level=small: 食事タイプ別に料理を固定（繰り返し優先）
+        fixed_mains: dict[str, Optional[Dish]] = {}
 
         # variety_levelによるパラメータ調整
         # small: 作り置き重視（同じ料理を繰り返す、ローテーションなし）
@@ -367,28 +389,38 @@ class MealScheduler:
                     logger.debug(f"Day {day} {meal}: Skipping main (staple is {staple.name})")
                     continue
 
+                # variety_level=small: 一度選んだ料理を固定して繰り返す
+                if variety_level == "small" and meal in fixed_mains:
+                    schedule[day][meal] = fixed_mains[meal]
+                    logger.debug(f"Day {day} {meal}: Reusing fixed main {fixed_mains[meal].name}")
+                    continue
+
                 # その日使用可能な料理（作り置き期間考慮）
                 available_dishes = set()
+                preferred_dishes = set()  # variety_level=small時の優先再利用料理
                 for d in main_dishes:
                     if d.id not in used_dishes:
                         available_dishes.add(d.id)
                     else:
                         last_day = used_dishes[d.id]
-                        # storage_daysを考慮: 作り置き可能なら繰り返しOK
-                        if variety_level == "small" and d.storage_days > 0:
-                            if day <= last_day + d.storage_days:
-                                available_dishes.add(d.id)
+                        if variety_level == "small":
+                            # small: 使用済み料理を優先的に繰り返す
+                            available_dishes.add(d.id)
+                            preferred_dishes.add(d.id)  # 使用済みは全て優先対象
                         elif day - last_day > reuse_gap:
                             available_dishes.add(d.id)
 
                 # 朝食は主菜なし or 軽め
                 if meal == "breakfast":
                     breakfast_main = self._select_breakfast_main(
-                        main_dishes, dishes_by_protein, available_dishes, variety_level
+                        main_dishes, dishes_by_protein, available_dishes, preferred_dishes, variety_level
                     )
                     schedule[day][meal] = breakfast_main
                     if breakfast_main:
                         used_dishes[breakfast_main.id] = day
+                        # variety_level=small: 固定
+                        if variety_level == "small":
+                            fixed_mains[meal] = breakfast_main
                     continue
 
                 # 昼・夜: たんぱく源ローテーション
@@ -399,11 +431,15 @@ class MealScheduler:
                     protein_index,
                     recent_proteins,
                     available_dishes,
+                    preferred_dishes,
                     household_type,
                     protein_history_len,
                 )
 
                 schedule[day][meal] = dish
+                # variety_level=small: 選んだ料理を固定
+                if variety_level == "small" and dish:
+                    fixed_mains[meal] = dish
                 if dish:
                     protein = get_protein_source(dish)
                     if protein:
@@ -421,6 +457,7 @@ class MealScheduler:
         main_dishes: list[Dish],
         dishes_by_protein: dict[str, list[Dish]],
         available_dish_ids: set[int],
+        preferred_dish_ids: set[int],
         variety_level: str = "normal",
     ) -> Optional[Dish]:
         """朝食用の主菜を選択（軽め）"""
@@ -434,6 +471,11 @@ class MealScheduler:
         ]
 
         if breakfast_mains:
+            # variety_level=small時は優先料理から選択
+            if variety_level == "small" and preferred_dish_ids:
+                preferred = [d for d in breakfast_mains if d.id in preferred_dish_ids]
+                if preferred:
+                    return self._rng.choice(preferred)
             return self._rng.choice(breakfast_mains)
         return None
 
@@ -446,6 +488,7 @@ class MealScheduler:
         protein_index: int,
         recent_proteins: list[str],
         available_dish_ids: set[int],
+        preferred_dish_ids: set[int],
         household_type: str,
         protein_history_len: int = 2,
     ) -> Optional[Dish]:
@@ -460,7 +503,33 @@ class MealScheduler:
 
         # protein_history_len=0: ローテーションなし（作り置き重視）
         if protein_history_len == 0:
-            # 相性の良い料理から選択（たんぱく源は問わない）
+            logger.debug(f"Day {day} {meal}: preferred_dish_ids={preferred_dish_ids}, compatible_flavors={compatible_flavors}")
+            # 優先料理（作り置き中の料理）があればそれを最優先で選択
+            if preferred_dish_ids:
+                preferred_candidates = []
+                for protein, dish_list in dishes_by_protein.items():
+                    preferred_candidates.extend([
+                        d for d in dish_list
+                        if d.id in preferred_dish_ids
+                        and d.flavor_profile in compatible_flavors
+                        and meal in [mt.value for mt in d.meal_types]
+                    ])
+                logger.debug(f"  preferred_candidates (with flavor): {[d.name for d in preferred_candidates]}")
+                # 相性を無視しても優先料理から選択
+                if not preferred_candidates:
+                    for protein, dish_list in dishes_by_protein.items():
+                        preferred_candidates.extend([
+                            d for d in dish_list
+                            if d.id in preferred_dish_ids
+                            and meal in [mt.value for mt in d.meal_types]
+                        ])
+                    logger.debug(f"  preferred_candidates (without flavor): {[d.name for d in preferred_candidates]}")
+                if preferred_candidates:
+                    selected = self._rng.choice(preferred_candidates)
+                    logger.debug(f"  selected from preferred: {selected.name}")
+                    return selected
+
+            # 優先料理がなければ、available から選択
             candidates = []
             for protein, dish_list in dishes_by_protein.items():
                 candidates.extend([
