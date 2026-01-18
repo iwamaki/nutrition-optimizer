@@ -1,11 +1,12 @@
 import '../domain/entities/dish.dart';
+import 'unit_converter.dart';
 
 /// レシピの手順に含まれるプレースホルダーを置換するユーティリティ
 class RecipeFormatter {
   /// レシピの手順文字列内のプレースホルダーを置換
   ///
   /// プレースホルダー形式: {{ingredient:食材名}}
-  /// 例: "{{ingredient:木綿豆腐}}は1cm角に切る" → "木綿豆腐60gは1cm角に切る"（2人前の場合）
+  /// 例: "{{ingredient:木綿豆腐}}は1cm角に切る" → "木綿豆腐1/2丁は1cm角に切る"（2人前の場合）
   static String formatStep(
     String step,
     List<DishIngredient> ingredients,
@@ -23,7 +24,8 @@ class RecipeFormatter {
       }
 
       final scaledAmount = ing.amount * servings;
-      return '$name${_formatAmount(scaledAmount)}';
+      final formattedAmount = UnitConverter.formatAmount(name, scaledAmount);
+      return '$name$formattedAmount';
     });
   }
 
@@ -47,14 +49,6 @@ class RecipeFormatter {
     }
 
     return null;
-  }
-
-  /// 分量を表示用にフォーマット
-  static String _formatAmount(double amount) {
-    if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}kg';
-    }
-    return '${amount.toStringAsFixed(0)}g';
   }
 
   /// 複数の手順を一括で変換

@@ -190,6 +190,9 @@ class IngredientDB(Base):
     # アレルゲン情報（カンマ区切り）
     allergens_required = Column(String, nullable=True)     # 特定原材料8品目（表示義務）: 卵,乳,小麦,えび,かに,くるみ,落花生,そば
     allergens_recommended = Column(String, nullable=True)  # 準特定原材料20品目（表示推奨）: 大豆,鶏肉,豚肉,牛肉,さけ,さば,いか,etc.
+    # 単位変換情報
+    unit_g = Column(Float, nullable=True)                  # 1単位あたりのグラム数（調味料は大さじ1のg）
+    unit_name = Column(String, nullable=True)              # 単位名（本,個,枚,大さじ等）
 
     # リレーション
     dish_ingredients = relationship("DishIngredientDB", back_populates="ingredient")

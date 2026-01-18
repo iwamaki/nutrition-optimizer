@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.domain.entities.dish import Dish, DishIngredient, RecipeDetails
 from app.domain.entities.enums import DishCategoryEnum, MealTypeEnum, CookingMethodEnum
 from app.domain.interfaces.dish_repository import DishRepositoryInterface
+from app.domain.services.unit_converter import UnitConverter
 from app.infrastructure.database.models import DishDB
 from app.data.loader import get_recipe_details
 
@@ -156,6 +157,15 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
                 ing_db.ingredient.name if ing_db.ingredient
                 else (ing_db.food.name if ing_db.food else None)
             )
+
+            # DBの単位情報を使って単位変換を適用
+            unit_converter = UnitConverter()
+            unit_g = ing_db.ingredient.unit_g if ing_db.ingredient else None
+            unit_name = ing_db.ingredient.unit_name if ing_db.ingredient else None
+            display_amount, unit = unit_converter.convert_with_db_unit(
+                ing_db.amount, unit_g, unit_name
+            )
+
             ingredients.append(
                 DishIngredient(
                     food_id=ing_db.food_id,
@@ -163,6 +173,8 @@ class SQLAlchemyDishRepository(DishRepositoryInterface):
                     ingredient_id=ing_db.ingredient_id,
                     ingredient_name=ing_db.ingredient.name if ing_db.ingredient else None,
                     amount=ing_db.amount,
+                    display_amount=display_amount,
+                    unit=unit,
                     cooking_method=cooking_method,
                 )
             )

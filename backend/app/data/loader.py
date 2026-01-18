@@ -317,11 +317,11 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
     """基本食材マスタCSVを読み込み
 
     CSVフォーマット:
-    id,name,category,mext_code,emoji,allergens_required,allergens_recommended
-    1,米,穀類,01088,🍚,,
-    61,卵,卵類,12004,🥚,卵,
-    64,牛乳,乳類,13003,🥛,乳,
-    39,豆腐,豆類,04032,🧈,,大豆
+    id,name,category,mext_code,emoji,allergens_required,allergens_recommended,unit_g,unit_name
+    1,米,穀類,01088,🍚,,,150,合
+    61,卵,卵類,12004,🥚,卵,,50,個
+    64,牛乳,乳類,13003,🥛,乳,,200,ml
+    39,豆腐,豆類,04032,🧈,,大豆,350,丁
 
     allergens_required: 特定原材料8品目（表示義務）
         卵,乳,小麦,えび,かに,くるみ,落花生,そば
@@ -329,6 +329,8 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
         大豆,鶏肉,豚肉,牛肉,さけ,さば,いか,いくら,あわび,オレンジ,
         キウイフルーツ,バナナ,もも,りんご,やまいも,ごま,カシューナッツ,
         アーモンド,ゼラチン,マカダミアナッツ
+    unit_g: 1単位あたりのグラム数（調味料は大さじ1のg）
+    unit_name: 単位名（本,個,枚,大さじ等）
     """
     if not csv_path.exists():
         print(f"基本食材マスタが見つかりません: {csv_path}")
@@ -350,6 +352,10 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
             if existing:
                 continue
 
+            # unit_gを数値に変換
+            unit_g_str = row.get("unit_g", "").strip()
+            unit_g = float(unit_g_str) if unit_g_str else None
+
             ingredient = IngredientDB(
                 id=ingredient_id,
                 name=name,
@@ -358,6 +364,8 @@ def load_ingredients_from_csv(csv_path: Path, db: Session, clear_existing: bool 
                 emoji=row.get("emoji", "").strip(),
                 allergens_required=row.get("allergens_required", "").strip() or None,
                 allergens_recommended=row.get("allergens_recommended", "").strip() or None,
+                unit_g=unit_g,
+                unit_name=row.get("unit_name", "").strip() or None,
             )
             db.add(ingredient)
             count += 1
