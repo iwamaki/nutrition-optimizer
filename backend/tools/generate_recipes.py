@@ -18,6 +18,9 @@
   # 特定の料理のみ（名前指定）
   python tools/generate_recipes.py --name "親子丼"
 
+  # 全レシピを強制再生成（プレースホルダー形式への移行用）
+  python tools/generate_recipes.py --all --force
+
 環境変数:
   GEMINI_API_KEY: Google AI Studio APIキー
 """
@@ -33,10 +36,8 @@ from pathlib import Path
 # プロジェクトルートをパスに追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.services.recipe_generator import (
-    generate_recipe_detail,
-    load_recipe_details,
-    simplify_food_name,
+from app.infrastructure.external.gemini_recipe_generator import (
+    get_recipe_generator,
     GEMINI_AVAILABLE,
 )
 
@@ -55,21 +56,6 @@ def load_dishes(csv_path: Path) -> list[dict]:
     return dishes
 
 
-def parse_ingredients(ingredients_str: str) -> list[dict]:
-    """材料文字列をパース"""
-    ingredients = []
-    if not ingredients_str:
-        return ingredients
-    for item in ingredients_str.split("|"):
-        parts = item.split(":")
-        if len(parts) >= 2:
-            ingredients.append({
-                "name": parts[0].strip(),
-                "amount": parts[1].strip(),
-            })
-    return ingredients
-
-
 def get_missing_recipes(dishes: list[dict], existing: dict) -> list[dict]:
     """未登録のレシピを取得"""
     missing = []
@@ -80,6 +66,36 @@ def get_missing_recipes(dishes: list[dict], existing: dict) -> list[dict]:
     return missing
 
 
+def load_food_names(data_dir: Path) -> dict[str, str]:
+    """食材IDと名前の対応表を読み込み"""
+    food_names = {}
+    ingredients_csv = data_dir / "app_ingredients.csv"
+    if ingredients_csv.exists():
+        with open(ingredients_csv, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                food_names[row["id"]] = row["name"]
+    return food_names
+
+
+def parse_ingredients_with_names(ingredients_str: str, food_names: dict[str, str]) -> list[dict]:
+    """材料文字列をパースして食材名を付与"""
+    ingredients = []
+    if not ingredients_str:
+        return ingredients
+    for item in ingredients_str.split("|"):
+        parts = item.split(":")
+        if len(parts) >= 2:
+            food_id = parts[0].strip()
+            amount = parts[1].strip()
+            name = food_names.get(food_id, f"食材{food_id}")
+            ingredients.append({
+                "name": name,
+                "amount": amount,
+            })
+    return ingredients
+
+
 def main():
     parser = argparse.ArgumentParser(description="レシピ詳細をバッチ生成")
     parser.add_argument("-c", "--category", help="カテゴリで絞り込み")
@@ -87,6 +103,9 @@ def main():
     parser.add_argument("--name", help="特定の料理名を指定")
     parser.add_argument("--dry-run", action="store_true", help="生成せずに確認のみ")
     parser.add_argument("--delay", type=float, default=1.0, help="APIリクエスト間隔（秒）")
+    parser.add_argument("--force", action="store_true", help="既存レシピを上書き再生成")
+    parser.add_argument("--all", action="store_true", help="全レシピを対象にする（--forceと併用）")
+    parser.add_argument("-y", "--yes", action="store_true", help="確認をスキップ")
     args = parser.parse_args()
 
     # APIキー確認
@@ -102,7 +121,9 @@ def main():
 
     # データ読み込み
     dishes = load_dishes(DISHES_CSV)
-    existing = load_recipe_details()
+    generator = get_recipe_generator()
+    existing = generator._recipe_details
+    food_names = load_food_names(DATA_DIR)
 
     print(f"料理マスタ: {len(dishes)} 件")
     print(f"レシピ詳細: {len(existing) - 1} 件（_schemaを除く）")
@@ -118,27 +139,46 @@ def main():
             print(f"エラー: 料理 '{args.name}' が見つかりません")
             sys.exit(1)
 
-    # 未登録を抽出
-    missing = get_missing_recipes(dishes, existing)
-    print(f"未登録: {len(missing)} 件")
+    # 対象を決定
+    if args.all or args.force:
+        # 全レシピを対象（--all または --force）
+        target = dishes
+        if args.all:
+            print(f"対象: 全 {len(target)} 件")
+        else:
+            print(f"対象: {len(target)} 件（--force: 既存も再生成）")
+    else:
+        # 未登録のみ
+        target = get_missing_recipes(dishes, existing)
+        print(f"未登録: {len(target)} 件")
 
-    if not missing:
-        print("\n全てのレシピ詳細が登録済みです")
+    if not target:
+        print("\n生成対象のレシピがありません")
         return
 
     # 件数制限
     if args.limit:
-        missing = missing[:args.limit]
-        print(f"生成対象: {len(missing)} 件（--limit）")
+        target = target[:args.limit]
+        print(f"生成対象: {len(target)} 件（--limit）")
 
     # 対象一覧を表示
     print("\n--- 対象レシピ ---")
-    for i, dish in enumerate(missing, 1):
-        print(f"  {i}. {dish['name']} ({dish.get('category', '?')})")
+    for i, dish in enumerate(target, 1):
+        name = dish['name']
+        status = "（既存）" if name in existing else "（新規）"
+        print(f"  {i}. {name} ({dish.get('category', '?')}) {status}")
 
     if args.dry_run:
         print("\n（ドライラン: 実際の生成は行いません）")
         return
+
+    # 確認プロンプト（--all --force の場合、-y でスキップ可能）
+    if args.all and args.force and len(target) > 5 and not args.yes:
+        print(f"\n⚠️  {len(target)} 件のレシピを再生成します。よろしいですか？ [y/N] ", end="")
+        confirm = input().strip().lower()
+        if confirm != 'y':
+            print("キャンセルしました")
+            return
 
     print(f"\n--- 生成開始 ---")
 
@@ -146,31 +186,36 @@ def main():
     success = 0
     failed = []
 
-    for i, dish in enumerate(missing, 1):
+    for i, dish in enumerate(target, 1):
         name = dish["name"]
         category = dish.get("category", "")
-        ingredients = parse_ingredients(dish.get("ingredients", ""))
+        ingredients = parse_ingredients_with_names(dish.get("ingredients", ""), food_names)
         hint = dish.get("instructions", "")
 
-        print(f"[{i}/{len(missing)}] {name}... ", end="", flush=True)
+        print(f"[{i}/{len(target)}] {name}... ", end="", flush=True)
 
-        result = generate_recipe_detail(
-            dish_name=name,
-            category=category,
-            ingredients=ingredients,
-            hint=hint,
-            save=True,
-        )
+        try:
+            result = generator.generate_recipe_detail(
+                dish_name=name,
+                category=category,
+                ingredients=ingredients,
+                hint=hint,
+                save=True,
+                force=args.force,
+            )
 
-        if result:
-            print("OK")
-            success += 1
-        else:
-            print("NG")
+            if result:
+                print("OK")
+                success += 1
+            else:
+                print("NG")
+                failed.append(name)
+        except Exception as e:
+            print(f"NG ({e})")
             failed.append(name)
 
         # APIレート制限を考慮
-        if i < len(missing):
+        if i < len(target):
             time.sleep(args.delay)
 
     # 結果サマリ

@@ -425,7 +425,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (context) => DishDetailModal(dish: portion.dish),
+      builder: (context) => DishDetailModal(
+        dish: portion.dish,
+        servings: portion.servings,
+      ),
     );
   }
 }

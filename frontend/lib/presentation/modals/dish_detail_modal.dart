@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/dish.dart';
+import '../../utils/recipe_formatter.dart';
 import '../providers/settings_provider.dart';
 import '../../data/datasources/api_service.dart';
 
 /// 料理詳細モーダル（Riverpod版）
 class DishDetailModal extends ConsumerStatefulWidget {
   final Dish dish;
+  final double servings;
 
-  const DishDetailModal({super.key, required this.dish});
+  const DishDetailModal({
+    super.key,
+    required this.dish,
+    this.servings = 1.0,
+  });
 
   @override
   ConsumerState<DishDetailModal> createState() => _DishDetailModalState();
@@ -300,6 +306,7 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
 
   Widget _buildIngredients() {
     final ingredients = widget.dish.ingredients;
+    final servings = widget.servings;
 
     return Card(
       child: Padding(
@@ -307,9 +314,30 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '材料',
-              style: Theme.of(context).textTheme.titleSmall,
+            Row(
+              children: [
+                Text(
+                  '材料',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (servings != 1.0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${servings.toStringAsFixed(servings % 1 == 0 ? 0 : 1)}人前',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 12),
             if (ingredients.isEmpty)
@@ -326,7 +354,7 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                         const SizedBox(width: 8),
                         Expanded(child: Text(ing.foodName ?? '食材')),
                         Text(
-                          ing.amountDisplay,
+                          _formatScaledAmount(ing, servings),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
@@ -339,6 +367,38 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
         ),
       ),
     );
+  }
+
+  /// 人数に応じてスケールした分量を表示形式に変換
+  String _formatScaledAmount(DishIngredient ing, double servings) {
+    final scaledAmount = ing.amount * servings;
+
+    // 単位がg, kg, ml, Lの場合は重量のみ
+    if (ing.unit == 'g' || ing.unit == 'kg' || ing.unit == 'ml' || ing.unit == 'L') {
+      if (scaledAmount >= 1000) {
+        return '${(scaledAmount / 1000).toStringAsFixed(1)}kg';
+      }
+      return '${scaledAmount.toStringAsFixed(0)}${ing.unit}';
+    }
+
+    // それ以外は「2本 (300g)」のような形式
+    final gramDisplay = scaledAmount >= 1000
+        ? '${(scaledAmount / 1000).toStringAsFixed(1)}kg'
+        : '${scaledAmount.toStringAsFixed(0)}g';
+
+    // displayAmountも人数倍にする（"1" -> "2"など）
+    String scaledDisplayAmount = ing.displayAmount;
+    if (ing.displayAmount.isNotEmpty) {
+      final numMatch = RegExp(r'^(\d+(?:\.\d+)?)(.*)$').firstMatch(ing.displayAmount);
+      if (numMatch != null) {
+        final num = double.tryParse(numMatch.group(1)!) ?? 1;
+        final suffix = numMatch.group(2) ?? '';
+        final scaledNum = num * servings;
+        scaledDisplayAmount = '${scaledNum.toStringAsFixed(scaledNum % 1 == 0 ? 0 : 1)}$suffix';
+      }
+    }
+
+    return '$scaledDisplayAmount${ing.unit} ($gramDisplay)';
   }
 
   Widget _buildRecipeSteps() {
@@ -385,7 +445,14 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                 style: TextStyle(color: Theme.of(context).colorScheme.outline),
               )
             else
-              ...steps.asMap().entries.map((entry) => Padding(
+              ...steps.asMap().entries.map((entry) {
+                // プレースホルダーを人数に応じた分量に置換
+                final formattedStep = RecipeFormatter.formatStep(
+                  entry.value,
+                  widget.dish.ingredients,
+                  widget.servings,
+                );
+                return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,10 +476,11 @@ class _DishDetailModalState extends ConsumerState<DishDetailModal> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(child: Text(entry.value)),
+                        Expanded(child: Text(formattedStep)),
                       ],
                     ),
-                  )),
+                  );
+              }),
             if (_recipeDetails?.tips != null) ...[
               const Divider(),
               Row(

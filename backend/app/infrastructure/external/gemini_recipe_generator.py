@@ -194,24 +194,59 @@ class GeminiRecipeGenerator:
         hint: str = ""
     ) -> str:
         """レシピ生成用プロンプトを構築"""
-        prompt = f"""以下の料理について、詳細なレシピをJSON形式で生成してください。
-
-## 料理名
-{dish_name}（{category}）
-
-## 材料（1人前）
-"""
+        # 食材リストを整形
+        ingredient_lines = []
         for ing in ingredients:
             simple_name = self._simplify_food_name(ing.get("name", ""))
             amount = ing.get("amount", "")
-            prompt += f"- {simple_name}: {amount}g\n"
+            ingredient_lines.append(f"- {simple_name}: {amount}g")
+        ingredients_text = "\n".join(ingredient_lines)
 
+        prompt = f"""家庭で作る「{dish_name}」のレシピを作成してください。
+
+【料理情報】
+- 料理名: {dish_name}
+- カテゴリ: {category}
+- 分量: 1人前
+
+【材料】
+{ingredients_text}
+"""
         if hint:
-            prompt += f"\n## 参考\n{hint}\n"
+            prompt += f"\n【参考情報】\n{hint}\n"
 
         prompt += f"""
-## 出力フォーマット
-以下のJSON形式のみを出力してください。説明文は不要です。
+【レシピの書き方ガイドライン】
+
+■ 文体
+- 簡潔で読みやすい文章（1手順1〜2文程度）
+- 「〜する」「〜します」の丁寧語で統一
+- 専門用語は避け、一般的な言葉で説明
+
+■ 手順の書き方
+- 各手順は1つの作業に集中（複数の作業を詰め込まない）
+- 火加減（強火/中火/弱火）と時間の目安を必ず記載
+- 「〜になったら」「〜が出てきたら」など、完了の目安を具体的に
+- 5〜7ステップ程度に収める
+
+■ 分量の記述（重要）
+手順内で食材に言及する際は、必ず以下のプレースホルダー形式を使用してください：
+  {{{{ingredient:食材名}}}}
+
+このプレースホルダーは表示時に「食材名＋分量」に自動変換されます。
+例:
+- 「{{{{ingredient:豆腐}}}}を1cm角に切ります」→「豆腐150gを1cm角に切ります」
+- 「{{{{ingredient:にんじん}}}}は千切りにします」→「にんじん30gは千切りにします」
+
+※食材名は上記【材料】の名前をそのまま使用してください
+※調味料（醤油、みりん等）は材料リストにない場合、具体的な分量（大さじ1など）で記載してOK
+
+■ tipsの書き方
+- 1〜2文で簡潔に
+- 美味しく作るための実用的なコツを1つ
+
+【出力形式】
+以下のJSON形式のみを出力してください。説明文や前置きは不要です。
 
 ```json
 {{
@@ -220,20 +255,13 @@ class GeminiRecipeGenerator:
     "cook_time": 調理時間（分・整数）,
     "servings": 1,
     "steps": [
-      "手順1",
-      "手順2"
+      "手順1の文章",
+      "手順2の文章"
     ],
-    "tips": "コツ・ポイント"
+    "tips": "コツを1〜2文で"
   }}
 }}
-```
-
-## 注意事項
-- 手順は具体的に、初心者でもわかるように
-- 火加減（強火/中火/弱火）や時間の目安を含める
-- 材料の下処理も手順に含める
-- 5〜8ステップ程度で簡潔に
-"""
+```"""
         return prompt
 
     def _simplify_food_name(self, name: str) -> str:
