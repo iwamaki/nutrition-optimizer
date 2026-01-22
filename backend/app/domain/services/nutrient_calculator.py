@@ -84,10 +84,9 @@ class NutrientCalculator:
                     achievement[n] = 100
             else:
                 # その他は下限目標（高いほど良い）
+                # _min を100%達成の基準とする（推奨量達成 = 100%）
                 if hasattr(target, f"{n}_min"):
-                    min_val = getattr(target, f"{n}_min")
-                    max_val = getattr(target, f"{n}_max", min_val * 1.5)
-                    target_val = (min_val + max_val) / 2
+                    target_val = getattr(target, f"{n}_min")
                 else:
                     target_val = 0
 
@@ -149,13 +148,11 @@ class NutrientCalculator:
         return warnings
 
     def _get_target_value(self, target: NutrientTarget, nutrient: str) -> float:
-        """栄養素の目標値を取得"""
+        """栄養素の目標値を取得（_min を基準とする）"""
         if nutrient == "sodium":
             return target.sodium_max
 
         if hasattr(target, f"{nutrient}_min"):
-            min_val = getattr(target, f"{nutrient}_min")
-            max_val = getattr(target, f"{nutrient}_max", min_val * 1.5)
-            return (min_val + max_val) / 2
+            return getattr(target, f"{nutrient}_min")
 
         return 0

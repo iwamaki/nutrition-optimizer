@@ -23,7 +23,7 @@ except ImportError:
     print("pip install google-generativeai")
     sys.exit(1)
 
-# 調味料ID（app_ingredients.csvと対応）
+# 調味料（app_ingredients.csvと対応）
 SEASONINGS = {
     "醤油": 134,
     "みりん": 135,
@@ -44,6 +44,7 @@ SEASONINGS = {
     "豆板醤": 150,
     "コンソメ": 151,
     "バター": 123,  # 乳類カテゴリだが調味料としても使用
+    "味噌": 74,     # 調味料として追加
 }
 
 # 食材ID→名前マッピング（主要なもの）
@@ -65,9 +66,11 @@ def parse_ingredients(ingredients_str: str) -> list[str]:
     for part in ingredients_str.split("|"):
         if not part:
             continue
-        food_id = int(part.split(":")[0])
-        if food_id in INGREDIENT_NAMES:
-            names.append(INGREDIENT_NAMES[food_id])
+        # 食材名:量:調理法 の形式
+        name = part.split(":")[0]
+        # 調味料は除外（食材のみ抽出）
+        if name not in SEASONINGS:
+            names.append(name)
     return names
 
 
@@ -90,19 +93,20 @@ def build_prompt_batch(dishes: list[dict]) -> str:
 【料理一覧】
 {dishes_text}
 【使用可能な調味料】
-醤油, みりん, 砂糖, 塩, 酢, サラダ油, マヨネーズ, ケチャップ, ソース, 料理酒, ごま油, オリーブ油, こしょう, めんつゆ, ポン酢, オイスターソース, 豆板醤, コンソメ, バター
+醤油, みりん, 砂糖, 塩, 酢, サラダ油, マヨネーズ, ケチャップ, ソース, 料理酒, ごま油, オリーブ油, こしょう, めんつゆ, ポン酢, オイスターソース, 豆板醤, コンソメ, バター, 味噌
 
 【分量の考え方】
 - 1人前の分量で回答
 - 照り焼きや生姜焼きのタレは、しっかり絡む量（醤油・みりん各大さじ1〜1.5程度）
 - 煮物の煮汁は、具材が浸る程度
-- 炒め物の油は、フライパン全体に回る量
+- 炒め物の油は、フライパン全体に回る量（大さじ1程度）
 - 下味の酒は、肉や魚に馴染む量（大さじ1程度）
 - 塩・こしょうの「少々」は控えめでOK
+- 味噌炒めなどは味噌大さじ1程度
 
 【ルール】
 - 調味料が不要な料理（フルーツ、白ごはん等）は空配列
-- 味噌汁の味噌、カレールウは食材に含まれるので不要
+- 味噌汁の味噌、カレールウは「食材」欄に含まれているので調味料として追加不要
 - 分量は「大さじ1」「小さじ2」「少々」の形式
 
 【出力形式】
@@ -160,6 +164,7 @@ SEASONING_GRAMS = {
     "豆板醤": (18, 6),
     "コンソメ": (9, 3),  # 固形1個約5g
     "バター": (12, 4),
+    "味噌": (18, 6),
 }
 
 
@@ -200,7 +205,7 @@ def parse_amount_to_grams(name: str, amount_str: str) -> float:
 
 
 def format_seasonings(seasonings: list[dict]) -> str:
-    """調味料リストをingredients形式に変換"""
+    """調味料リストをingredients形式に変換（食材名形式）"""
     parts = []
     for s in seasonings:
         name = s.get("name", "")
@@ -216,7 +221,8 @@ def format_seasonings(seasonings: list[dict]) -> str:
             amount = float(amount_str) if amount_str else 0
 
         if amount > 0:
-            parts.append(f"{SEASONINGS[name]}:{amount}:生")
+            # 食材名形式: 調味料名:量:生
+            parts.append(f"{name}:{amount}:生")
 
     return "|".join(parts)
 
@@ -254,7 +260,7 @@ def process_dishes(
         for row in reader:
             rows.append(row)
 
-    seasoning_ids = set(SEASONINGS.values())
+    seasoning_names = set(SEASONINGS.keys())
     updated_count = 0
     processed_count = 0
 
@@ -262,8 +268,9 @@ def process_dishes(
     targets = []
     for i, row in enumerate(rows):
         ingredients_str = row["ingredients"]
-        existing_ids = {int(ing.split(":")[0]) for ing in ingredients_str.split("|") if ing}
-        if skip_existing and (existing_ids & seasoning_ids):
+        # 食材名形式: 食材名:量:調理法
+        existing_names = {ing.split(":")[0] for ing in ingredients_str.split("|") if ing}
+        if skip_existing and (existing_names & seasoning_names):
             continue
         targets.append((i, row))
 
@@ -323,10 +330,16 @@ def process_dishes(
                 else:
                     seasonings_str = format_seasonings(seasonings)
                     if seasonings_str:
-                        row["ingredients"] = row["ingredients"] + "|" + seasonings_str
+                        # 既存の食材から調味料を除去し、新しい調味料を追加
+                        ingredients_parts = row["ingredients"].split("|")
+                        non_seasoning_parts = [
+                            p for p in ingredients_parts
+                            if p and p.split(":")[0] not in SEASONINGS
+                        ]
+                        row["ingredients"] = "|".join(non_seasoning_parts) + "|" + seasonings_str
                         updated_count += 1
-                        seasoning_names = [s["name"] for s in seasonings if s.get("name") in SEASONINGS]
-                        print(f"  [{d['idx']+1}] {name}: + {', '.join(seasoning_names)}", flush=True)
+                        new_seasoning_names = [s["name"] for s in seasonings if s.get("name") in SEASONINGS]
+                        print(f"  [{d['idx']+1}] {name}: {', '.join(new_seasoning_names)}", flush=True)
                     else:
                         print(f"  [{d['idx']+1}] {name}: 調味料なし", flush=True)
 

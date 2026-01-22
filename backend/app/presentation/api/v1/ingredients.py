@@ -27,7 +27,7 @@ def get_ingredients(
 
     フロントエンドの「よく使う食材」選択や買い物リストに使用
     """
-    return use_case.execute(category=category)
+    return use_case.execute(category=category, limit=10000)
 
 
 @router.get("/{ingredient_id}", response_model=Ingredient)

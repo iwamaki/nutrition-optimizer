@@ -423,20 +423,27 @@ def load_dishes_from_csv(csv_path: Path, db: Session, clear_existing: bool = Fal
                         ingredient_errors.append(f"形式エラー: {ing_str}")
                         continue
 
+                    ingredient_key = parts[0].strip()
                     try:
-                        ingredient_id = int(parts[0].strip())
                         amount = float(parts[1].strip())
                     except ValueError:
-                        ingredient_errors.append(f"値が不正: {ing_str}")
+                        ingredient_errors.append(f"分量が不正: {ing_str}")
                         continue
 
                     cooking_method = parts[2].strip()
 
-                    # ingredient_id から IngredientDB を検索して mext_code を取得
-                    ingredient = db.query(IngredientDB).filter(IngredientDB.id == ingredient_id).first()
+                    # 食材を検索（IDまたは名前で）
+                    try:
+                        ingredient_id = int(ingredient_key)
+                        ingredient = db.query(IngredientDB).filter(IngredientDB.id == ingredient_id).first()
+                    except ValueError:
+                        # 名前で検索
+                        ingredient = db.query(IngredientDB).filter(IngredientDB.name == ingredient_key).first()
                     if not ingredient:
-                        ingredient_errors.append(f"食材IDが見つかりません: {ingredient_id}")
+                        ingredient_errors.append(f"食材が見つかりません: {ingredient_key}")
                         continue
+
+                    ingredient_id = ingredient.id
 
                     mext_code = ingredient.mext_code
                     if not mext_code:
